@@ -9,6 +9,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case home
     case shelf
     case focus
+    case notes
     case clips
     case today
 
@@ -19,6 +20,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .home: "Home"
         case .shelf: "Shelf"
         case .focus: "Focus"
+        case .notes: "Notes"
         case .clips: "Clips"
         case .today: "Today"
         }
@@ -29,6 +31,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .home: "waveform"
         case .shelf: "tray.full"
         case .focus: "timer"
+        case .notes: "note.text"
         case .clips: "doc.on.clipboard"
         case .today: "calendar"
         }

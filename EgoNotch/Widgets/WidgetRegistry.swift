@@ -7,9 +7,16 @@ enum WidgetRegistry {
     /// permanent FILE // index (stable even when other widgets are disabled).
     static let all: [any NotchWidget] = [
         MediaWidget(),
+        SystemStatsWidget(),
+        WeatherWidget(),
         ShelfWidget(),
+        FocusWidget(),
+        ClockWidget(),
+        NotesWidget(),
+        TodoWidget(),
+        CalendarWidget(),
         DemoWidget(),
-        // Phase 4+: CalendarWidget(), WeatherWidget(), ...
+        // Phase 5: ClipboardWidget(), MirrorWidget(), LauncherWidget(), ...
     ]
 
     /// True while at least one enabled widget can take file drops.

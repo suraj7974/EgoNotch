@@ -3,8 +3,10 @@ import CoreGraphics
 /// Geometry tunables for the notch panel. User-configurable values are pulled
 /// from SettingsStore at resolve time via `current()`.
 struct NotchConfiguration: Equatable {
-    // Closed chrome hugs the physical notch (user: stock size when collapsed).
-    var wingWidth: CGFloat = 44          // closed-state strip on each side of the notch
+    // Closed chrome: wider than the notch (horizontal presence), exactly the
+    // physical notch's height — any shorter and the hardware cutout peeks
+    // below the chrome, reading as a "double notch".
+    var wingWidth: CGFloat = 50          // closed-state strip on each side of the notch
     var closedExtraHeight: CGFloat = 0
     var topFlareRadius: CGFloat = 8      // outward top curves blending into the bezel
     var closedBottomRadius: CGFloat = 11

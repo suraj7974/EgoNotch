@@ -51,6 +51,36 @@ struct GeneralSettingsTab: View {
                     }
                 }
 
+                SettingsSection(index: 5, title: "Focus Timer") {
+                    Stepper("Focus: \(settings.focusMinutes) min",
+                            value: $settings.focusMinutes, in: 5...120, step: 5)
+                        .font(Ego.font(12))
+                    Stepper("Break: \(settings.breakMinutes) min",
+                            value: $settings.breakMinutes, in: 1...30, step: 1)
+                        .font(Ego.font(12))
+                    Stepper("Deep: \(settings.deepMinutes) min",
+                            value: $settings.deepMinutes, in: 10...180, step: 5)
+                        .font(Ego.font(12))
+                }
+
+                SettingsSection(index: 4, title: "Weather") {
+                    HStack {
+                        Text("City")
+                            .font(Ego.font(11))
+                            .foregroundStyle(Ego.textMute)
+                        TextField("Automatic (location)", text: $settings.weatherCity)
+                            .textFieldStyle(.plain)
+                            .font(Ego.font(12))
+                            .foregroundStyle(Ego.text)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    Text("Leave empty to use your location.")
+                        .font(Ego.font(10))
+                        .foregroundStyle(Ego.textMute)
+                }
+
                 SettingsSection(index: 3, title: "Motion") {
                     HStack {
                         Text("Speed")

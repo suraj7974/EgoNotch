@@ -22,6 +22,10 @@ final class SettingsStore {
         static let virtualNotchH  = "virtualNotch.height"
         static let panelWidth     = "panel.width"          // pt, default 700
         static let panelHeight    = "panel.height"         // pt, default 400
+        static let weatherCity    = "weather.city"         // manual fallback, default ""
+        static let focusMinutes   = "focus.minutes"        // default 25
+        static let breakMinutes   = "focus.breakMinutes"   // default 5
+        static let deepMinutes    = "focus.deepMinutes"    // default 50
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -52,6 +56,18 @@ final class SettingsStore {
             defaults.set(panelHeight, forKey: Key.panelHeight)
             NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
         }
+    }
+    var weatherCity: String {
+        didSet { defaults.set(weatherCity, forKey: Key.weatherCity) }
+    }
+    var focusMinutes: Int {
+        didSet { defaults.set(focusMinutes, forKey: Key.focusMinutes) }
+    }
+    var breakMinutes: Int {
+        didSet { defaults.set(breakMinutes, forKey: Key.breakMinutes) }
+    }
+    var deepMinutes: Int {
+        didSet { defaults.set(deepMinutes, forKey: Key.deepMinutes) }
     }
 
     // MARK: - Per-widget enabled (dynamic keys)
@@ -87,6 +103,10 @@ final class SettingsStore {
             Key.virtualNotchH: 32.0,
             Key.panelWidth: 700.0,
             Key.panelHeight: 400.0,
+            Key.weatherCity: "",
+            Key.focusMinutes: 25,
+            Key.breakMinutes: 5,
+            Key.deepMinutes: 50,
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -95,5 +115,9 @@ final class SettingsStore {
                                   height: defaults.double(forKey: Key.virtualNotchH))
         panelWidth = defaults.double(forKey: Key.panelWidth)
         panelHeight = defaults.double(forKey: Key.panelHeight)
+        weatherCity = defaults.string(forKey: Key.weatherCity) ?? ""
+        focusMinutes = defaults.integer(forKey: Key.focusMinutes)
+        breakMinutes = defaults.integer(forKey: Key.breakMinutes)
+        deepMinutes = defaults.integer(forKey: Key.deepMinutes)
     }
 }

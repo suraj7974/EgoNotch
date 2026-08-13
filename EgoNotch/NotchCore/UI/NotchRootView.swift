@@ -37,7 +37,7 @@ struct NotchRootView: View {
                     .transition(.opacity)
             } else {
                 ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
-                    .frame(height: geometry.notchRect.height)
+                    .frame(height: geometry.chromeSize(for: .closed, config: config).height)
                     .padding(.horizontal, config.topFlareRadius)
                     .transition(.opacity)
             }

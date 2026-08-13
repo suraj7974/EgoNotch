@@ -6,4 +6,6 @@ extension Notification.Name {
     /// the build.
     static let egoOpenSettings = Notification.Name("EgoNotch.openSettings")
     static let egoCollapseNotch = Notification.Name("EgoNotch.collapseNotch")
+    /// Menu-bar countdown text ("text" userInfo key; absent = clear).
+    static let egoMenuBarText = Notification.Name("EgoNotch.menuBarTextDidChange")
 }

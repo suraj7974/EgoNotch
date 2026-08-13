@@ -25,11 +25,14 @@ final class NotchPanelController: NSObject {
         stateController.applyPanelFrame = { [weak self] frame in
             self?.panel.setFrame(frame, display: true)
         }
+        stateController.isPanelKey = { [weak self] in
+            self?.panel.isKeyWindow ?? false
+        }
         stateController.onStateChange = { [weak self] state in
             self?.stateDidChange(state)
         }
 
-        displayObserver = DisplayObserver { [weak self] in self?.reposition() }
+        displayObserver = DisplayObserver { [weak self] in self?.reposition(force: false) }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(repositionFromNotification),
@@ -37,7 +40,7 @@ final class NotchPanelController: NSObject {
             object: nil
         )
 
-        reposition()
+        reposition(force: true)
     }
 
     func expand() { stateController.expand() }
@@ -71,18 +74,27 @@ final class NotchPanelController: NSObject {
 
     // MARK: - Screen selection & positioning
 
-    @objc private func repositionFromNotification() { reposition() }
+    @objc private func repositionFromNotification() { reposition(force: true) }
 
     /// Re-derive everything from fresh screen data — never relative to the
     /// panel's previous frame. This is what makes drift impossible.
-    private func reposition() {
+    ///
+    /// System dialogs (TCC prompts etc.) fire spurious screen-parameter
+    /// notifications with IDENTICAL geometry — those must not slam an open
+    /// panel shut, so the non-forced path skips when nothing really changed.
+    private func reposition(force: Bool) {
         guard let screen = Self.preferredScreen() else {
             panel.orderOut(nil)
             currentDisplayID = nil
             return
         }
-        currentDisplayID = screen.displayID
         let geometry = NotchGeometry.resolve(for: screen, config: .current())
+        if !force, geometry == stateController.geometry,
+           screen.displayID == currentDisplayID {
+            panel.orderFrontRegardless()
+            return
+        }
+        currentDisplayID = screen.displayID
         stateController.displayChanged(geometry: geometry)
         panel.orderFrontRegardless()
     }

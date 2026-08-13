@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                        name: .egoOpenSettings, object: nil)
         nc.addObserver(self, selector: #selector(collapseNotch),
                        name: .egoCollapseNotch, object: nil)
+        nc.addObserver(self, selector: #selector(menuBarTextChanged(_:)),
+                       name: .egoMenuBarText, object: nil)
 
         // Debug: EGO_DEBUG_EXPAND=1 auto-expands the panel (headless testing).
         if ProcessInfo.processInfo.environment["EGO_DEBUG_EXPAND"] == "1" {
@@ -79,4 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openNotch() { notchPanel?.expand() }
     @objc private func collapseNotch() { notchPanel?.stateController.collapse() }
     @objc private func openSettings() { settingsWindow.show() }
+    @objc private func menuBarTextChanged(_ note: Notification) {
+        statusItem?.setText(note.userInfo?["text"] as? String)
+    }
 }
