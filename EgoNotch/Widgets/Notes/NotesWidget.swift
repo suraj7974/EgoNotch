@@ -143,17 +143,9 @@ struct NotesTileView: View {
             }
 
             HStack(spacing: 6) {
-                TextField("", text: $draft,
-                          prompt: Text("What's on your mind?")
-                              .foregroundStyle(Color.white.opacity(0.45)))
-                    .textFieldStyle(.plain)
-                    .font(Ego.font(13))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(Color.white.opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 8))
-                    .onSubmit { submit(asCheckbox: false) }
+                EgoTextField(placeholder: "What's on your mind?", text: $draft) {
+                    submit(asCheckbox: false)
+                }
                 Button {
                     submit(asCheckbox: true)
                 } label: {

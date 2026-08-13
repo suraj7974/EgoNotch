@@ -151,20 +151,10 @@ struct TodoTileView: View {
                 Spacer(minLength: 0)
             }
 
-            TextField("", text: $draft,
-                      prompt: Text("Add a task…")
-                          .foregroundStyle(Color.white.opacity(0.45)))
-                .textFieldStyle(.plain)
-                .font(Ego.font(13))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Color.white.opacity(0.08),
-                            in: RoundedRectangle(cornerRadius: 8))
-                .onSubmit {
-                    store.add(draft)
-                    draft = ""
-                }
+            EgoTextField(placeholder: "Add a task…", text: $draft) {
+                store.add(draft)
+                draft = ""
+            }
         }
         .frame(maxHeight: .infinity, alignment: .bottom)
     }

@@ -175,13 +175,7 @@ struct QuickLinksCompactView: View {
     }
 
     private func field(_ placeholder: String, text: Binding<String>) -> some View {
-        TextField(placeholder, text: text)
-            .textFieldStyle(.plain)
-            .font(Ego.font(12))
-            .foregroundStyle(Ego.text)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        EgoTextField(placeholder: placeholder, text: text)
     }
 }
 
