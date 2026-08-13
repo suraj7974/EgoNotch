@@ -49,8 +49,6 @@ struct NotchRootView: View {
         )
         .shadow(color: Ego.glowColor.opacity(state == .hover ? Ego.glowOpacity : 0),
                 radius: Ego.glowRadius)
-        .shadow(color: .black.opacity(state == .expanded ? 0.55 : 0),
-                radius: 18, y: 8)       // premium depth under the open panel
         .frame(width: size.width, height: size.height)
         .contentShape(shape)
         .onTapGesture { controller.clicked() }

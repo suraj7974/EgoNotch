@@ -15,7 +15,7 @@ struct NotchConfiguration: Equatable {
     var hoverDrop: CGFloat = 6           // extra height while hovering
     var hoverGlowMargin: CGFloat = 12    // transparent slack so the glow isn't clipped
     var expandedSize = CGSize(width: 960, height: 235)   // wide-ish, short — NotchNest-like
-    var expandedShadowMargin: CGFloat = 28   // transparent slack for the drop shadow
+    var expandedShadowMargin: CGFloat = 0    // no drop shadow → no slack needed
     var virtualNotchWidth: CGFloat = 190
     var virtualNotchHeight: CGFloat = 32
 
