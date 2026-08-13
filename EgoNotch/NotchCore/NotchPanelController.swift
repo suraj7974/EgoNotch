@@ -12,6 +12,7 @@ final class NotchPanelController: NSObject {
     private var clickMonitor: ClickOutsideMonitor?
     private var currentDisplayID: CGDirectDisplayID?
     private var previouslyActiveApp: NSRunningApplication?
+    private var previousState: NotchState = .closed
 
     override init() {
         super.init()
@@ -48,6 +49,11 @@ final class NotchPanelController: NSObject {
     // MARK: - State side effects
 
     private func stateDidChange(_ state: NotchState) {
+        // Trackpad haptic on open/close (silent; no-op without a Force Touch pad).
+        if state == .expanded || previousState == .expanded {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        }
+        previousState = state
         if state == .expanded {
             // Esc needs key status. Take it only for click/menu expansion so
             // a hover-dwell expand never steals the user's keyboard focus.

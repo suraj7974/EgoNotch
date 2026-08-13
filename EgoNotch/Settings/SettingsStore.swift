@@ -60,6 +60,9 @@ final class SettingsStore {
     var weatherCity: String {
         didSet { defaults.set(weatherCity, forKey: Key.weatherCity) }
     }
+    var updateRepo: String {
+        didSet { defaults.set(updateRepo, forKey: "update.repo") }
+    }
     var focusMinutes: Int {
         didSet { defaults.set(focusMinutes, forKey: Key.focusMinutes) }
     }
@@ -116,6 +119,7 @@ final class SettingsStore {
         panelWidth = defaults.double(forKey: Key.panelWidth)
         panelHeight = defaults.double(forKey: Key.panelHeight)
         weatherCity = defaults.string(forKey: Key.weatherCity) ?? ""
+        updateRepo = defaults.string(forKey: "update.repo") ?? ""
         focusMinutes = defaults.integer(forKey: Key.focusMinutes)
         breakMinutes = defaults.integer(forKey: Key.breakMinutes)
         deepMinutes = defaults.integer(forKey: Key.deepMinutes)

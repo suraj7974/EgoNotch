@@ -8,4 +8,6 @@ extension Notification.Name {
     static let egoCollapseNotch = Notification.Name("EgoNotch.collapseNotch")
     /// Menu-bar countdown text ("text" userInfo key; absent = clear).
     static let egoMenuBarText = Notification.Name("EgoNotch.menuBarTextDidChange")
+    /// Re-open the first-launch tour (Settings → About).
+    static let egoShowOnboarding = Notification.Name("EgoNotch.showOnboarding")
 }

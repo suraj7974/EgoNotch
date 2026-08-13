@@ -63,6 +63,7 @@ struct WidgetTile: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .egoCard(hovered: hovered)
+        .scaleEffect(hovered ? 1.008 : 1)   // haptic-feel lift, no sound
         .onHover { over in
             withAnimation(Ego.Motion.spring()) { hovered = over }
         }

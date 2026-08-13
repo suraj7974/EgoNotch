@@ -20,5 +20,6 @@ final class SettingsWindowController {
         }
         NSApp.activate()   // required in LSUIElement apps or the window opens behind
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()   // visible even if activation is denied
     }
 }

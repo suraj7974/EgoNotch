@@ -94,13 +94,30 @@ struct NotchRootView: View {
 }
 
 /// Nucleus-style segmented tab bar; hidden while only one tab is populated.
+/// The selection pill slides between tabs (matched geometry).
 struct PanelTabBar: View {
     private var ui = PanelUIState.shared
+    @Namespace private var pill
 
     var body: some View {
         let tabs = ui.availableTabs
-        if tabs.count > 1 {
-            HStack(spacing: 4) {
+        // The Group exists even when the bar is hidden, so normalization runs
+        // on every expand AND when the selected tab's widgets get disabled —
+        // otherwise a stale selection strands the panel on an empty grid.
+        Group {
+            if tabs.count > 1 {
+                tabButtons(tabs)
+                    .padding(3)
+                    .background(Color.white.opacity(0.07),
+                                in: RoundedRectangle(cornerRadius: 11))
+            }
+        }
+        .onAppear { ui.normalize() }
+        .onChange(of: tabs) { ui.normalize() }
+    }
+
+    private func tabButtons(_ tabs: [NotchTab]) -> some View {
+        HStack(spacing: 4) {
                 ForEach(tabs) { tab in
                     Button {
                         withAnimation(Ego.Motion.spring()) { ui.selectedTab = tab }
@@ -113,19 +130,18 @@ struct PanelTabBar: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                        .background(
-                            ui.selectedTab == tab ? Color.white.opacity(0.14) : .clear,
-                            in: RoundedRectangle(cornerRadius: 8)
-                        )
+                        .background {
+                            if ui.selectedTab == tab {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.white.opacity(0.14))
+                                    .matchedGeometryEffect(id: "selection", in: pill)
+                            }
+                        }
                         .foregroundStyle(ui.selectedTab == tab ? Ego.text : Ego.textMute)
                         .contentShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(3)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
-            .onAppear { ui.normalize() }
-        }
     }
 }

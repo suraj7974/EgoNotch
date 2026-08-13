@@ -26,6 +26,7 @@ static MRGetNowPlayingInfoFn gGetInfo;
 static MRGetIsPlayingFn gGetIsPlaying;
 static MRGetPIDFn gGetPID;
 static NSString *gLastArtworkHash;
+static dispatch_source_t gParentWatch;
 
 static void emit(NSDictionary *dict) {
     NSData *data = [NSJSONSerialization dataWithJSONObject:dict options:0 error:nil];
@@ -143,6 +144,19 @@ static void ego_mra_main(void) {
             [[NSNotificationCenter defaultCenter]
                 addObserverForName:name object:nil queue:[NSOperationQueue mainQueue]
                         usingBlock:^(NSNotification *note) { publishNowPlaying(); }];
+        }
+
+        // Parent-death watch: EgoNotch may die without SIGTERMing us (crash,
+        // SIGKILL, force-quit). Exit with the parent instead of lingering
+        // under launchd. Event-driven (kqueue proc source), zero polling.
+        pid_t ppid = getppid();
+        if (ppid <= 1) exit(0);       // parent already gone
+        gParentWatch = dispatch_source_create(DISPATCH_SOURCE_TYPE_PROC, ppid,
+                                              DISPATCH_PROC_EXIT,
+                                              dispatch_get_main_queue());
+        if (gParentWatch) {
+            dispatch_source_set_event_handler(gParentWatch, ^{ exit(0); });
+            dispatch_resume(gParentWatch);
         }
 
         emit(@{ @"type": @"ready" });

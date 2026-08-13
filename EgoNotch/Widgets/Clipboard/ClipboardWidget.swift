@@ -106,12 +106,13 @@ final class ClipboardStore {
            !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             content = .text(string)
         } else if let type = pb.availableType(from: [.png, .tiff]),
-                  let data = pb.data(forType: type),
-                  let image = NSImage(data: data) {
+                  let raw = pb.data(forType: type),
+                  let image = NSImage(data: raw),
+                  let (data, storedType) = Self.cappedImageData(raw, type: type, image: image) {
             // In-band image data only (screenshots, editor copies) — never
             // dereference file-URL pasteboards (Finder/Shelf copies).
             content = .image(thumbnail: Self.thumbnail(from: image),
-                             data: data, type: type)
+                             data: data, type: storedType)
         } else {
             content = nil
         }
@@ -125,6 +126,27 @@ final class ClipboardStore {
         if items.count > Self.maxItems {
             items.removeLast(items.count - Self.maxItems)
         }
+    }
+
+    /// Uncompressed TIFF copies can be 30–80MB each; 25 of them would wreck
+    /// the RAM budget. Cap stored bytes: re-encode as PNG, downscaling first
+    /// when PNG alone isn't enough.
+    private static let maxStoredImageBytes = 2 * 1024 * 1024
+
+    private static func cappedImageData(
+        _ raw: Data, type: NSPasteboard.PasteboardType, image: NSImage
+    ) -> (Data, NSPasteboard.PasteboardType)? {
+        guard raw.count > maxStoredImageBytes else { return (raw, type) }
+        if let rep = NSBitmapImageRep(data: raw),
+           let png = rep.representation(using: .png, properties: [:]),
+           png.count <= maxStoredImageBytes {
+            return (png, .png)
+        }
+        let scaled = thumbnail(from: image, maxDimension: 2048)
+        guard let tiff = scaled.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        return (png, .png)
     }
 
     private static func thumbnail(from image: NSImage, maxDimension: CGFloat = 320) -> NSImage {

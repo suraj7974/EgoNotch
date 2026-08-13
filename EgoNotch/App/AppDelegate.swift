@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var notchPanel: NotchPanelController?
     private let settingsWindow = SettingsWindowController()
+    private let onboarding = OnboardingWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = SettingsStore.shared
@@ -64,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                        name: .egoCollapseNotch, object: nil)
         nc.addObserver(self, selector: #selector(menuBarTextChanged(_:)),
                        name: .egoMenuBarText, object: nil)
+        nc.addObserver(self, selector: #selector(showOnboarding),
+                       name: .egoShowOnboarding, object: nil)
+
+        onboarding.showIfNeeded()
 
         // Debug: EGO_DEBUG_EXPAND=1 auto-expands the panel (headless testing).
         if ProcessInfo.processInfo.environment["EGO_DEBUG_EXPAND"] == "1" {
@@ -84,4 +89,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func menuBarTextChanged(_ note: Notification) {
         statusItem?.setText(note.userInfo?["text"] as? String)
     }
+    @objc private func showOnboarding() { onboarding.show() }
 }

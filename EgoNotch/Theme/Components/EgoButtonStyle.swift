@@ -15,7 +15,10 @@ struct EgoButtonStyle: ButtonStyle {
                 in: RoundedRectangle(cornerRadius: 7)
             )
             .foregroundStyle(variant == .primary ? Color.black : Ego.text)
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7),
+                       value: configuration.isPressed)
     }
 }
 

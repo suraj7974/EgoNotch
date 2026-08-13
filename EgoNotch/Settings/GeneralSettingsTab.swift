@@ -3,6 +3,7 @@ import SwiftUI
 struct GeneralSettingsTab: View {
     @Bindable private var settings = SettingsStore.shared
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var updateChecker = UpdateChecker()
 
     var body: some View {
         ScrollView {
@@ -92,6 +93,56 @@ struct GeneralSettingsTab: View {
                             .egoDigits()
                             .foregroundStyle(Ego.text)
                             .frame(width: 40, alignment: .trailing)
+                    }
+                }
+
+                SettingsSection(index: 7, title: "About") {
+                    HStack {
+                        Text("EgoNotch v\(UpdateChecker.currentVersion)")
+                            .font(Ego.font(11))
+                            .egoDigits()
+                            .foregroundStyle(Ego.textMute)
+                        Spacer()
+                        Button("Show Welcome Tour") {
+                            NotificationCenter.default.post(name: .egoShowOnboarding, object: nil)
+                        }
+                        .buttonStyle(.egoSecondary)
+                    }
+                    HStack {
+                        Text("GitHub repo")
+                            .font(Ego.font(11))
+                            .foregroundStyle(Ego.textMute)
+                        TextField("owner/name (optional)", text: $settings.updateRepo)
+                            .textFieldStyle(.plain)
+                            .font(Ego.font(12))
+                            .foregroundStyle(Ego.text)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
+                        if !settings.updateRepo.trimmingCharacters(in: .whitespaces).isEmpty {
+                            Button("Check") {
+                                updateChecker.check(repo: settings.updateRepo)
+                            }
+                            .buttonStyle(.egoSecondary)
+                        }
+                    }
+                    switch updateChecker.status {
+                    case .idle:
+                        EmptyView()
+                    case .checking:
+                        Text("Checking…")
+                            .font(Ego.font(10))
+                            .foregroundStyle(Ego.textMute)
+                    case .upToDate:
+                        Chip(text: "Up to date", variant: .win)
+                    case .available(let version, _):
+                        HStack(spacing: 8) {
+                            Chip(text: "v\(version) available", variant: .accent)
+                            Button("View Release") { updateChecker.openRelease() }
+                                .buttonStyle(.egoSecondary)
+                        }
+                    case .failed:
+                        Chip(text: "Check failed", variant: .loss)
                     }
                 }
             }
