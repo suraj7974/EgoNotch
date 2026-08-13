@@ -86,8 +86,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openNotch() { notchPanel?.expand() }
     @objc private func collapseNotch() { notchPanel?.stateController.collapse() }
     @objc private func openSettings() { settingsWindow.show() }
+    /// Multiple countdowns can publish (pomodoro, custom timer) — keep them
+    /// keyed by source with a fixed display priority so they never flicker
+    /// over each other.
+    private var menuBarTexts: [String: String] = [:]
+
     @objc private func menuBarTextChanged(_ note: Notification) {
-        statusItem?.setText(note.userInfo?["text"] as? String)
+        let source = note.userInfo?["source"] as? String ?? "default"
+        menuBarTexts[source] = note.userInfo?["text"] as? String
+        statusItem?.setText(menuBarTexts["pomodoro"] ?? menuBarTexts["timer"]
+                            ?? menuBarTexts["default"])
     }
     @objc private func showOnboarding() { onboarding.show() }
 }

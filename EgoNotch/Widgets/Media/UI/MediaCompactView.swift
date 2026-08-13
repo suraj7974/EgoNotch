@@ -9,43 +9,12 @@ struct MediaCompactView: View {
     var body: some View {
         let model = widget.controller.model
         if model.hasSession {
-            HStack(alignment: .center, spacing: 12) {
-                artwork(model)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.track?.title ?? "")
-                        .font(Ego.font(13, .bold))
-                        .foregroundStyle(Ego.text)
-                        .lineLimit(1)
-                    Text(model.track?.artist ?? "")
-                        .font(Ego.font(11))
-                        .foregroundStyle(Ego.textMute)
-                        .lineLimit(1)
-                    SeekableProgressBar(model: model) { target in
-                        widget.controller.seek(to: target)
-                    }
-                    .padding(.top, 2)
-                    HStack(spacing: 6) {
-                        RoundControlButton(symbol: "backward.fill", size: 10, diameter: 28) {
-                            widget.controller.send(.previousTrack)
-                        }
-                        RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
-                                           size: 12, diameter: 32) {
-                            widget.controller.send(.togglePlayPause)
-                        }
-                        RoundControlButton(symbol: "forward.fill", size: 10, diameter: 28) {
-                            widget.controller.send(.nextTrack)
-                        }
-                        Spacer(minLength: 0)
-                        Text(widget.audioOutput.deviceName)
-                            .font(Ego.font(9))
-                            .foregroundStyle(Ego.textMute.opacity(0.8))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 90, alignment: .trailing)
-                    }
-                    .padding(.top, 3)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Adaptive: full → no device label → no artwork, so the column
+            // never clips at narrow panel widths.
+            ViewThatFits(in: .horizontal) {
+                sessionRow(model, artSize: 92, showDevice: true)
+                sessionRow(model, artSize: 72, showDevice: false)
+                sessionRow(model, artSize: nil, showDevice: false)
             }
             .frame(maxHeight: .infinity, alignment: .center)
         } else {
@@ -61,7 +30,53 @@ struct MediaCompactView: View {
         }
     }
 
-    private func artwork(_ model: NowPlayingModel) -> some View {
+    private func sessionRow(_ model: NowPlayingModel, artSize: CGFloat?,
+                            showDevice: Bool) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            if let artSize {
+                artwork(model, size: artSize)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.track?.title ?? "")
+                    .font(Ego.font(13, .bold))
+                    .foregroundStyle(Ego.text)
+                    .lineLimit(1)
+                Text(model.track?.artist ?? "")
+                    .font(Ego.font(11))
+                    .foregroundStyle(Ego.textMute)
+                    .lineLimit(1)
+                SeekableProgressBar(model: model) { target in
+                    widget.controller.seek(to: target)
+                }
+                .padding(.top, 2)
+                HStack(spacing: 6) {
+                    RoundControlButton(symbol: "backward.fill", size: 10, diameter: 28) {
+                        widget.controller.send(.previousTrack)
+                    }
+                    RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
+                                       size: 12, diameter: 32) {
+                        widget.controller.send(.togglePlayPause)
+                    }
+                    RoundControlButton(symbol: "forward.fill", size: 10, diameter: 28) {
+                        widget.controller.send(.nextTrack)
+                    }
+                    Spacer(minLength: 0)
+                    if showDevice {
+                        Text(widget.audioOutput.deviceName)
+                            .font(Ego.font(9))
+                            .foregroundStyle(Ego.textMute.opacity(0.8))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 90, alignment: .trailing)
+                    }
+                }
+                .padding(.top, 3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func artwork(_ model: NowPlayingModel, size: CGFloat = 92) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let artwork = model.artwork {
@@ -77,7 +92,7 @@ struct MediaCompactView: View {
                     }
                 }
             }
-            .frame(width: 92, height: 92)
+            .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
 
@@ -139,9 +154,11 @@ struct SeekableProgressBar: View {
     @State private var scrubFraction: Double?
 
     var body: some View {
-        if model.isPlaying && scrubFraction == nil {
-            TimelineView(.periodic(from: .now, by: 1)) { _ in bar }
-        } else {
+        // ONE stable view identity: switching between TimelineView and a
+        // plain bar mid-gesture cancels the drag (first scrub froze). The
+        // schedule just pauses when ticks aren't needed.
+        TimelineView(.animation(minimumInterval: 1,
+                                paused: !model.isPlaying || scrubFraction != nil)) { _ in
             bar
         }
     }

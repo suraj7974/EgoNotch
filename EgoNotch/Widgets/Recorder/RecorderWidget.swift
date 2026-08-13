@@ -48,17 +48,34 @@ final class RecorderCamera: NSObject {
     private(set) var isRecording = false
     private(set) var recordingStarted: Date?
     private(set) var lastSavedName: String?
+    private(set) var saveFailed = false
 
     @ObservationIgnored private(set) var session: AVCaptureSession?
     @ObservationIgnored private let photoOutput = AVCapturePhotoOutput()
     @ObservationIgnored private let movieOutput = AVCaptureMovieFileOutput()
+    // Written on sessionQueue (attach) / read+cleared on main (detach) —
+    // strictly serialized by the recording lifecycle.
+    @ObservationIgnored nonisolated(unsafe) private var micInput: AVCaptureDeviceInput?
     @ObservationIgnored private let sessionQueue = DispatchQueue(
         label: "EgoNotch.recorder.session", qos: .userInitiated)
     @ObservationIgnored private var visible = 0
 
     // MARK: - Lifecycle
+    // visible tracks ACTUAL tile visibility (appear/disappear), independent
+    // of the permission dance — otherwise a first-run grant double-counts
+    // and the camera never turns off.
 
-    func requestAndStart() {
+    func appear() {
+        visible += 1
+        requestAndStart()
+    }
+
+    func disappear() {
+        visible = max(0, visible - 1)
+        applyDesiredState()
+    }
+
+    private func requestAndStart() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             access = .granted
@@ -77,7 +94,7 @@ final class RecorderCamera: NSObject {
         }
     }
 
-    func startSession() {
+    private func startSession() {
         guard access == .granted else { return }
         if session == nil {
             let s = AVCaptureSession()
@@ -95,27 +112,18 @@ final class RecorderCamera: NSObject {
                 return
             }
             s.addInput(input)
-            if let mic = AVCaptureDevice.default(for: .audio),
-               let micInput = try? AVCaptureDeviceInput(device: mic),
-               s.canAddInput(micInput) {
-                s.addInput(micInput)   // videos with sound; fails gracefully
-            }
+            // NO mic here: the preview must never prompt for (or hold) the
+            // microphone — it attaches lazily when a recording starts.
             if s.canAddOutput(photoOutput) { s.addOutput(photoOutput) }
             if s.canAddOutput(movieOutput) { s.addOutput(movieOutput) }
             session = s
         }
-        visible += 1
-        applyDesiredState()
-    }
-
-    func stopSession() {
-        visible = max(0, visible - 1)
         applyDesiredState()
     }
 
     /// Force-stop (widget disabled / app quit) — also ends any recording.
     func shutdown() {
-        if isRecording { toggleRecording() }
+        if isRecording { movieOutput.stopRecording() }
         visible = 0
         applyDesiredState()
     }
@@ -135,6 +143,7 @@ final class RecorderCamera: NSObject {
 
     func capturePhoto() {
         guard access == .granted, session?.isRunning == true else { return }
+        saveFailed = false
         let settings = AVCapturePhotoSettings()
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
@@ -144,23 +153,72 @@ final class RecorderCamera: NSObject {
         if isRecording {
             movieOutput.stopRecording()
             // isRecording flips in the delegate when the file is finished.
-        } else {
-            guard session?.isRunning == true else { return }
-            let url = Self.desktopURL(prefix: "EgoNotch Recording", ext: "mov")
-            movieOutput.startRecording(to: url, recordingDelegate: self)
-            isRecording = true
-            recordingStarted = Date()
+            return
         }
-        applyDesiredState()
+        guard session?.isRunning == true else { return }
+        saveFailed = false
+        // Mic permission is requested ONLY here — first actual record.
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                Task { @MainActor [weak self] in self?.beginRecording() }
+            }
+        } else {
+            beginRecording()   // denied → silent video (graceful)
+        }
     }
 
+    private func beginRecording() {
+        guard let session, session.isRunning, !isRecording else { return }
+        isRecording = true
+        recordingStarted = Date()
+        applyDesiredState()
+        let url = Self.desktopURL(prefix: "EgoNotch Recording", ext: "mov")
+        let micAuthorized = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        nonisolated(unsafe) let s = session
+        nonisolated(unsafe) let movie = movieOutput
+        sessionQueue.async { [weak self] in
+            if micAuthorized,
+               let mic = AVCaptureDevice.default(for: .audio),
+               let input = try? AVCaptureDeviceInput(device: mic) {
+                s.beginConfiguration()
+                if s.canAddInput(input) {
+                    s.addInput(input)
+                    self?.micInput = input
+                }
+                s.commitConfiguration()
+            }
+            guard let self else { return }
+            movie.startRecording(to: url, recordingDelegate: self)
+        }
+    }
+
+    /// Detach the mic as soon as the recording ends — no lingering hot mic.
+    private func detachMic() {
+        guard let session, let micInput else { return }
+        self.micInput = nil
+        nonisolated(unsafe) let s = session
+        nonisolated(unsafe) let input = micInput
+        sessionQueue.async {
+            s.beginConfiguration()
+            s.removeInput(input)
+            s.commitConfiguration()
+        }
+    }
+
+    /// Collision-proof Desktop filename (Screenshot.app style " (2)" suffix).
     nonisolated static func desktopURL(prefix: String, ext: String) -> URL {
         let desktop = FileManager.default.urls(for: .desktopDirectory,
                                                in: .userDomainMask)[0]
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return desktop.appendingPathComponent(
-            "\(prefix) \(formatter.string(from: Date())).\(ext)")
+        let base = "\(prefix) \(formatter.string(from: Date()))"
+        var url = desktop.appendingPathComponent("\(base).\(ext)")
+        var n = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = desktop.appendingPathComponent("\(base) (\(n)).\(ext)")
+            n += 1
+        }
+        return url
     }
 }
 
@@ -168,11 +226,18 @@ extension RecorderCamera: AVCapturePhotoCaptureDelegate {
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput,
                                  didFinishProcessingPhoto photo: AVCapturePhoto,
                                  error: Error?) {
-        guard error == nil, let data = photo.fileDataRepresentation() else { return }
+        guard error == nil, let data = photo.fileDataRepresentation() else {
+            Task { @MainActor [weak self] in self?.saveFailed = true }
+            return
+        }
         let url = Self.desktopURL(prefix: "EgoNotch Photo", ext: "jpg")
-        try? data.write(to: url)
+        let wrote = (try? data.write(to: url)) != nil
         Task { @MainActor [weak self] in
-            self?.lastSavedName = url.lastPathComponent
+            if wrote {
+                self?.lastSavedName = url.lastPathComponent
+            } else {
+                self?.saveFailed = true   // e.g. Desktop access denied
+            }
         }
     }
 }
@@ -182,11 +247,22 @@ extension RecorderCamera: AVCaptureFileOutputRecordingDelegate {
                                 didFinishRecordingTo outputFileURL: URL,
                                 from connections: [AVCaptureConnection],
                                 error: Error?) {
+        // AVFoundation can report an error alongside a successfully finished
+        // partial file — trust the success flag + the file's existence.
+        let finishedOK = (error as NSError?)
+            .map { ($0.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool) == true }
+            ?? true
+        let ok = finishedOK && FileManager.default.fileExists(atPath: outputFileURL.path)
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.isRecording = false
             self.recordingStarted = nil
-            self.lastSavedName = outputFileURL.lastPathComponent
+            if ok {
+                self.lastSavedName = outputFileURL.lastPathComponent
+            } else {
+                self.saveFailed = true
+            }
+            self.detachMic()
             self.applyDesiredState()
         }
     }
@@ -220,14 +296,8 @@ struct RecorderTileView: View {
                 }
             }
         }
-        .onAppear {
-            if camera.access == .unknown {
-                camera.requestAndStart()
-            } else {
-                camera.startSession()
-            }
-        }
-        .onDisappear { camera.stopSession() }
+        .onAppear { camera.appear() }
+        .onDisappear { camera.disappear() }
     }
 
     private var preview: some View {
@@ -241,7 +311,8 @@ struct RecorderTileView: View {
                 Ego.surface2
             }
         }
-        .frame(width: 148, height: 148)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: 148, maxHeight: 148)   // shrinks with the panel height
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
     }
@@ -280,6 +351,11 @@ struct RecorderTileView: View {
                         .egoDigits()
                         .foregroundStyle(Ego.loss)
                 }
+            } else if camera.saveFailed {
+                Text("Save failed")
+                    .font(Ego.font(9))
+                    .foregroundStyle(Ego.loss)
+                    .help("Check Desktop folder access in System Settings > Privacy")
             } else if let saved = camera.lastSavedName {
                 Text("Saved to Desktop")
                     .font(Ego.font(9))

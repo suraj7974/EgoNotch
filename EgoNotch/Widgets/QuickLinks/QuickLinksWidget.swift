@@ -121,9 +121,10 @@ struct QuickLinksCompactView: View {
         if adding {
             addForm
         } else {
+            let visible = Array(store.links.prefix(11))
             VStack(alignment: .leading, spacing: 8) {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                    ForEach(store.links) { link in
+                    ForEach(visible) { link in
                         LinkButton(link: link, store: store)
                     }
                     Button {
@@ -138,6 +139,12 @@ struct QuickLinksCompactView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Add a site")
+                }
+                if store.links.count > visible.count {
+                    Text("+\(store.links.count - visible.count) more")
+                        .font(Ego.font(10))
+                        .egoDigits()
+                        .foregroundStyle(Ego.textMute)
                 }
                 Spacer(minLength: 0)
             }

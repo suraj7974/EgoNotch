@@ -103,11 +103,9 @@ final class TimerEngine {
     }
 
     private func publishMenuBar() {
-        NotificationCenter.default.post(
-            name: .egoMenuBarText,
-            object: nil,
-            userInfo: isRunning ? ["text": Self.format(remaining)] : [:]
-        )
+        var info: [String: Any] = ["source": "timer"]
+        if isRunning { info["text"] = Self.format(remaining) }
+        NotificationCenter.default.post(name: .egoMenuBarText, object: nil, userInfo: info)
     }
 
     static func seconds(_ d: Duration) -> TimeInterval {

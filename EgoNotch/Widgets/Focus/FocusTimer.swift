@@ -184,10 +184,8 @@ final class FocusTimer {
     }
 
     private func publishMenuBar() {
-        NotificationCenter.default.post(
-            name: .egoMenuBarText,
-            object: nil,
-            userInfo: isRunning ? ["text": display] : [:]
-        )
+        var info: [String: Any] = ["source": "pomodoro"]
+        if isRunning { info["text"] = display }
+        NotificationCenter.default.post(name: .egoMenuBarText, object: nil, userInfo: info)
     }
 }

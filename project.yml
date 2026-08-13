@@ -35,8 +35,6 @@ targets:
         NSPrincipalClass: NSApplication
         NSAppleEventsUsageDescription: "EgoNotch controls media apps via AppleScript when MediaRemote is unavailable."
         NSCalendarsFullAccessUsageDescription: "EgoNotch shows your upcoming events in the notch."
-        NSLocationUsageDescription: "EgoNotch uses your location for the weather widget."
-        NSLocationWhenInUseUsageDescription: "EgoNotch uses your location for the weather widget."
         NSCameraUsageDescription: "EgoNotch uses the camera for the recorder."
         NSMicrophoneUsageDescription: "EgoNotch records audio with your videos."
 
