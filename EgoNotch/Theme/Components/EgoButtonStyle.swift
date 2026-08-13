@@ -1,24 +1,21 @@
 import SwiftUI
 
-/// EgoLock buttons: angular cut-corner shape, filled-cyan primary ("OPEN THE
-/// MARKET" style) or outlined secondary.
+/// Native-style buttons: filled light primary, gray secondary.
 struct EgoButtonStyle: ButtonStyle {
     enum Variant { case primary, secondary }
     var variant: Variant = .primary
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = CutCornerShape()
         configuration.label
-            .font(Ego.mono(11, .semibold))
-            .textCase(.uppercase)
-            .tracking(Ego.labelTracking)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(variant == .primary ? Ego.cyan : .clear, in: shape)
-            .overlay(shape.strokeBorder(Ego.cyan, lineWidth: 1))
-            .foregroundStyle(variant == .primary ? Ego.bg : Ego.cyan)
-            .brightness(configuration.isPressed ? -0.12 : 0)
-            .contentShape(shape)
+            .font(Ego.font(12, .medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                variant == .primary ? Color.white.opacity(0.9) : Ego.surface2,
+                in: RoundedRectangle(cornerRadius: 7)
+            )
+            .foregroundStyle(variant == .primary ? Color.black : Ego.text)
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
@@ -29,8 +26,8 @@ extension ButtonStyle where Self == EgoButtonStyle {
 
 #Preview("Buttons") {
     HStack(spacing: 12) {
-        Button("Open the market") {}.buttonStyle(.egoPrimary)
-        Button("Portfolio") {}.buttonStyle(.egoSecondary)
+        Button("Open Settings") {}.buttonStyle(.egoPrimary)
+        Button("Collapse") {}.buttonStyle(.egoSecondary)
     }
     .padding(24)
     .background(Ego.bg)

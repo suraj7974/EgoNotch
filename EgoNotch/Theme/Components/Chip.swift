@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Bordered mono status pill: `[ WIN +1% ]` / `[ LOSS -1% ]`.
+/// Small status badge — subtle tinted capsule, native style.
 struct Chip: View {
     enum Variant {
         case win, loss, neutral, accent
@@ -10,7 +10,7 @@ struct Chip: View {
             case .win: Ego.win
             case .loss: Ego.loss
             case .neutral: Ego.textMute
-            case .accent: Ego.cyan
+            case .accent: Ego.accentSoft
             }
         }
     }
@@ -19,26 +19,22 @@ struct Chip: View {
     var variant: Variant = .neutral
 
     var body: some View {
-        Text("[ \(text.uppercased()) ]")
-            .font(Ego.mono(10, .medium))
-            .tracking(1)
+        Text(text)
+            .font(Ego.font(10, .medium))
             .monospacedDigit()
             .foregroundStyle(variant.color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .overlay(
-                RoundedRectangle(cornerRadius: 3)
-                    .strokeBorder(variant.color.opacity(0.45), lineWidth: 1)
-            )
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2.5)
+            .background(variant.color.opacity(0.12), in: Capsule())
     }
 }
 
 #Preview("Chips") {
     HStack(spacing: 10) {
-        Chip(text: "WIN +1%", variant: .win)
-        Chip(text: "LOSS -1%", variant: .loss)
-        Chip(text: "IDLE", variant: .neutral)
-        Chip(text: "LIVE", variant: .accent)
+        Chip(text: "82%", variant: .win)
+        Chip(text: "Low", variant: .loss)
+        Chip(text: "Idle", variant: .neutral)
+        Chip(text: "Spotify", variant: .accent)
     }
     .padding(24)
     .background(Ego.bg)

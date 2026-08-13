@@ -1,29 +1,24 @@
 import SwiftUI
 
-/// The EgoLock "file" motif: `— FILE // 02 — NOW PLAYING`.
+/// Plain tile/section title.
 struct SectionHeader: View {
+    /// Kept for call-site stability; not rendered in the neutral theme.
     let index: Int
     let title: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            Rectangle()
-                .fill(Ego.textMute.opacity(0.6))
-                .frame(width: 16, height: 1)
-            Text("FILE // \(String(format: "%02d", index)) — \(title.uppercased())")
-                .font(Ego.mono(10, .medium))
-                .tracking(Ego.headerTracking)
-                .foregroundStyle(Ego.textMute)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
+        Text(title)
+            .font(Ego.font(11, .semibold))
+            .foregroundStyle(Ego.textMute)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 #Preview("SectionHeader") {
     VStack(alignment: .leading, spacing: 12) {
-        SectionHeader(index: 2, title: "Now Playing")
-        SectionHeader(index: 4, title: "Shelf")
+        SectionHeader(index: 1, title: "Now Playing")
+        SectionHeader(index: 2, title: "Shelf")
     }
     .padding(24)
     .background(Ego.bg)

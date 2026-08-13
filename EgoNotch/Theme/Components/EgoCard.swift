@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Standard tile chrome: surface background + 1px border, elevated on hover.
+/// Standard tile chrome: surface background + hairline border, elevated on hover.
 struct EgoCardModifier: ViewModifier {
     var hovered = false
 
@@ -18,7 +18,7 @@ struct EgoCardModifier: ViewModifier {
     }
 }
 
-/// The "active element" motif: thin cyan border + soft outer glow.
+/// Active element: slightly brighter hairline + the faintest lift.
 struct EgoActiveModifier: ViewModifier {
     var isActive = true
 
@@ -26,9 +26,9 @@ struct EgoActiveModifier: ViewModifier {
         content
             .overlay(
                 RoundedRectangle(cornerRadius: Ego.cardRadius)
-                    .strokeBorder(Ego.cyan.opacity(isActive ? 0.6 : 0), lineWidth: 1)
+                    .strokeBorder(Color.white.opacity(isActive ? 0.22 : 0), lineWidth: 1)
             )
-            .shadow(color: Ego.cyan.opacity(isActive ? Ego.glowOpacity : 0),
+            .shadow(color: Ego.glowColor.opacity(isActive ? Ego.glowOpacity : 0),
                     radius: Ego.glowRadius)
     }
 }
@@ -45,9 +45,9 @@ extension View {
 
 #Preview("Cards") {
     HStack(spacing: 16) {
-        Text("SURFACE").egoHeader(size: 10).egoCard()
-        Text("HOVERED").egoHeader(size: 10).egoCard(hovered: true)
-        Text("ACTIVE").egoHeader(size: 10).egoCard().egoActive()
+        Text("Surface").egoHeader(size: 11).egoCard()
+        Text("Hovered").egoHeader(size: 11).egoCard(hovered: true)
+        Text("Active").egoHeader(size: 11).egoCard().egoActive()
     }
     .padding(24)
     .background(Ego.bg)

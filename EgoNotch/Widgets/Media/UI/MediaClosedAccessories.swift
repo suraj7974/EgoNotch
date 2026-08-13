@@ -16,7 +16,7 @@ struct MediaArtThumb: View {
                         Ego.surface2
                         Image(systemName: "music.note")
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(Ego.cyanSoft)
+                            .foregroundStyle(Ego.textMute)
                     }
                 }
             }
@@ -53,7 +53,7 @@ private struct AudioBar: View {
 
     var body: some View {
         Capsule()
-            .fill(Ego.cyan)
+            .fill(Ego.text)
             .frame(width: 2.5, height: up ? 13 : 4)
             .opacity(playing ? 1 : 0.4)
             .onAppear { sync() }

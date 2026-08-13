@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Phase 1 placeholder — doubles as a living showcase of the EgoLock design
-/// system. Replaced by real widgets from Phase 2 on.
+/// Phase 1 placeholder — a minimal shell-status tile with quick actions.
+/// Replaced by real widgets as later phases land.
 final class DemoWidget: NotchWidget {
     let id = "demo"
     let displayName = "Shell Status"
@@ -16,9 +16,8 @@ final class DemoWidget: NotchWidget {
         guard edge == .trailing else { return nil }
         return AnyView(
             Circle()
-                .fill(Ego.cyan)
+                .fill(Ego.text)
                 .frame(width: 5, height: 5)
-                .shadow(color: Ego.cyan.opacity(0.35), radius: 3)
         )
     }
 }
@@ -26,34 +25,24 @@ final class DemoWidget: NotchWidget {
 private struct DemoWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Chip(text: "SHELL ONLINE", variant: .win)
-                Chip(text: "0 MODULES LIVE", variant: .neutral)
-                Chip(text: "V0.1.0", variant: .accent)
-                Spacer()
-            }
-
-            HStack(spacing: 12) {
-                Text("EGONOTCH // PHASE 1")
-                    .font(Ego.mono(14, .semibold))
-                    .tracking(Ego.headerTracking)
+            HStack(spacing: 8) {
+                Circle().fill(Ego.win).frame(width: 6, height: 6)
+                Text("Shell online")
+                    .font(Ego.font(12, .medium))
                     .foregroundStyle(Ego.text)
-                Spacer()
-                Text("240 × 640")
-                    .font(Ego.mono(12))
+                Text("v0.1.0")
+                    .font(Ego.font(10))
                     .egoDigits()
                     .foregroundStyle(Ego.textMute)
+                Spacer()
             }
-            .padding(10)
-            .background(Ego.surface2, in: RoundedRectangle(cornerRadius: Ego.cardRadius))
-            .egoActive()
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button("Open Settings") {
                     NotificationCenter.default.post(name: .egoOpenSettings, object: nil)
                 }
                 .buttonStyle(.egoPrimary)
-                Button("Collapse — ESC") {
+                Button("Collapse") {
                     NotificationCenter.default.post(name: .egoCollapseNotch, object: nil)
                 }
                 .buttonStyle(.egoSecondary)

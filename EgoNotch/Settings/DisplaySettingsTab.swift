@@ -7,14 +7,13 @@ struct DisplaySettingsTab: View {
         ScrollView {
             VStack(spacing: Ego.gridSpacing) {
                 SettingsSection(index: 5, title: "Virtual Notch") {
-                    Text("USED ON DISPLAYS WITHOUT A PHYSICAL NOTCH")
-                        .font(Ego.mono(9))
-                        .tracking(1)
+                    Text("Used on displays without a physical notch.")
+                        .font(Ego.font(10))
                         .foregroundStyle(Ego.textMute)
 
                     HStack {
-                        Text("WIDTH")
-                            .font(Ego.mono(10))
+                        Text("Width")
+                            .font(Ego.font(11))
                             .foregroundStyle(Ego.textMute)
                         Slider(
                             value: Binding(
@@ -23,16 +22,16 @@ struct DisplaySettingsTab: View {
                             ),
                             in: 120...320, step: 10
                         )
-                        Text("\(Int(settings.virtualNotchSize.width))PT")
-                            .font(Ego.mono(10))
+                        Text("\(Int(settings.virtualNotchSize.width)) pt")
+                            .font(Ego.font(11))
                             .egoDigits()
-                            .foregroundStyle(Ego.cyan)
+                            .foregroundStyle(Ego.text)
                             .frame(width: 48, alignment: .trailing)
                     }
 
                     HStack {
-                        Text("HEIGHT")
-                            .font(Ego.mono(10))
+                        Text("Height")
+                            .font(Ego.font(11))
                             .foregroundStyle(Ego.textMute)
                         Slider(
                             value: Binding(
@@ -41,10 +40,10 @@ struct DisplaySettingsTab: View {
                             ),
                             in: 24...48, step: 2
                         )
-                        Text("\(Int(settings.virtualNotchSize.height))PT")
-                            .font(Ego.mono(10))
+                        Text("\(Int(settings.virtualNotchSize.height)) pt")
+                            .font(Ego.font(11))
                             .egoDigits()
-                            .foregroundStyle(Ego.cyan)
+                            .foregroundStyle(Ego.text)
                             .frame(width: 48, alignment: .trailing)
                     }
                 }

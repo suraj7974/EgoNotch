@@ -30,11 +30,11 @@ struct MediaTileView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(model.track?.title ?? "")
-                    .font(Ego.mono(12, .semibold))
+                    .font(Ego.font(13, .semibold))
                     .foregroundStyle(Ego.text)
                     .lineLimit(1)
                 Text(model.track?.artist ?? "")
-                    .font(Ego.mono(10))
+                    .font(Ego.font(11))
                     .foregroundStyle(Ego.textMute)
                     .lineLimit(1)
                 ProgressRow(model: model)
@@ -98,12 +98,11 @@ struct MediaTileView: View {
 
     private func noSignal(_ model: NowPlayingModel) -> some View {
         HStack(spacing: 10) {
-            Chip(text: "NO SIGNAL", variant: .neutral)
+            Chip(text: "Nothing playing", variant: .neutral)
             Text(model.mode == .fallback
-                 ? "PLAY SOMETHING IN SPOTIFY OR MUSIC"
-                 : "PLAY SOMETHING — SPOTIFY, MUSIC, BROWSER")
-                .font(Ego.mono(9))
-                .tracking(1)
+                 ? "Play something in Spotify or Music"
+                 : "Play something — Spotify, Music, or a browser")
+                .font(Ego.font(11))
                 .foregroundStyle(Ego.textMute)
             Spacer(minLength: 0)
         }
@@ -115,9 +114,8 @@ struct MediaTileView: View {
             Image(systemName: "speaker.wave.2")
                 .font(.system(size: 9))
                 .foregroundStyle(Ego.textMute)
-            Text(widget.audioOutput.deviceName.uppercased())
-                .font(Ego.mono(9))
-                .tracking(1)
+            Text(widget.audioOutput.deviceName)
+                .font(Ego.font(10))
                 .foregroundStyle(Ego.textMute)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -128,10 +126,10 @@ struct MediaTileView: View {
                 Chip(text: app, variant: .accent)
             }
             if model.mode == .fallback {
-                Chip(text: "FALLBACK", variant: .loss)
+                Chip(text: "Fallback", variant: .loss)
             }
             if model.controlsDenied {
-                Chip(text: "AUTOMATION DENIED", variant: .loss)
+                Chip(text: "No automation", variant: .loss)
                     .help("Enable EgoNotch under System Settings > Privacy & Security > Automation")
             }
         }
@@ -140,7 +138,7 @@ struct MediaTileView: View {
     @ViewBuilder
     private func batteryChips(_ info: AirPodsBatteryInfo) -> some View {
         if let single = info.single {
-            Chip(text: "BAT \(single)%", variant: single <= 20 ? .loss : .win)
+            Chip(text: "\(single)%", variant: single <= 20 ? .loss : .win)
         }
         if let left = info.left {
             Chip(text: "L \(left)%", variant: left <= 20 ? .loss : .win)
@@ -149,7 +147,7 @@ struct MediaTileView: View {
             Chip(text: "R \(right)%", variant: right <= 20 ? .loss : .win)
         }
         if let c = info.caseLevel {
-            Chip(text: "CASE \(c)%", variant: .neutral)
+            Chip(text: "Case \(c)%", variant: .neutral)
         }
     }
 }
@@ -176,8 +174,8 @@ private struct ProgressRow: View {
         return VStack(spacing: 3) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Ego.border.opacity(0.6))
-                    Capsule().fill(Ego.cyan)
+                    Capsule().fill(Color.white.opacity(0.15))
+                    Capsule().fill(Ego.text)
                         .frame(width: max(geo.size.width * fraction, 2))
                 }
             }
@@ -187,7 +185,7 @@ private struct ProgressRow: View {
                 Spacer()
                 Text(duration > 0 ? Self.format(duration) : "--:--")
             }
-            .font(Ego.mono(8))
+            .font(Ego.font(9))
             .monospacedDigit()
             .foregroundStyle(Ego.textMute)
         }

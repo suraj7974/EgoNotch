@@ -68,14 +68,12 @@ struct WidgetTile: View {
 
 struct EmptyGridView: View {
     var body: some View {
-        VStack(spacing: 10) {
-            Text("[ NO MODULES LOADED ]")
-                .font(Ego.mono(11))
-                .tracking(2)
+        VStack(spacing: 8) {
+            Text("No modules enabled")
+                .font(Ego.font(12, .medium))
                 .foregroundStyle(Ego.textMute)
-            Text("ENABLE MODULES IN SETTINGS")
-                .font(Ego.mono(9))
-                .tracking(Ego.headerTracking)
+            Text("Turn them on in Settings")
+                .font(Ego.font(10))
                 .foregroundStyle(Ego.textMute.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

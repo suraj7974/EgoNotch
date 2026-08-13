@@ -13,7 +13,7 @@ struct SettingsView: View {
         .frame(width: 460, height: 420)
         .background(Ego.bg)
         .preferredColorScheme(.dark)
-        .tint(Ego.cyan)
+        .tint(Ego.accent)
     }
 }
 

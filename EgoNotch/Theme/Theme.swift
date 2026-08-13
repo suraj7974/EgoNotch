@@ -1,37 +1,37 @@
 import SwiftUI
 
-/// EgoLock design tokens — the single source of truth for the app's look.
+/// Design tokens — the single source of truth for the app's look.
+/// Neutral, native-dark style (NotchNest-like): black panel, iOS-gray tiles,
+/// SF Pro, white/gray text, sparing blue accent, near-zero glow.
 /// Tokens are nonisolated so nonisolated Shape/drawing code can read them.
 nonisolated enum Ego {
     // MARK: Palette
-    static let bg        = Color(hex: "050B14")   // near-black navy — panel base
-    static let surface   = Color(hex: "0A1622")   // card/tile background
-    static let surface2  = Color(hex: "0E1E2E")   // hover / elevated tile
-    static let border    = Color(hex: "1E3A5F")   // 1px card borders
-    static let cyan      = Color(hex: "38BDF8")   // PRIMARY accent — actions, active tab, glow
-    static let cyanSoft  = Color(hex: "7DD3FC")   // secondary accent, highlights
-    static let text      = Color(hex: "E2E8F0")   // primary text
-    static let textMute  = Color(hex: "64748B")   // labels, captions
-    static let win       = Color(hex: "4ADE80")   // positive: timer done, battery ok, WIN
-    static let loss      = Color(hex: "F87171")   // negative: LOSS, errors, low battery
+    static let bg         = Color(hex: "0D0D0D")     // panel base
+    static let surface    = Color(hex: "1C1C1E")     // card/tile background
+    static let surface2   = Color(hex: "2C2C2E")     // hover / elevated tile
+    static let border     = Color.white.opacity(0.08)
+    static let accent     = Color(hex: "0A84FF")     // interactive accent — use sparingly
+    static let accentSoft = Color(hex: "64D2FF")
+    static let text       = Color.white.opacity(0.95)
+    static let textMute   = Color.white.opacity(0.55)
+    static let win        = Color(hex: "30D158")     // positive
+    static let loss       = Color(hex: "FF453A")     // negative
 
-    // MARK: Typography — .monospaced resolves to SF Mono on macOS
-    static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+    // MARK: Typography — system SF Pro
+    static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
     }
-    static let headerTracking: CGFloat = 3.5
-    static let labelTracking: CGFloat = 2
 
     // MARK: Metrics
-    static let cut: CGFloat = 8          // cut-corner depth
-    static let cardRadius: CGFloat = 8
+    static let cardRadius: CGFloat = 12
     static let tilePadding: CGFloat = 12
     static let gridSpacing: CGFloat = 12
 
-    // MARK: Glow — deliberately restrained (user preference: subtle).
+    // MARK: Glow — near-zero by design (user preference: minimal glow).
     // These are the ONLY glow knobs; never hardcode glow values elsewhere.
-    static let glowOpacity: Double = 0.18
-    static let glowRadius: CGFloat = 5
+    static let glowColor = Color.white
+    static let glowOpacity: Double = 0.10
+    static let glowRadius: CGFloat = 6
 
     // MARK: Motion — every animation goes through here so the user's
     // animation-speed setting applies app-wide. (MainActor: reads SettingsStore.)
@@ -69,11 +69,9 @@ nonisolated extension Color {
 }
 
 extension View {
-    /// Monospaced UPPERCASE wide-tracked header.
-    func egoHeader(size: CGFloat = 11) -> some View {
-        self.font(Ego.mono(size, .semibold))
-            .textCase(.uppercase)
-            .tracking(Ego.headerTracking)
+    /// Standard section/title text.
+    func egoHeader(size: CGFloat = 12) -> some View {
+        self.font(Ego.font(size, .semibold))
             .foregroundStyle(Ego.text)
     }
 

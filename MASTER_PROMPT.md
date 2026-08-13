@@ -105,6 +105,14 @@ enum Ego {
 6. If a private API (MediaRemote) fails on the installed macOS version, implement the fallback and tell me — don't silently ship a broken widget.
 7. No analytics, no network calls except weather (and update check if I enable it).
 
+## PROJECT NOTES — OVERRIDES (read these first)
+
+- **The EgoLock design system below is DROPPED** (user decision, 2026-08-13): the app uses a neutral, native NotchNest-like dark theme — black panel, iOS-gray tiles, SF Pro normal case, white/gray text, sparing blue accent, system green/red, near-zero glow. `Theme.swift` (`enum Ego`) remains the single token source; restyle only through it. No FILE// headers, bracket chips, cut corners, grid textures, or cyan glow.
+- Glow must stay minimal (`Ego.glowOpacity/glowRadius` are the only knobs).
+- The EgoLock lightning animation idea is parked; re-confirm with the user before building it (doesn't fit the neutral theme).
+- Media: MediaRemote works via the embedded adapter dylib run inside /usr/bin/perl (macOS 15.4+ entitlement gate). Spotify additionally has a first-class official local channel (distributed notifications + AppleScript + artwork url; a small network fetch for Spotify artwork is user-approved). Fallback (Spotify/Music only) engages if the adapter dies, surfaced with a "Fallback" badge.
+- `EGO_DEBUG_EXPAND=1` env var auto-expands the panel (headless testing).
+
 ## PROJECT NOTES (added during Phase 1)
 
 - Build entry point: `make bootstrap` (once), `make run` (build + relaunch), `make stop`.

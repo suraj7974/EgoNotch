@@ -50,7 +50,7 @@ struct NotchRootView: View {
         }
         .compositingGroup()
         .clipShape(NotchShape(bottomRadius: bottomRadius))
-        .shadow(color: Ego.cyan.opacity(state == .hover ? Ego.glowOpacity : 0),
+        .shadow(color: Ego.glowColor.opacity(state == .hover ? Ego.glowOpacity : 0),
                 radius: Ego.glowRadius)
         .frame(width: width, height: height)
         .contentShape(NotchShape(bottomRadius: bottomRadius))
@@ -63,7 +63,6 @@ struct NotchRootView: View {
             Color.clear.frame(height: notchHeight)
             ZStack {
                 Ego.bg
-                GridTexture()
                 WidgetGridView()
             }
         }
