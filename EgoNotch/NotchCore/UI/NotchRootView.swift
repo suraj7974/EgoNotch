@@ -50,7 +50,8 @@ struct NotchRootView: View {
         }
         .compositingGroup()
         .clipShape(NotchShape(bottomRadius: bottomRadius))
-        .shadow(color: Ego.cyan.opacity(state == .hover ? 0.35 : 0), radius: 8)
+        .shadow(color: Ego.cyan.opacity(state == .hover ? Ego.glowOpacity : 0),
+                radius: Ego.glowRadius)
         .frame(width: width, height: height)
         .contentShape(NotchShape(bottomRadius: bottomRadius))
         .onTapGesture { controller.clicked() }

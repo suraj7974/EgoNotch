@@ -6,8 +6,9 @@ enum WidgetRegistry {
     /// Instantiated once, in display order. A widget's position here is its
     /// permanent FILE // index (stable even when other widgets are disabled).
     static let all: [any NotchWidget] = [
+        MediaWidget(),
         DemoWidget(),
-        // Phase 2+: MediaWidget(), ShelfWidget(), CalendarWidget(), ...
+        // Phase 3+: ShelfWidget(), CalendarWidget(), ...
     ]
 
     static var enabled: [any NotchWidget] { all.filter(\.isEnabled) }

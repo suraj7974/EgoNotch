@@ -12,12 +12,13 @@ final class DemoWidget: NotchWidget {
         AnyView(DemoWidgetView())
     }
 
-    func makeClosedAccessory() -> AnyView? {
-        AnyView(
+    func makeClosedAccessory(for edge: NotchEdge) -> AnyView? {
+        guard edge == .trailing else { return nil }
+        return AnyView(
             Circle()
                 .fill(Ego.cyan)
                 .frame(width: 5, height: 5)
-                .shadow(color: Ego.cyan.opacity(0.6), radius: 4)
+                .shadow(color: Ego.cyan.opacity(0.35), radius: 3)
         )
     }
 }

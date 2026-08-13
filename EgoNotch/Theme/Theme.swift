@@ -28,6 +28,11 @@ nonisolated enum Ego {
     static let tilePadding: CGFloat = 12
     static let gridSpacing: CGFloat = 12
 
+    // MARK: Glow — deliberately restrained (user preference: subtle).
+    // These are the ONLY glow knobs; never hardcode glow values elsewhere.
+    static let glowOpacity: Double = 0.18
+    static let glowRadius: CGFloat = 5
+
     // MARK: Motion — every animation goes through here so the user's
     // animation-speed setting applies app-wide. (MainActor: reads SettingsStore.)
     @MainActor

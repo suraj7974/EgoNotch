@@ -26,9 +26,10 @@ struct EgoActiveModifier: ViewModifier {
         content
             .overlay(
                 RoundedRectangle(cornerRadius: Ego.cardRadius)
-                    .strokeBorder(Ego.cyan.opacity(isActive ? 0.8 : 0), lineWidth: 1)
+                    .strokeBorder(Ego.cyan.opacity(isActive ? 0.6 : 0), lineWidth: 1)
             )
-            .shadow(color: Ego.cyan.opacity(isActive ? 0.35 : 0), radius: 8)
+            .shadow(color: Ego.cyan.opacity(isActive ? Ego.glowOpacity : 0),
+                    radius: Ego.glowRadius)
     }
 }
 

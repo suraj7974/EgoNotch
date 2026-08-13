@@ -34,10 +34,8 @@ struct ClosedAccessoryStrip: View {
     }
 
     private func accessories(on edge: NotchEdge) -> [Accessory] {
-        WidgetRegistry.enabled
-            .filter { $0.accessoryEdge == edge }
-            .compactMap { w in
-                w.makeClosedAccessory().map { Accessory(id: w.id, view: $0) }
-            }
+        WidgetRegistry.enabled.compactMap { w in
+            w.makeClosedAccessory(for: edge).map { Accessory(id: w.id, view: $0) }
+        }
     }
 }

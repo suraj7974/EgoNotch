@@ -21,11 +21,10 @@ protocol NotchWidget: AnyObject {
     /// On/off before the user ever touches Settings.
     var defaultEnabled: Bool { get }
     var tileSize: WidgetTileSize { get }
-    var accessoryEdge: NotchEdge { get }
 
     /// Slim live indicator beside the notch when closed (max ~20pt wide).
-    /// nil = this widget shows nothing while closed.
-    func makeClosedAccessory() -> AnyView?
+    /// Called once per edge; return nil for edges this widget doesn't use.
+    func makeClosedAccessory(for edge: NotchEdge) -> AnyView?
     /// Tile content for the expanded panel. Card chrome (surface, border,
     /// section header) is applied by the grid — render content only.
     func makeExpandedView() -> AnyView
@@ -37,8 +36,7 @@ protocol NotchWidget: AnyObject {
 extension NotchWidget {
     var defaultEnabled: Bool { true }
     var tileSize: WidgetTileSize { .small }
-    var accessoryEdge: NotchEdge { .trailing }
-    func makeClosedAccessory() -> AnyView? { nil }
+    func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func activate() {}
     func deactivate() {}
 
