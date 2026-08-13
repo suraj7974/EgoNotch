@@ -189,22 +189,28 @@ private struct LinkButton: View {
         } label: {
             Group {
                 if let icon = store.favicon(for: link) {
+                    // Bare logo — no chrome around it (user preference).
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
+                        .frame(width: 30, height: 30)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
                 } else {
                     Text(link.monogram)
                         .font(Ego.font(15, .bold))
                         .foregroundStyle(Ego.text)
+                        .frame(width: 34, height: 34)
+                        .background(Color.white.opacity(0.1), in: Circle())
                 }
             }
             .frame(width: 40, height: 40)
-            .background(Color.white.opacity(hovered ? 0.2 : 0.1), in: Circle())
-            .contentShape(Circle())
+            .scaleEffect(hovered ? 1.15 : 1)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovered = $0 }
+        .onHover { over in
+            withAnimation(Ego.Motion.spring()) { hovered = over }
+        }
         .contextMenu {
             Button("Remove") { store.remove(link) }
         }
