@@ -7,8 +7,8 @@ enum WidgetRegistry {
     /// permanent FILE // index (stable even when other widgets are disabled).
     static let all: [any NotchWidget] = [
         MediaWidget(),
-        CalendarWidget(),
         QuickLinksWidget(),
+        CalendarWidget(),
         SystemStatsWidget(),
         BatteryWidget(),
         HUDWidget(),

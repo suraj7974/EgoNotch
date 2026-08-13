@@ -167,7 +167,8 @@ final class MediaRemoteAdapterProvider: MediaProvider {
             track.duration = (msg["duration"] as? NSNumber)?.doubleValue ?? 0
             if model.track != track { model.track = track }
 
-            if let elapsed = (msg["elapsed"] as? NSNumber)?.doubleValue {
+            if let elapsed = (msg["elapsed"] as? NSNumber)?.doubleValue,
+               !model.elapsedSuppressed {
                 model.anchoredElapsed = elapsed
                 let ts = (msg["timestamp"] as? NSNumber)?.doubleValue
                 model.anchorDate = ts.map { Date(timeIntervalSince1970: $0) } ?? Date()

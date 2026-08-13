@@ -212,9 +212,11 @@ struct RecorderTileView: View {
                     .foregroundStyle(Ego.textMute)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .granted:
-                HStack(spacing: 14) {
+                HStack(spacing: 24) {
+                    Spacer(minLength: 0)
                     preview
                     controls
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -229,6 +231,8 @@ struct RecorderTileView: View {
     }
 
     private var preview: some View {
+        // Circular bubble: aspect-fill keeps the whole face in frame even in
+        // the short panel.
         Group {
             if let session = camera.session {
                 CameraPreview(session: session)
@@ -237,8 +241,9 @@ struct RecorderTileView: View {
                 Ego.surface2
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(width: 148, height: 148)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
     }
 
     private var controls: some View {

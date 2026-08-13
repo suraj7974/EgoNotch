@@ -159,8 +159,9 @@ struct SeekableProgressBar: View {
                     Capsule().fill(Ego.text)
                         .frame(width: max(geo.size.width * fraction, 2))
                 }
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+                .frame(height: 3)                          // thin visual bar…
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())                 // …generous hit area
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
@@ -175,7 +176,7 @@ struct SeekableProgressBar: View {
                         }
                 )
             }
-            .frame(height: 10)   // generous hit target; the capsule draws thin
+            .frame(height: 14)   // hit target; the capsule itself draws 3pt
             HStack {
                 Text(Self.format(shownElapsed))
                 Spacer()

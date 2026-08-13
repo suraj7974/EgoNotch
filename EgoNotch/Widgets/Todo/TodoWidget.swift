@@ -133,7 +133,7 @@ struct TodoTileView: View {
                             Text(item.text)
                                 .font(Ego.font(13))
                                 .strikethrough(item.done, color: Ego.textMute)
-                                .foregroundStyle(item.done ? Ego.textMute : Ego.text)
+                                .foregroundStyle(item.done ? Ego.textMute : .white)
                                 .lineLimit(1)
                             Spacer(minLength: 0)
                         }

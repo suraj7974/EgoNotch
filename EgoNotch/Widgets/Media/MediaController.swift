@@ -48,9 +48,11 @@ final class MediaController {
     /// (instant); everything else goes through the active provider.
     func seek(to seconds: TimeInterval) {
         // Optimistic local update so the bar doesn't snap back while the
-        // command round-trips.
+        // command round-trips; stale snapshots are suppressed briefly so
+        // rapid scrubs stick.
         model.anchoredElapsed = seconds
         model.anchorDate = Date()
+        model.suppressElapsedUntil = Date().addingTimeInterval(1.5)
         if model.appName == "Spotify", let spotify {
             spotify.seek(to: seconds)
         } else {

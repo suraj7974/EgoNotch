@@ -173,26 +173,41 @@ struct PanelContent: View {
 }
 
 /// Divided columns of compact widget views — everything visible, no scroll.
+/// Each column carries a small header so the strip never reads empty.
 struct HomeStripView: View {
+    private struct Column: Identifiable {
+        let id: String
+        let title: String
+        let view: AnyView
+    }
+
     var body: some View {
-        let columns = WidgetRegistry.enabled
+        let columns: [Column] = WidgetRegistry.enabled
             .filter { $0.tab == .home }
-            .compactMap { w in w.makeCompactView().map { (w.id, $0) } }
+            .compactMap { w in
+                w.makeCompactView().map { Column(id: w.id, title: w.displayName, view: $0) }
+            }
 
         if columns.isEmpty {
             EmptyGridView()
         } else {
             HStack(spacing: 0) {
-                ForEach(Array(columns.enumerated()), id: \.element.0) { index, column in
+                ForEach(Array(columns.enumerated()), id: \.element.id) { index, column in
                     if index > 0 {
                         Rectangle()
                             .fill(Color.white.opacity(0.08))
                             .frame(width: 1)
                             .padding(.vertical, 10)
                     }
-                    column.1
-                        .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(column.title)
+                            .font(Ego.font(11, .semibold))
+                            .foregroundStyle(Ego.textMute)
+                        column.view
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
         }

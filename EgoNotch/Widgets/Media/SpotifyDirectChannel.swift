@@ -56,7 +56,8 @@ final class SpotifyDirectChannel: NSObject {
             model.track = track
             model.artwork = nil
         }
-        if let position = (info["Playback Position"] as? NSNumber)?.doubleValue {
+        if let position = (info["Playback Position"] as? NSNumber)?.doubleValue,
+           !model.elapsedSuppressed {
             model.anchoredElapsed = position
             model.anchorDate = Date()
         }

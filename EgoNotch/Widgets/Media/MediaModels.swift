@@ -39,6 +39,13 @@ final class NowPlayingModel {
     var anchoredElapsed: TimeInterval = 0
     var anchorDate = Date()
     var rate: Double = 1
+    /// After a user seek, incoming (stale) elapsed snapshots are ignored
+    /// until this instant so fast scrubs never snap back.
+    var suppressElapsedUntil: Date?
+
+    var elapsedSuppressed: Bool {
+        suppressElapsedUntil.map { Date() < $0 } ?? false
+    }
 
     var hasSession: Bool {
         guard let track else { return false }

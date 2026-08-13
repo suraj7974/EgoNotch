@@ -194,7 +194,7 @@ private struct NoteLineRow: View {
             Text(line.text)
                 .font(Ego.font(13))
                 .strikethrough(line.checked, color: Ego.textMute)
-                .foregroundStyle(line.checked ? Ego.textMute : Ego.text)
+                .foregroundStyle(line.checked ? Ego.textMute : .white)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }

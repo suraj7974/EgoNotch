@@ -170,6 +170,15 @@ static void ego_mra_main(void) {
 
         emit(@{ @"type": @"ready" });
         publishNowPlaying();          // initial state
+        // MediaRemote can take a beat to attach to an existing session after
+        // registration (cold start while a song is already playing) — re-poll
+        // the snapshot a few times so reopening the app always catches it.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 400 * NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{ publishNowPlaying(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1500 * NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{ publishNowPlaying(); });
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 4000 * NSEC_PER_MSEC),
+                       dispatch_get_main_queue(), ^{ publishNowPlaying(); });
         CFRunLoopRun();               // never returns; perl hosts us forever
     }
 }

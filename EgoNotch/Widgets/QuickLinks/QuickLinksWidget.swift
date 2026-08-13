@@ -29,9 +29,20 @@ struct QuickLink: Identifiable, Equatable, Codable {
 @Observable
 final class QuickLinksStore {
     private(set) var links: [QuickLink] = []
+    /// host → favicon; observable so buttons refresh when a fetch lands.
+    private(set) var favicons: [String: NSImage] = [:]
 
     @ObservationIgnored private let defaults = UserDefaults.standard
+    @ObservationIgnored private var fetching: Set<String> = []
     private static let key = "quicklinks.sites"
+
+    private static let faviconDir: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory,
+                                           in: .userDomainMask)[0]
+            .appendingPathComponent("EgoNotch/favicons", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
 
     init() {
         if let data = defaults.data(forKey: Self.key),
@@ -67,6 +78,33 @@ final class QuickLinksStore {
     private func save() {
         if let data = try? JSONEncoder().encode(links) {
             defaults.set(data, forKey: Self.key)
+        }
+    }
+
+    // MARK: - Favicons (fetched once per host, cached on disk)
+
+    func favicon(for link: QuickLink) -> NSImage? {
+        guard let host = link.url?.host() else { return nil }
+        if let cached = favicons[host] { return cached }
+        let file = Self.faviconDir.appendingPathComponent("\(host).png")
+        if let image = NSImage(contentsOf: file) {
+            favicons[host] = image
+            return image
+        }
+        fetchFavicon(host: host, to: file)
+        return nil
+    }
+
+    private func fetchFavicon(host: String, to file: URL) {
+        guard !fetching.contains(host) else { return }
+        fetching.insert(host)
+        Task { [weak self] in
+            guard let url = URL(string: "https://www.google.com/s2/favicons?domain=\(host)&sz=64"),
+                  let (data, response) = try? await URLSession.shared.data(from: url),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let image = NSImage(data: data) else { return }
+            try? data.write(to: file)
+            self?.favicons[host] = image
         }
     }
 }
@@ -149,12 +187,21 @@ private struct LinkButton: View {
         Button {
             store.open(link)
         } label: {
-            Text(link.monogram)
-                .font(Ego.font(15, .bold))
-                .foregroundStyle(Ego.text)
-                .frame(width: 40, height: 40)
-                .background(Color.white.opacity(hovered ? 0.2 : 0.1), in: Circle())
-                .contentShape(Circle())
+            Group {
+                if let icon = store.favicon(for: link) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                } else {
+                    Text(link.monogram)
+                        .font(Ego.font(15, .bold))
+                        .foregroundStyle(Ego.text)
+                }
+            }
+            .frame(width: 40, height: 40)
+            .background(Color.white.opacity(hovered ? 0.2 : 0.1), in: Circle())
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
