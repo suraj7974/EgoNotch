@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Build output (pinned DerivedData)
+build/
+DerivedData/
+
+# XcodeGen output — source of truth is project.yml
+EgoNotch.xcodeproj/
+Config/Info.plist
+Config/EgoNotch.entitlements
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+
+# SwiftPM (future-proofing)
+.build/
+.swiftpm/
