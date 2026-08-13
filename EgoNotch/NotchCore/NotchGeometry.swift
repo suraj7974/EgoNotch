@@ -34,29 +34,39 @@ struct NotchGeometry: Equatable {
         )
     }
 
+    /// The size of the VISIBLE chrome for a state (what NotchRootView draws).
+    func chromeSize(for state: NotchState, config: NotchConfiguration) -> CGSize {
+        switch state {
+        case .closed:
+            return CGSize(width: notchRect.width + 2 * config.wingWidth,
+                          height: notchRect.height + config.closedExtraHeight)
+        case .hover:
+            let closed = chromeSize(for: .closed, config: config)
+            return CGSize(width: closed.width + 2 * config.hoverOutset,
+                          height: closed.height + config.hoverDrop)
+        case .expanded:
+            let closed = chromeSize(for: .closed, config: config)
+            return CGSize(width: max(config.expandedSize.width, closed.width),
+                          height: notchRect.height + config.expandedSize.height)
+        }
+    }
+
+    /// The window frame: chrome plus transparent margins (glow / drop shadow).
     /// Every state's frame shares the same top edge and center X, so an
     /// instant window resize never moves a visible pixel (the SwiftUI content
     /// is anchored top-center).
     func panelFrame(for state: NotchState, config: NotchConfiguration) -> CGRect {
         let top = screenFrame.maxY
         let cx = notchRect.midX
-        switch state {
-        case .closed:
-            let w = notchRect.width + 2 * config.wingWidth
-            return CGRect(x: cx - w / 2, y: top - notchRect.height,
-                          width: w, height: notchRect.height)
-        case .hover:
-            // Glow margin: extra transparent window on the sides/bottom so
-            // the 8pt cyan shadow isn't clipped (top edge stays put).
-            let w = notchRect.width + 2 * config.wingWidth
-                + 2 * (config.hoverOutset + config.hoverGlowMargin)
-            let h = notchRect.height + config.hoverDrop + config.hoverGlowMargin
-            return CGRect(x: cx - w / 2, y: top - h, width: w, height: h)
-        case .expanded:
-            let w = max(config.expandedSize.width, notchRect.width + 2 * config.wingWidth)
-            let h = notchRect.height + config.expandedSize.height
-            return CGRect(x: cx - w / 2, y: top - h, width: w, height: h)
-                .intersection(screenFrame)   // clamp on small external displays
+        let chrome = chromeSize(for: state, config: config)
+        let margin: CGFloat = switch state {
+        case .closed: 0
+        case .hover: config.hoverGlowMargin
+        case .expanded: config.expandedShadowMargin
         }
+        let w = chrome.width + 2 * margin
+        let h = chrome.height + margin        // margin on sides/bottom; top edge stays put
+        let frame = CGRect(x: cx - w / 2, y: top - h, width: w, height: h)
+        return state == .expanded ? frame.intersection(screenFrame) : frame
     }
 }

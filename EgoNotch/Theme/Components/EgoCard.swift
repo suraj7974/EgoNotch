@@ -7,10 +7,13 @@ struct EgoCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(Ego.tilePadding)
-            .background(
-                hovered ? Ego.surface2 : Ego.surface,
-                in: RoundedRectangle(cornerRadius: Ego.cardRadius)
-            )
+            .background {
+                if hovered {
+                    RoundedRectangle(cornerRadius: Ego.cardRadius).fill(Ego.surface2)
+                } else {
+                    RoundedRectangle(cornerRadius: Ego.cardRadius).fill(Ego.tileGradient)
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: Ego.cardRadius)
                     .strokeBorder(Ego.border, lineWidth: 1)

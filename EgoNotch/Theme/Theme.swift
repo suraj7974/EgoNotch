@@ -6,10 +6,20 @@ import SwiftUI
 /// Tokens are nonisolated so nonisolated Shape/drawing code can read them.
 nonisolated enum Ego {
     // MARK: Palette
-    static let bg         = Color(hex: "0D0D0D")     // panel base
-    static let surface    = Color(hex: "1C1C1E")     // card/tile background
-    static let surface2   = Color(hex: "2C2C2E")     // hover / elevated tile
-    static let border     = Color.white.opacity(0.08)
+    static let bg         = Color(hex: "131315")     // panel base
+    static let surface    = Color(hex: "232326")     // card/tile background
+    static let surface2   = Color(hex: "2E2E31")     // hover / elevated tile
+    static let border     = Color.white.opacity(0.10)
+
+    // Depth gradients — the "premium" panel/tile treatment.
+    static var panelGradient: LinearGradient {
+        LinearGradient(colors: [Color(hex: "1E1E20"), Color(hex: "121214")],
+                       startPoint: .top, endPoint: .bottom)
+    }
+    static var tileGradient: LinearGradient {
+        LinearGradient(colors: [Color(hex: "252528"), Color(hex: "1C1C1F")],
+                       startPoint: .top, endPoint: .bottom)
+    }
     static let accent     = Color(hex: "0A84FF")     // interactive accent — use sparingly
     static let accentSoft = Color(hex: "64D2FF")
     static let text       = Color.white.opacity(0.95)

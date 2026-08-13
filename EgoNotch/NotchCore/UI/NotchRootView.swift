@@ -19,50 +19,45 @@ struct NotchRootView: View {
     private func chrome(geometry: NotchGeometry) -> some View {
         let state = controller.state
         let config = controller.config
-        let notch = geometry.notchRect
-
-        let width: CGFloat = switch state {
-        case .closed: notch.width + 2 * config.wingWidth
-        case .hover: notch.width + 2 * config.wingWidth + 2 * config.hoverOutset
-        case .expanded: max(config.expandedSize.width, notch.width + 2 * config.wingWidth)
-        }
-        let height: CGFloat = switch state {
-        case .closed: notch.height
-        case .hover: notch.height + config.hoverDrop
-        case .expanded: notch.height + config.expandedSize.height
-        }
-        let bottomRadius: CGFloat = state == .expanded ? 20 : 10
+        let size = geometry.chromeSize(for: state, config: config)
+        let shape = NotchShape(topRadius: config.topFlareRadius,
+                               bottomRadius: state == .expanded ? 24 : 14)
 
         ZStack(alignment: .top) {
-            // Pure black chrome: over Tahoe's transparent menu bar the wings
-            // must read as an extension of the physical bezel.
-            NotchShape(bottomRadius: bottomRadius)
-                .fill(Color.black)
+            // Pure black chrome base: the wings and top strip must read as an
+            // extension of the physical bezel over any wallpaper.
+            shape.fill(Color.black)
 
             if state == .expanded {
-                expandedContent(notchHeight: notch.height)
+                expandedContent(geometry: geometry, config: config)
                     .transition(.opacity)
             } else {
-                ClosedAccessoryStrip(notchWidth: notch.width)
-                    .frame(height: notch.height)
+                ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
+                    .frame(height: geometry.notchRect.height)
+                    .padding(.horizontal, config.topFlareRadius)
                     .transition(.opacity)
             }
         }
         .compositingGroup()
-        .clipShape(NotchShape(bottomRadius: bottomRadius))
+        .clipShape(shape)
+        .overlay(                       // crisp hairline on the expanded panel
+            shape.stroke(Color.white.opacity(state == .expanded ? 0.07 : 0), lineWidth: 1)
+        )
         .shadow(color: Ego.glowColor.opacity(state == .hover ? Ego.glowOpacity : 0),
                 radius: Ego.glowRadius)
-        .frame(width: width, height: height)
-        .contentShape(NotchShape(bottomRadius: bottomRadius))
+        .shadow(color: .black.opacity(state == .expanded ? 0.55 : 0),
+                radius: 18, y: 8)       // premium depth under the open panel
+        .frame(width: size.width, height: size.height)
+        .contentShape(shape)
         .onTapGesture { controller.clicked() }
     }
 
-    private func expandedContent(notchHeight: CGFloat) -> some View {
+    private func expandedContent(geometry: NotchGeometry, config: NotchConfiguration) -> some View {
         VStack(spacing: 0) {
             // Dead zone behind the physical camera housing.
-            Color.clear.frame(height: notchHeight)
+            Color.clear.frame(height: geometry.notchRect.height)
             ZStack {
-                Ego.bg
+                Ego.panelGradient
                 WidgetGridView()
             }
         }
