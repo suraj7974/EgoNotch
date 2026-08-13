@@ -13,6 +13,10 @@ struct ShelfTileView: View {
         VStack(alignment: .leading, spacing: 10) {
             if store.items.isEmpty {
                 emptyState
+            } else if let selected = selectedItem {
+                // Selection swaps the row for a big preview of that file.
+                previewRow(selected)
+                actions(store)
             } else {
                 itemsRow(store)
                 actions(store)
@@ -77,6 +81,55 @@ struct ShelfTileView: View {
 
     /// Actions apply to the SELECTED file, or to everything when nothing is
     /// selected — click a file to target just that one.
+    /// Large QuickLook preview of the selected file + a way back to the row.
+    private func previewRow(_ item: ShelfItem) -> some View {
+        HStack(spacing: 12) {
+            Group {
+                if let preview = ThumbnailProvider.shared.thumbnail(for: item.url, size: 120) {
+                    Image(nsImage: preview)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                }
+            }
+            .frame(width: 60, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(Ego.font(12, .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(Self.fileSize(item.url))
+                    .font(Ego.font(10))
+                    .egoDigits()
+                    .foregroundStyle(Ego.textMute)
+            }
+            Spacer(minLength: 0)
+            Button {
+                selectedID = nil
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Ego.textMute)
+                    .frame(width: 24, height: 24)
+                    .background(Color.white.opacity(0.08), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Back to files")
+        }
+        .frame(height: 60)
+    }
+
+    private static func fileSize(_ url: URL) -> String {
+        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
     private func actions(_ store: ShelfStore) -> some View {
         let targets = selectedItem.map { [$0.url] } ?? store.items.map(\.url)
         return HStack(spacing: 8) {
@@ -125,9 +178,19 @@ private struct ShelfItemCell: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                .resizable()
-                .frame(width: 34, height: 34)
+            // Real content preview for images/PDFs/videos; icon otherwise.
+            Group {
+                if let thumb = ThumbnailProvider.shared.thumbnail(for: item.url, size: 40) {
+                    Image(nsImage: thumb)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
+                        .resizable()
+                }
+            }
+            .frame(width: 34, height: 34)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
             Text(item.name)
                 .font(Ego.font(9))
                 .foregroundStyle(selected ? .white : Ego.textMute)

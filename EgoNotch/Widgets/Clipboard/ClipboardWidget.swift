@@ -266,10 +266,12 @@ private struct ClipRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 case .image(let thumbnail, _, _):
+                    // Selecting an image opens it up to a real preview.
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 34, height: 22)
+                        .aspectRatio(contentMode: selected ? .fit : .fill)
+                        .frame(width: selected ? 74 : 34,
+                               height: selected ? 48 : 22)
                         .clipShape(RoundedRectangle(cornerRadius: 4))
                     Text("Image")
                         .font(Ego.font(11))
