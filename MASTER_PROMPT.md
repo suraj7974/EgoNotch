@@ -105,6 +105,10 @@ enum Ego {
 6. If a private API (MediaRemote) fails on the installed macOS version, implement the fallback and tell me — don't silently ship a broken widget.
 7. No analytics, no network calls except weather (and update check if I enable it).
 
+## STATUS: ALL 6 PHASES COMPLETE (2026-08-13)
+
+Every phase is built, adversarially reviewed, and committed. Final audit: idle CPU ≈0.05% (target <0.5%), ~90MB RAM (target <150MB). Remaining optional spec item: the Phase-2 audio visualizer (explicitly optional; skip unless requested).
+
 ## PROJECT NOTES — OVERRIDES (read these first)
 
 - **The EgoLock design system below is DROPPED** (user decision, 2026-08-13): the app uses a neutral, native NotchNest-like dark theme — black panel, iOS-gray tiles, SF Pro normal case, white/gray text, sparing blue accent, system green/red, near-zero glow. `Theme.swift` (`enum Ego`) remains the single token source; restyle only through it. No FILE// headers, bracket chips, cut corners, grid textures, or cyan glow.
