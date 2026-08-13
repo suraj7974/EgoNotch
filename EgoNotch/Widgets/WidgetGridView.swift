@@ -3,8 +3,11 @@ import SwiftUI
 /// Composes enabled widgets into the expanded panel. Rows hold 2 units:
 /// .small = 1, .wide = 2, packed greedily in registry order.
 struct WidgetGridView: View {
+    private var ui = PanelUIState.shared
+
     var body: some View {
-        let widgets = WidgetRegistry.enabled   // @Observable read → auto-invalidates on toggle
+        // @Observable reads → auto-invalidates on toggle and tab switch.
+        let widgets = WidgetRegistry.enabled.filter { $0.tab == ui.selectedTab }
         Group {
             if widgets.isEmpty {
                 EmptyGridView()
@@ -19,8 +22,8 @@ struct WidgetGridView: View {
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .padding(16)
+                // Ideal height only — the enclosing ScrollView owns overflow.
+                .frame(maxWidth: .infinity, alignment: .top)
             }
         }
     }

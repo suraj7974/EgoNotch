@@ -9,7 +9,8 @@ import Observation
 @Observable
 final class SettingsStore {
     static let shared = SettingsStore()
-    static let virtualNotchDidChange = Notification.Name("EgoNotch.virtualNotchDidChange")
+    /// Posted whenever a setting that affects panel geometry changes.
+    static let geometryDidChange = Notification.Name("EgoNotch.geometryDidChange")
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -19,6 +20,8 @@ final class SettingsStore {
         static let animationSpeed = "animationSpeed"       // 0.5…2.0, default 1.0 (higher = faster)
         static let virtualNotchW  = "virtualNotch.width"
         static let virtualNotchH  = "virtualNotch.height"
+        static let panelWidth     = "panel.width"          // pt, default 700
+        static let panelHeight    = "panel.height"         // pt, default 400
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -35,7 +38,19 @@ final class SettingsStore {
         didSet {
             defaults.set(virtualNotchSize.width, forKey: Key.virtualNotchW)
             defaults.set(virtualNotchSize.height, forKey: Key.virtualNotchH)
-            NotificationCenter.default.post(name: Self.virtualNotchDidChange, object: nil)
+            NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
+        }
+    }
+    var panelWidth: Double {
+        didSet {
+            defaults.set(panelWidth, forKey: Key.panelWidth)
+            NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
+        }
+    }
+    var panelHeight: Double {
+        didSet {
+            defaults.set(panelHeight, forKey: Key.panelHeight)
+            NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
         }
     }
 
@@ -70,11 +85,15 @@ final class SettingsStore {
             Key.animationSpeed: 1.0,
             Key.virtualNotchW: 190.0,
             Key.virtualNotchH: 32.0,
+            Key.panelWidth: 700.0,
+            Key.panelHeight: 400.0,
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
         animationSpeed = defaults.double(forKey: Key.animationSpeed)
         virtualNotchSize = CGSize(width: defaults.double(forKey: Key.virtualNotchW),
                                   height: defaults.double(forKey: Key.virtualNotchH))
+        panelWidth = defaults.double(forKey: Key.panelWidth)
+        panelHeight = defaults.double(forKey: Key.panelHeight)
     }
 }

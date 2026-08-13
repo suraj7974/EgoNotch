@@ -6,6 +6,31 @@ struct DisplaySettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Ego.gridSpacing) {
+                SettingsSection(index: 6, title: "Panel Size") {
+                    HStack {
+                        Text("Width")
+                            .font(Ego.font(11))
+                            .foregroundStyle(Ego.textMute)
+                        Slider(value: $settings.panelWidth, in: 560...920, step: 20)
+                        Text("\(Int(settings.panelWidth)) pt")
+                            .font(Ego.font(11))
+                            .egoDigits()
+                            .foregroundStyle(Ego.text)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+                    HStack {
+                        Text("Height")
+                            .font(Ego.font(11))
+                            .foregroundStyle(Ego.textMute)
+                        Slider(value: $settings.panelHeight, in: 300...560, step: 20)
+                        Text("\(Int(settings.panelHeight)) pt")
+                            .font(Ego.font(11))
+                            .egoDigits()
+                            .foregroundStyle(Ego.text)
+                            .frame(width: 52, alignment: .trailing)
+                    }
+                }
+
                 SettingsSection(index: 5, title: "Virtual Notch") {
                     Text("Used on displays without a physical notch.")
                         .font(Ego.font(10))

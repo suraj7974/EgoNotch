@@ -7,9 +7,25 @@ enum WidgetRegistry {
     /// permanent FILE // index (stable even when other widgets are disabled).
     static let all: [any NotchWidget] = [
         MediaWidget(),
+        ShelfWidget(),
         DemoWidget(),
-        // Phase 3+: ShelfWidget(), CalendarWidget(), ...
+        // Phase 4+: CalendarWidget(), WeatherWidget(), ...
     ]
+
+    /// True while at least one enabled widget can take file drops.
+    static var canAcceptDroppedFiles: Bool {
+        enabled.contains { $0.acceptsDroppedFiles }
+    }
+
+    /// First enabled widget that consumes the dropped files, in display
+    /// order; nil when nothing took them.
+    @discardableResult
+    static func handleDroppedFiles(_ urls: [URL]) -> (any NotchWidget)? {
+        for widget in enabled where widget.handleDroppedFiles(urls) {
+            return widget
+        }
+        return nil
+    }
 
     static var enabled: [any NotchWidget] { all.filter(\.isEnabled) }
 

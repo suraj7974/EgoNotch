@@ -85,6 +85,21 @@ final class NotchStateController {
         transition(to: .expanded)
     }
 
+    /// Files being dragged over the notch: open up so the user sees the tray,
+    /// but never take key focus mid-drag.
+    func dragEntered() {
+        guard state != .expanded else { return }
+        expandedInteractively = false
+        transition(to: .expanded)
+    }
+
+    /// Drag left without dropping: no mouseExited will arrive (tracking is
+    /// suppressed during drag sessions), so arm the pointer-outside poll.
+    func dragExited() {
+        guard state == .expanded, !expandedInteractively else { return }
+        scheduleCollapseIfPointerOutside()
+    }
+
     func collapse() { transition(to: .closed) }
 
     /// Forced-closed policy on reconfiguration: rebuild from fresh geometry,

@@ -5,19 +5,19 @@ import SwiftUI
 /// SF Pro, white/gray text, sparing blue accent, near-zero glow.
 /// Tokens are nonisolated so nonisolated Shape/drawing code can read them.
 nonisolated enum Ego {
-    // MARK: Palette
-    static let bg         = Color(hex: "131315")     // panel base
-    static let surface    = Color(hex: "232326")     // card/tile background
-    static let surface2   = Color(hex: "2E2E31")     // hover / elevated tile
-    static let border     = Color.white.opacity(0.10)
+    // MARK: Palette — near-black (user: panel must read black, not grey)
+    static let bg         = Color(hex: "0C0C0D")     // panel base
+    static let surface    = Color(hex: "18181A")     // card/tile background
+    static let surface2   = Color(hex: "232326")     // hover / elevated tile
+    static let border     = Color.white.opacity(0.08)
 
-    // Depth gradients — the "premium" panel/tile treatment.
+    // Depth gradients — subtle lift on black, never grey.
     static var panelGradient: LinearGradient {
-        LinearGradient(colors: [Color(hex: "1E1E20"), Color(hex: "121214")],
+        LinearGradient(colors: [Color(hex: "121213"), Color(hex: "09090A")],
                        startPoint: .top, endPoint: .bottom)
     }
     static var tileGradient: LinearGradient {
-        LinearGradient(colors: [Color(hex: "252528"), Color(hex: "1C1C1F")],
+        LinearGradient(colors: [Color(hex: "1B1B1D"), Color(hex: "121214")],
                        startPoint: .top, endPoint: .bottom)
     }
     static let accent     = Color(hex: "0A84FF")     // interactive accent — use sparingly

@@ -21,6 +21,11 @@ protocol NotchWidget: AnyObject {
     /// On/off before the user ever touches Settings.
     var defaultEnabled: Bool { get }
     var tileSize: WidgetTileSize { get }
+    /// Which expanded-panel tab this widget lives on.
+    var tab: NotchTab { get }
+    /// Advertise file-drop support WITHOUT side effects (gates the chrome's
+    /// drop target so drags rubber-band back when nothing would take them).
+    var acceptsDroppedFiles: Bool { get }
 
     /// Slim live indicator beside the notch when closed (max ~20pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
@@ -31,14 +36,21 @@ protocol NotchWidget: AnyObject {
 
     func activate()
     func deactivate()
+
+    /// Files dropped onto the notch are offered to enabled widgets in
+    /// registry order; return true to consume them.
+    func handleDroppedFiles(_ urls: [URL]) -> Bool
 }
 
 extension NotchWidget {
     var defaultEnabled: Bool { true }
     var tileSize: WidgetTileSize { .small }
+    var tab: NotchTab { .home }
+    var acceptsDroppedFiles: Bool { false }
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func activate() {}
     func deactivate() {}
+    func handleDroppedFiles(_ urls: [URL]) -> Bool { false }
 
     var isEnabled: Bool {
         SettingsStore.shared.isEnabled(id, defaultValue: defaultEnabled)

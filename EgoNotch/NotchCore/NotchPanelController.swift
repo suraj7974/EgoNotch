@@ -33,7 +33,7 @@ final class NotchPanelController: NSObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(repositionFromNotification),
-            name: SettingsStore.virtualNotchDidChange,
+            name: SettingsStore.geometryDidChange,
             object: nil
         )
 

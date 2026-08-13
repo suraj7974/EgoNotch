@@ -7,6 +7,7 @@ final class DemoWidget: NotchWidget {
     let displayName = "Shell Status"
     let icon = "sparkles.rectangle.stack"
     let tileSize: WidgetTileSize = .wide
+    let defaultEnabled = false   // placeholder — real widgets ship now
 
     func makeExpandedView() -> AnyView {
         AnyView(DemoWidgetView())
