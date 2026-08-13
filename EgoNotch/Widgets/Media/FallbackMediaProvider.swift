@@ -32,6 +32,15 @@ final class FallbackMediaProvider: NSObject, MediaProvider {
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
+    func seek(to seconds: TimeInterval) {
+        guard let app = sourceApp else { return }
+        let source = "tell application \"\(app)\" to set player position to \(Int(seconds))"
+        Task.detached(priority: .userInitiated) {
+            var error: NSDictionary?
+            NSAppleScript(source: source)?.executeAndReturnError(&error)
+        }
+    }
+
     func send(_ command: MediaCommand) {
         guard let app = sourceApp else { return }
         let verb: String

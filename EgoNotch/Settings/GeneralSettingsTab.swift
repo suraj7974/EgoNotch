@@ -64,24 +64,6 @@ struct GeneralSettingsTab: View {
                         .font(Ego.font(12))
                 }
 
-                SettingsSection(index: 4, title: "Weather") {
-                    HStack {
-                        Text("City")
-                            .font(Ego.font(11))
-                            .foregroundStyle(Ego.textMute)
-                        TextField("Automatic (location)", text: $settings.weatherCity)
-                            .textFieldStyle(.plain)
-                            .font(Ego.font(12))
-                            .foregroundStyle(Ego.text)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
-                    }
-                    Text("Leave empty to use your location.")
-                        .font(Ego.font(10))
-                        .foregroundStyle(Ego.textMute)
-                }
-
                 SettingsSection(index: 3, title: "Motion") {
                     HStack {
                         Text("Speed")

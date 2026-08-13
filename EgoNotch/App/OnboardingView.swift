@@ -1,7 +1,6 @@
 import SwiftUI
 import EventKit
 import AVFoundation
-import CoreLocation
 import UserNotifications
 import ApplicationServices
 
@@ -25,7 +24,7 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 tip("cursorarrow.motionlines", "Hover the notch to open it — move away or press Esc to close.")
-                tip("square.grid.2x2", "Tabs organize everything: Home, Shelf, Focus, Notes, Clips, Today.")
+                tip("square.grid.2x2", "Tabs organize everything: Home, Shelf, Focus, Notes, Recorder.")
                 tip("tray.and.arrow.down", "Drag files onto the notch to stage them on the Shelf, then drag them out anywhere or AirDrop.")
                 tip("timer", "Start a Focus session and the countdown lives in your menu bar.")
                 tip("gearshape", "Every module can be toggled in Settings — the menu bar icon is always there.")
@@ -41,11 +40,9 @@ struct OnboardingView: View {
                     .font(Ego.font(11))
                     .foregroundStyle(Ego.textMute)
 
-                permissionRow("calendar", "Calendar", "Today tab",
+                permissionRow("calendar", "Calendar", "Home calendar column",
                               status: calendarStatus)
-                permissionRow("location", "Location", "Weather (or set a city in Settings)",
-                              status: locationStatus)
-                permissionRow("web.camera", "Camera", "Mirror module (off by default)",
+                permissionRow("web.camera", "Camera", "Recorder tab",
                               status: cameraStatus)
                 permissionRow("accessibility", "Accessibility", "Volume/brightness HUD (off by default)",
                               status: AXIsProcessTrusted() ? .granted : .pending)
@@ -124,14 +121,6 @@ struct OnboardingView: View {
     private var cameraStatus: PermissionStatus {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized: .granted
-        case .denied, .restricted: .denied
-        default: .pending
-        }
-    }
-
-    private var locationStatus: PermissionStatus {
-        switch CLLocationManager().authorizationStatus {
-        case .authorized, .authorizedAlways: .granted
         case .denied, .restricted: .denied
         default: .pending
         }

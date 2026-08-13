@@ -2,14 +2,14 @@ import SwiftUI
 import Observation
 import IOKit.ps
 
-/// Phase 5 — battery live activity. IOKit power-source notifications
-/// (event-driven) drive a transient charge pill beside the notch when the
-/// charger connects, plus a compact battery tile on Home.
+/// Battery lives in the panel's TOP BAR (NotchNest style): an accurate
+/// custom glyph that fills to the real percentage, green + bolt while
+/// charging. A transient ⚡ pill still appears beside the notch when the
+/// charger connects. IOKit notifications only — no polling.
 final class BatteryWidget: NotchWidget {
     let id = "battery"
     let displayName = "Battery"
-    let icon = "battery.75percent"
-    let tileSize: WidgetTileSize = .small
+    let icon = "battery.100percent"
     let tab: NotchTab = .home
 
     let monitor = BatteryMonitor()
@@ -27,13 +27,13 @@ final class BatteryWidget: NotchWidget {
         monitor.stop()
     }
 
+    func makeTopBarAccessory() -> AnyView? {
+        AnyView(BatteryTopBarPill(monitor: monitor))
+    }
+
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? {
         guard edge == .trailing else { return nil }
         return AnyView(ChargePill(monitor: monitor))
-    }
-
-    func makeExpandedView() -> AnyView {
-        AnyView(BatteryTileView(monitor: monitor))
     }
 }
 
@@ -52,7 +52,6 @@ final class BatteryMonitor {
         guard runLoopSource == nil else { return }
         refresh(pulseOnChargeBegin: false)
         let context = Unmanaged.passRetained(self).toOpaque()
-        // C callback → hop to the main actor; IOKit calls on the main run loop.
         let callback: IOPowerSourceCallbackType = { context in
             guard let context else { return }
             let monitor = Unmanaged<BatteryMonitor>.fromOpaque(context).takeUnretainedValue()
@@ -113,6 +112,64 @@ final class BatteryMonitor {
     }
 }
 
+/// NotchNest-style top-bar battery: accurate fill + bolt while charging.
+struct BatteryTopBarPill: View {
+    var monitor: BatteryMonitor
+
+    var body: some View {
+        if let percent = monitor.percent {
+            HStack(spacing: 5) {
+                BatteryGlyph(percent: percent, charging: monitor.isCharging)
+                Text("\(percent)%")
+                    .font(Ego.font(11, .semibold))
+                    .egoDigits()
+                    .foregroundStyle(monitor.isCharging ? Ego.win : Ego.text)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.07), in: Capsule())
+            .help(monitor.isCharging
+                  ? (monitor.timeRemaining.map { "\($0) to full" } ?? "Charging")
+                  : (monitor.timeRemaining.map { "\($0) left" } ?? "On battery"))
+        }
+    }
+}
+
+/// Custom battery outline whose inner fill matches the REAL percentage
+/// (100% renders completely full — no SF-symbol approximation).
+struct BatteryGlyph: View {
+    let percent: Int
+    let charging: Bool
+
+    private var fillColor: Color {
+        if charging { return Ego.win }
+        return percent <= 20 ? Ego.loss : Ego.text
+    }
+
+    var body: some View {
+        HStack(spacing: 1) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .strokeBorder(Color.white.opacity(0.5), lineWidth: 1)
+                    .frame(width: 22, height: 11)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(fillColor)
+                    .frame(width: max(CGFloat(percent) / 100 * 18, 1.5), height: 7)
+                    .padding(.leading, 2)
+                if charging {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(.black)
+                        .frame(width: 22, alignment: .center)
+                }
+            }
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.white.opacity(0.5))
+                .frame(width: 1.5, height: 4)
+        }
+    }
+}
+
 /// Transient green ⚡ pill beside the notch when the charger connects.
 private struct ChargePill: View {
     var monitor: BatteryMonitor
@@ -129,33 +186,5 @@ private struct ChargePill: View {
             .foregroundStyle(Ego.win)
             .transition(.scale.combined(with: .opacity))
         }
-    }
-}
-
-struct BatteryTileView: View {
-    var monitor: BatteryMonitor
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: monitor.isCharging
-                  ? "battery.100percent.bolt" : "battery.75percent")
-                .font(.system(size: 20))
-                .foregroundStyle((monitor.percent ?? 100) <= 20 && !monitor.isCharging
-                                 ? Ego.loss : Ego.win)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(monitor.percent.map { "\($0)%" } ?? "—")
-                    .font(Ego.font(18, .bold))
-                    .egoDigits()
-                    .foregroundStyle(Ego.text)
-                Text(monitor.isCharging
-                     ? (monitor.timeRemaining.map { "\($0) to full" } ?? "Charging")
-                     : (monitor.timeRemaining.map { "\($0) left" } ?? "On battery"))
-                    .font(Ego.font(10))
-                    .egoDigits()
-                    .foregroundStyle(Ego.textMute)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -1,17 +1,15 @@
 import SwiftUI
 import Observation
 
-/// Tabs of the expanded panel (Nucleus-style). Widgets declare which tab they
-/// live on; a tab is shown only while at least one of its widgets is enabled,
-/// so future cases are free to pre-declare — Focus/Clips/Today populate in
-/// Phases 4–5. Order here is display order.
+/// Tabs of the expanded panel. Widgets declare which tab they live on; a tab
+/// is shown only while at least one of its widgets is enabled. Order here is
+/// display order.
 enum NotchTab: String, CaseIterable, Identifiable {
     case home
     case shelf
     case focus
     case notes
-    case clips
-    case today
+    case recorder
 
     var id: String { rawValue }
 
@@ -21,19 +19,17 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .shelf: "Shelf"
         case .focus: "Focus"
         case .notes: "Notes"
-        case .clips: "Clips"
-        case .today: "Today"
+        case .recorder: "Recorder"
         }
     }
 
     var icon: String {
         switch self {
-        case .home: "waveform"
-        case .shelf: "tray.full"
+        case .home: "house.fill"
+        case .shelf: "tray.full.fill"
         case .focus: "timer"
         case .notes: "note.text"
-        case .clips: "doc.on.clipboard"
-        case .today: "calendar"
+        case .recorder: "video.fill"
         }
     }
 }
@@ -46,9 +42,11 @@ final class PanelUIState {
 
     var selectedTab: NotchTab = .home
 
-    /// Tabs that currently have at least one enabled widget.
+    /// Tabs that currently have at least one enabled widget with content.
     var availableTabs: [NotchTab] {
-        let populated = Set(WidgetRegistry.enabled.map(\.tab))
+        let populated = Set(WidgetRegistry.enabled
+            .filter { $0.makeExpandedView() != nil || $0.makeCompactView() != nil }
+            .map(\.tab))
         return NotchTab.allCases.filter { populated.contains($0) }
     }
 

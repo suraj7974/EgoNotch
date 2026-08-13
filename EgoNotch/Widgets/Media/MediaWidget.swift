@@ -34,7 +34,7 @@ final class MediaWidget: NotchWidget {
         }
     }
 
-    func makeExpandedView() -> AnyView {
-        AnyView(MediaTileView(widget: self))
+    func makeCompactView() -> AnyView? {
+        AnyView(MediaCompactView(widget: self))
     }
 }

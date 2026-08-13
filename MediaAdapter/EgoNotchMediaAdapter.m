@@ -121,8 +121,17 @@ static void ego_mra_main(void) {
 
         if ([mode isEqualToString:@"command"]) {
             const char *cmdC = getenv("EGO_MRA_CMD");
-            if (!sendCommand || !cmdC) exit(3);
-            sendCommand(atoi(cmdC), nil);
+            const char *seekC = getenv("EGO_MRA_SEEK");
+            if (seekC) {
+                typedef void (*MRSetElapsedFn)(double);
+                MRSetElapsedFn setElapsed = (MRSetElapsedFn)dlsym(mr, "MRMediaRemoteSetElapsedTime");
+                if (!setElapsed) exit(3);
+                setElapsed(atof(seekC));
+            } else if (sendCommand && cmdC) {
+                sendCommand(atoi(cmdC), nil);
+            } else {
+                exit(3);
+            }
             // Give the XPC message time to leave the process.
             CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.3, false);
             exit(0);

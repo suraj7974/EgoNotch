@@ -8,10 +8,10 @@ import Observation
 /// widget is enabled — the one sanctioned poll in the app.
 final class ClipboardWidget: NotchWidget {
     let id = "clipboard"
-    let displayName = "Clipboard"
+    let displayName = "Clips"
     let icon = "doc.on.clipboard"
-    let tileSize: WidgetTileSize = .wide
-    let tab: NotchTab = .clips
+    let tileSize: WidgetTileSize = .small
+    let tab: NotchTab = .shelf
 
     let store = ClipboardStore()
     private var active = false
@@ -29,7 +29,7 @@ final class ClipboardWidget: NotchWidget {
         store.clear()   // a disabled widget must not retain clipboard data
     }
 
-    func makeExpandedView() -> AnyView {
+    func makeExpandedView() -> AnyView? {
         AnyView(ClipboardTileView(store: store))
     }
 }
@@ -193,7 +193,8 @@ struct ClipboardTileView: View {
                         .foregroundStyle(Ego.textMute)
                 }
                 VStack(spacing: 4) {
-                    ForEach(store.items) { item in
+                    // No-scroll rule: newest few visible; count above tells the rest.
+                    ForEach(store.items.prefix(3)) { item in
                         ClipRow(item: item, copied: copiedID == item.id) {
                             store.copy(item)
                             copiedID = item.id

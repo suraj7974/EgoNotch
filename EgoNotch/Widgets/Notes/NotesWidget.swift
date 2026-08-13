@@ -8,7 +8,7 @@ final class NotesWidget: NotchWidget {
     let id = "notes"
     let displayName = "Quick Notes"
     let icon = "note.text"
-    let tileSize: WidgetTileSize = .wide
+    let tileSize: WidgetTileSize = .small
     let tab: NotchTab = .notes
 
     let store = NotesStore()
@@ -16,7 +16,7 @@ final class NotesWidget: NotchWidget {
     /// Quit/disable must flush the pending debounced save — no data loss.
     func deactivate() { store.flush() }
 
-    func makeExpandedView() -> AnyView {
+    func makeExpandedView() -> AnyView? {
         AnyView(NotesTileView(store: store))
     }
 }
@@ -125,40 +125,48 @@ struct NotesTileView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if store.lines.isEmpty {
-                Text("What's on your mind?")
-                    .font(Ego.font(12))
-                    .foregroundStyle(Ego.textMute.opacity(0.7))
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                Spacer(minLength: 0)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(store.lines) { line in
+                    // No-scroll rule: latest lines visible, rest summarized.
+                    ForEach(store.lines.suffix(4)) { line in
                         NoteLineRow(line: line, store: store)
                     }
+                    if store.lines.count > 4 {
+                        Text("+\(store.lines.count - 4) earlier")
+                            .font(Ego.font(10))
+                            .egoDigits()
+                            .foregroundStyle(Ego.textMute)
+                    }
                 }
+                Spacer(minLength: 0)
             }
 
             HStack(spacing: 6) {
-                TextField("Add a note…", text: $draft)
+                TextField("What's on your mind?", text: $draft)
                     .textFieldStyle(.plain)
-                    .font(Ego.font(12))
+                    .font(Ego.font(13))
                     .foregroundStyle(Ego.text)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
+                    .padding(.vertical, 7)
+                    .background(Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 8))
                     .onSubmit { submit(asCheckbox: false) }
                 Button {
                     submit(asCheckbox: true)
                 } label: {
                     Image(systemName: "checklist")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Ego.textMute)
-                        .frame(width: 28, height: 28)
-                        .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Ego.text)
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
                 .help("Add as checkbox")
             }
         }
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 
     private func submit(asCheckbox: Bool) {
@@ -184,10 +192,10 @@ private struct NoteLineRow: View {
                 .buttonStyle(.plain)
             }
             Text(line.text)
-                .font(Ego.font(12))
+                .font(Ego.font(13))
                 .strikethrough(line.checked, color: Ego.textMute)
                 .foregroundStyle(line.checked ? Ego.textMute : Ego.text)
-                .lineLimit(2)
+                .lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(.vertical, 1)

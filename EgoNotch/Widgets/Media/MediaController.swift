@@ -44,6 +44,20 @@ final class MediaController {
         active?.send(command)
     }
 
+    /// Seek to an absolute position. Spotify gets its official channel
+    /// (instant); everything else goes through the active provider.
+    func seek(to seconds: TimeInterval) {
+        // Optimistic local update so the bar doesn't snap back while the
+        // command round-trips.
+        model.anchoredElapsed = seconds
+        model.anchorDate = Date()
+        if model.appName == "Spotify", let spotify {
+            spotify.seek(to: seconds)
+        } else {
+            active?.seek(to: seconds)
+        }
+    }
+
     private func switchToFallback() {
         guard fallback == nil, active != nil else { return }   // once, and only while started
         adapter?.stop()

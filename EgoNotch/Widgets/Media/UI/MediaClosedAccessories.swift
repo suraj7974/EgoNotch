@@ -20,8 +20,8 @@ struct MediaArtThumb: View {
                     }
                 }
             }
-            .frame(width: 18, height: 18)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .frame(width: 22, height: 22)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
         }
     }
 }

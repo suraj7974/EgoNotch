@@ -52,13 +52,21 @@ final class MediaRemoteAdapterProvider: MediaProvider {
     }
 
     func send(_ command: MediaCommand) {
+        runOneShot(["EGO_MRA_CMD": String(command.rawValue)])
+    }
+
+    func seek(to seconds: TimeInterval) {
+        runOneShot(["EGO_MRA_SEEK": String(seconds)])
+    }
+
+    private func runOneShot(_ extraEnv: [String: String]) {
         guard let lib = Self.dylibURL?.path else { return }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
         p.arguments = ["-e", Self.perlBootstrap]
-        p.environment = ["EGO_MRA_MODE": "command",
-                         "EGO_MRA_CMD": String(command.rawValue),
-                         "EGO_MRA_LIB": lib]
+        var env = ["EGO_MRA_MODE": "command", "EGO_MRA_LIB": lib]
+        env.merge(extraEnv) { _, new in new }
+        p.environment = env
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try? p.run()

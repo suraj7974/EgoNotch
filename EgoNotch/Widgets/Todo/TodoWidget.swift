@@ -6,12 +6,12 @@ final class TodoWidget: NotchWidget {
     let id = "todo"
     let displayName = "To-Do"
     let icon = "checklist"
-    let tileSize: WidgetTileSize = .wide
+    let tileSize: WidgetTileSize = .small
     let tab: NotchTab = .notes
 
     let store = TodoStore()
 
-    func makeExpandedView() -> AnyView {
+    func makeExpandedView() -> AnyView? {
         AnyView(TodoTileView(store: store))
     }
 
@@ -116,24 +116,22 @@ struct TodoTileView: View {
             }
 
             if store.items.isEmpty {
-                Text("Nothing to do — add a task below")
-                    .font(Ego.font(12))
-                    .foregroundStyle(Ego.textMute.opacity(0.7))
-                    .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+                Spacer(minLength: 0)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(store.items) { item in
+                    // No-scroll rule: open items first, few visible.
+                    ForEach(store.items.sorted { !$0.done && $1.done }.prefix(4)) { item in
                         HStack(spacing: 8) {
                             Button {
                                 withAnimation(Ego.Motion.spring()) { store.toggle(item) }
                             } label: {
                                 Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 13))
+                                    .font(.system(size: 14))
                                     .foregroundStyle(item.done ? Ego.win : Ego.textMute)
                             }
                             .buttonStyle(.plain)
                             Text(item.text)
-                                .font(Ego.font(12))
+                                .font(Ego.font(13))
                                 .strikethrough(item.done, color: Ego.textMute)
                                 .foregroundStyle(item.done ? Ego.textMute : Ego.text)
                                 .lineLimit(1)
@@ -143,20 +141,29 @@ struct TodoTileView: View {
                             Button("Delete") { store.delete(item) }
                         }
                     }
+                    if store.items.count > 4 {
+                        Text("+\(store.items.count - 4) more")
+                            .font(Ego.font(10))
+                            .egoDigits()
+                            .foregroundStyle(Ego.textMute)
+                    }
                 }
+                Spacer(minLength: 0)
             }
 
             TextField("Add a task…", text: $draft)
                 .textFieldStyle(.plain)
-                .font(Ego.font(12))
+                .font(Ego.font(13))
                 .foregroundStyle(Ego.text)
                 .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Ego.surface2, in: RoundedRectangle(cornerRadius: 8))
+                .padding(.vertical, 7)
+                .background(Color.white.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 8))
                 .onSubmit {
                     store.add(draft)
                     draft = ""
                 }
         }
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 }

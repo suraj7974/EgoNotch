@@ -46,15 +46,20 @@ struct ShelfTileView: View {
     }
 
     private func itemsRow(_ store: ShelfStore) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(store.items) { item in
-                    ShelfItemCell(item: item, store: store)
-                }
+        // No-scroll rule: first few items visible, the rest summarized.
+        HStack(spacing: 10) {
+            ForEach(store.items.prefix(5)) { item in
+                ShelfItemCell(item: item, store: store)
             }
-            .padding(.vertical, 2)
+            if store.items.count > 5 {
+                Text("+\(store.items.count - 5)")
+                    .font(Ego.font(11, .semibold))
+                    .egoDigits()
+                    .foregroundStyle(Ego.textMute)
+            }
+            Spacer(minLength: 0)
         }
-        .frame(height: 64)
+        .frame(height: 60)
     }
 
     private func actions(_ store: ShelfStore) -> some View {

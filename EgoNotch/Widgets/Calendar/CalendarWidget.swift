@@ -2,15 +2,14 @@ import SwiftUI
 import EventKit
 import Observation
 
-/// Phase 4 — Today tab: month mini-grid + today's events (EventKit).
-/// Denied access degrades to an "enable in Settings" tile; never crashes.
-/// The permission request fires lazily when the Today tile first appears.
+/// Home-strip calendar column (NotchNest style): month, today's events (or
+/// "No Events"), and a three-day strip with today highlighted. Access is
+/// requested lazily when the column first appears; denial degrades to a hint.
 final class CalendarWidget: NotchWidget {
     let id = "calendar"
-    let displayName = "Today"
+    let displayName = "Calendar"
     let icon = "calendar"
-    let tileSize: WidgetTileSize = .wide
-    let tab: NotchTab = .today
+    let tab: NotchTab = .home
 
     let store = CalendarStore()
     private var active = false
@@ -27,8 +26,8 @@ final class CalendarWidget: NotchWidget {
         store.stop()
     }
 
-    func makeExpandedView() -> AnyView {
-        AnyView(CalendarTileView(store: store))
+    func makeCompactView() -> AnyView? {
+        AnyView(CalendarCompactView(store: store))
     }
 }
 
@@ -47,7 +46,6 @@ final class CalendarStore {
 
     private(set) var access: Access = .unknown
     private(set) var todaysEvents: [EventItem] = []
-    private(set) var eventDays: Set<Int> = []      // days of the current month with events
 
     @ObservationIgnored private let eventStore = EKEventStore()
     @ObservationIgnored private var changeObserver: NSObjectProtocol?
@@ -64,8 +62,6 @@ final class CalendarStore {
         default:
             access = .unknown
         }
-        // Event-driven, coalesced refresh whenever the calendar DB changes
-        // (the store posts bursts of change notifications).
         changeObserver = NotificationCenter.default.addObserver(
             forName: .EKEventStoreChanged, object: eventStore, queue: .main
         ) { [weak self] _ in
@@ -81,10 +77,9 @@ final class CalendarStore {
         refreshTask?.cancel()
         refreshTask = nil
         todaysEvents = []
-        eventDays = []
     }
 
-    /// Called when the Today tile appears — first time asks the user.
+    /// Called when the column appears — first time asks the user.
     func requestAccessIfNeeded() {
         guard access == .unknown else { return }
         guard EKEventStore.authorizationStatus(for: .event) == .notDetermined else {
@@ -112,34 +107,21 @@ final class CalendarStore {
 
     func refresh() {
         guard access == .granted else { return }
-        // EKEventStore queries are thread-safe; run them off the main actor
-        // and hand back only Sendable snapshots (large calendars can stall).
         nonisolated(unsafe) let store = eventStore
         Task { [weak self] in
-            let snapshot = await Task.detached(priority: .utility) {
-                Self.fetchSnapshot(from: store)
+            let events = await Task.detached(priority: .utility) {
+                Self.fetchToday(from: store)
             }.value
-            guard let self else { return }
-            self.todaysEvents = snapshot.events
-            self.eventDays = snapshot.days
+            self?.todaysEvents = events
         }
     }
 
-    nonisolated private static func fetchSnapshot(
-        from store: EKEventStore
-    ) -> (events: [EventItem], days: Set<Int>) {
+    nonisolated private static func fetchToday(from store: EKEventStore) -> [EventItem] {
         let cal = Calendar.current
-        let now = Date()
-
-        let dayStart = cal.startOfDay(for: now)
-        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart),
-              let monthRange = cal.dateInterval(of: .month, for: now) else {
-            return ([], [])
-        }
-
-        let todayPredicate = store.predicateForEvents(withStart: dayStart, end: dayEnd,
-                                                      calendars: nil)
-        let events = store.events(matching: todayPredicate)
+        let dayStart = cal.startOfDay(for: Date())
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
+        let predicate = store.predicateForEvents(withStart: dayStart, end: dayEnd, calendars: nil)
+        return store.events(matching: predicate)
             .filter { !$0.isAllDay }
             .sorted { $0.startDate < $1.startDate }
             .map { event in
@@ -151,13 +133,6 @@ final class CalendarStore {
                     color: (event.calendar?.cgColor).map { Color(cgColor: $0) }
                 )
             }
-
-        let monthPredicate = store.predicateForEvents(withStart: monthRange.start,
-                                                      end: monthRange.end, calendars: nil)
-        let days = Set(store.events(matching: monthPredicate)
-            .map { cal.component(.day, from: $0.startDate) })
-
-        return (events, days)
     }
 
     func openSystemSettings() {
@@ -167,124 +142,87 @@ final class CalendarStore {
     }
 }
 
-struct CalendarTileView: View {
+struct CalendarCompactView: View {
     var store: CalendarStore
 
     var body: some View {
-        switch store.access {
-        case .denied:
-            HStack(spacing: 10) {
-                Chip(text: "No access", variant: .loss)
-                Text("Enable Calendar for EgoNotch in System Settings")
-                    .font(Ego.font(11))
-                    .foregroundStyle(Ego.textMute)
-                Spacer()
-                Button("Open Settings") { store.openSystemSettings() }
-                    .buttonStyle(.egoSecondary)
-            }
-            .frame(minHeight: 52)
-        case .unknown:
-            Text("Requesting calendar access…")
-                .font(Ego.font(11))
-                .foregroundStyle(Ego.textMute)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .onAppear { store.requestAccessIfNeeded() }
-        case .granted:
-            HStack(alignment: .top, spacing: 14) {
-                MonthMiniGrid(eventDays: store.eventDays)
-                eventsList
-            }
-            .onAppear { store.refresh() }
-        }
-    }
-
-    private var eventsList: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if store.todaysEvents.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar.badge.checkmark")
-                        .foregroundStyle(Ego.win)
-                    Text("No events today")
-                        .font(Ego.font(12))
-                        .foregroundStyle(Ego.textMute)
-                }
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            } else {
-                ForEach(store.todaysEvents.prefix(4)) { event in
-                    EventRow(event: event)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct EventRow: View {
-    let event: EventItem
-
-    var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(event.color ?? Ego.accentSoft)
-                .frame(width: 3.5)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title)
-                    .font(Ego.font(12, .semibold))
-                    .foregroundStyle(Ego.text)
-                    .lineLimit(1)
-                Text("\(event.start, format: .dateTime.hour().minute()) – \(event.end, format: .dateTime.hour().minute())")
-                    .font(Ego.font(10))
-                    .egoDigits()
-                    .foregroundStyle(Ego.textMute)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 8)
-        .background(Ego.surface2.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-/// Compact month grid; days with events get a dot, today gets a ring.
-private struct MonthMiniGrid: View {
-    let eventDays: Set<Int>
-
-    var body: some View {
-        let cal = Calendar.current
-        let now = Date()
-        let today = cal.component(.day, from: now)
-        let range = cal.range(of: .day, in: .month, for: now) ?? 1..<31
-        let monthStart = cal.dateInterval(of: .month, for: now)?.start ?? now
-        // Leading blanks relative to the user's chosen first weekday.
-        let firstSlot = (cal.component(.weekday, from: monthStart)
-            - cal.firstWeekday + 7) % 7
-
-        VStack(alignment: .leading, spacing: 4) {
-            Text(now, format: .dateTime.month(.wide))
-                .font(Ego.font(11, .semibold))
+            Text(Date(), format: .dateTime.month(.abbreviated))
+                .font(Ego.font(13, .bold))
                 .foregroundStyle(Ego.text)
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(18), spacing: 3), count: 7),
-                      spacing: 3) {
-                ForEach(0..<firstSlot, id: \.self) { _ in Color.clear.frame(height: 16) }
-                ForEach(Array(range), id: \.self) { day in
-                    Text("\(day)")
-                        .font(Ego.font(8.5, day == today ? .bold : .regular))
-                        .egoDigits()
-                        .foregroundStyle(day == today ? Ego.text : Ego.textMute)
-                        .frame(width: 18, height: 16)
-                        .background(
-                            Circle().strokeBorder(
-                                day == today ? Ego.accentSoft : .clear, lineWidth: 1)
-                        )
-                        .overlay(alignment: .bottom) {
-                            if eventDays.contains(day) && day != today {
-                                Circle().fill(Ego.accentSoft.opacity(0.8))
-                                    .frame(width: 2.5, height: 2.5)
-                                    .offset(y: 1)
+
+            switch store.access {
+            case .denied:
+                Spacer(minLength: 0)
+                Button("Enable Calendar") { store.openSystemSettings() }
+                    .buttonStyle(.egoSecondary)
+                Spacer(minLength: 0)
+            case .unknown:
+                Spacer(minLength: 0)
+                Text("Calendar access…")
+                    .font(Ego.font(10))
+                    .foregroundStyle(Ego.textMute)
+                    .onAppear { store.requestAccessIfNeeded() }
+                Spacer(minLength: 0)
+            case .granted:
+                if store.todaysEvents.isEmpty {
+                    Spacer(minLength: 0)
+                    Text("No Events")
+                        .font(Ego.font(13))
+                        .foregroundStyle(Ego.textMute)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Spacer(minLength: 0)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(store.todaysEvents.prefix(2)) { event in
+                            HStack(spacing: 6) {
+                                RoundedRectangle(cornerRadius: 1.5)
+                                    .fill(event.color ?? Ego.accentSoft)
+                                    .frame(width: 3)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(event.title)
+                                        .font(Ego.font(11, .semibold))
+                                        .foregroundStyle(Ego.text)
+                                        .lineLimit(1)
+                                    Text(event.start, format: .dateTime.hour().minute())
+                                        .font(Ego.font(9))
+                                        .egoDigits()
+                                        .foregroundStyle(Ego.textMute)
+                                }
                             }
                         }
+                    }
+                    Spacer(minLength: 0)
                 }
             }
+
+            dayStrip
         }
+        .frame(maxHeight: .infinity)
+        .onAppear { store.refresh() }
+    }
+
+    /// Yesterday · today (highlighted) · tomorrow, NotchNest style.
+    private var dayStrip: some View {
+        let cal = Calendar.current
+        let days = (-1...1).compactMap { cal.date(byAdding: .day, value: $0, to: Date()) }
+        return HStack(spacing: 12) {
+            ForEach(days, id: \.self) { day in
+                let isToday = cal.isDateInToday(day)
+                VStack(spacing: 1) {
+                    Text(day, format: .dateTime.weekday(.abbreviated))
+                        .font(Ego.font(9, isToday ? .semibold : .regular))
+                    Text(day, format: .dateTime.day())
+                        .font(Ego.font(11, isToday ? .bold : .regular))
+                        .egoDigits()
+                }
+                .foregroundStyle(isToday ? Ego.text : Ego.textMute.opacity(0.7))
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(isToday ? Color.white.opacity(0.14) : .clear,
+                            in: RoundedRectangle(cornerRadius: 7))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }

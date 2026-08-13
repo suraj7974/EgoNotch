@@ -69,6 +69,15 @@ final class SpotifyDirectChannel: NSObject {
         }
     }
 
+    /// Official seek: `set player position` (instant, authoritative).
+    func seek(to seconds: TimeInterval) {
+        let source = "tell application \"Spotify\" to set player position to \(Int(seconds))"
+        Task.detached(priority: .userInitiated) {
+            var error: NSDictionary?
+            NSAppleScript(source: source)?.executeAndReturnError(&error)
+        }
+    }
+
     // MARK: - Artwork (official `artwork url`, cached per track)
 
     private func fetchArtworkIfNeeded(for track: NowPlayingTrack) {

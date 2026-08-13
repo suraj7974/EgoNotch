@@ -8,4 +8,5 @@ protocol MediaProvider: AnyObject {
     func start()
     func stop()
     func send(_ command: MediaCommand)
+    func seek(to seconds: TimeInterval)
 }

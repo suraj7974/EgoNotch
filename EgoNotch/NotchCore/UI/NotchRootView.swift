@@ -78,70 +78,123 @@ struct NotchRootView: View {
             Color.clear.frame(height: geometry.notchRect.height)
             ZStack(alignment: .top) {
                 Ego.panelGradient
-                VStack(spacing: 10) {
-                    PanelTabBar()
-                    ScrollView(.vertical, showsIndicators: false) {
-                        WidgetGridView()
-                    }
-                    .frame(maxHeight: .infinity)
+                VStack(spacing: 8) {
+                    PanelTopBar()
+                    PanelContent()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .padding(.top, 12)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.top, 8)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
             }
         }
     }
 }
 
-/// Nucleus-style segmented tab bar; hidden while only one tab is populated.
-/// The selection pill slides between tabs (matched geometry).
-struct PanelTabBar: View {
+/// NotchNest-style top bar: icon-only tab circles on the left; widget
+/// accessories (battery pill), settings gear, and close on the right.
+struct PanelTopBar: View {
     private var ui = PanelUIState.shared
-    @Namespace private var pill
 
     var body: some View {
         let tabs = ui.availableTabs
-        // The Group exists even when the bar is hidden, so normalization runs
-        // on every expand AND when the selected tab's widgets get disabled —
-        // otherwise a stale selection strands the panel on an empty grid.
-        Group {
-            if tabs.count > 1 {
-                tabButtons(tabs)
-                    .padding(3)
-                    .background(Color.white.opacity(0.07),
-                                in: RoundedRectangle(cornerRadius: 11))
+        HStack(spacing: 6) {
+            ForEach(tabs) { tab in
+                Button {
+                    withAnimation(Ego.Motion.spring()) { ui.selectedTab = tab }
+                } label: {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(ui.selectedTab == tab ? Ego.text : Ego.textMute)
+                        .frame(width: 30, height: 30)
+                        .background(
+                            ui.selectedTab == tab ? Color.white.opacity(0.14) : .clear,
+                            in: Circle()
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(tab.title)
+            }
+
+            Spacer(minLength: 0)
+
+            ForEach(topBarAccessories, id: \.id) { accessory in
+                accessory.view
+            }
+
+            barButton("gearshape.fill") {
+                NotificationCenter.default.post(name: .egoOpenSettings, object: nil)
+            }
+            barButton("xmark") {
+                NotificationCenter.default.post(name: .egoCollapseNotch, object: nil)
             }
         }
         .onAppear { ui.normalize() }
         .onChange(of: tabs) { ui.normalize() }
     }
 
-    private func tabButtons(_ tabs: [NotchTab]) -> some View {
-        HStack(spacing: 4) {
-                ForEach(tabs) { tab in
-                    Button {
-                        withAnimation(Ego.Motion.spring()) { ui.selectedTab = tab }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 10, weight: .semibold))
-                            Text(tab.title)
-                                .font(Ego.font(11.5, .semibold))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background {
-                            if ui.selectedTab == tab {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.white.opacity(0.14))
-                                    .matchedGeometryEffect(id: "selection", in: pill)
-                            }
-                        }
-                        .foregroundStyle(ui.selectedTab == tab ? Ego.text : Ego.textMute)
-                        .contentShape(RoundedRectangle(cornerRadius: 8))
+    private struct Accessory: Identifiable {
+        let id: String
+        let view: AnyView
+    }
+
+    private var topBarAccessories: [Accessory] {
+        WidgetRegistry.enabled.compactMap { w in
+            w.makeTopBarAccessory().map { Accessory(id: w.id, view: $0) }
+        }
+    }
+
+    private func barButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Ego.textMute)
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.06), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Per-tab content. Home is a NotchNest-style strip of divided columns;
+/// other tabs lay their tiles out in fixed (non-scrolling) rows.
+struct PanelContent: View {
+    private var ui = PanelUIState.shared
+
+    var body: some View {
+        if ui.selectedTab == .home {
+            HomeStripView()
+        } else {
+            WidgetGridView()
+        }
+    }
+}
+
+/// Divided columns of compact widget views — everything visible, no scroll.
+struct HomeStripView: View {
+    var body: some View {
+        let columns = WidgetRegistry.enabled
+            .filter { $0.tab == .home }
+            .compactMap { w in w.makeCompactView().map { (w.id, $0) } }
+
+        if columns.isEmpty {
+            EmptyGridView()
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(columns.enumerated()), id: \.element.0) { index, column in
+                    if index > 0 {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 1)
+                            .padding(.vertical, 10)
                     }
-                    .buttonStyle(.plain)
+                    column.1
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
+        }
     }
 }

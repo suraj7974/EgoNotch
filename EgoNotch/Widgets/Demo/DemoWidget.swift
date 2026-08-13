@@ -9,7 +9,7 @@ final class DemoWidget: NotchWidget {
     let tileSize: WidgetTileSize = .wide
     let defaultEnabled = false   // placeholder — real widgets ship now
 
-    func makeExpandedView() -> AnyView {
+    func makeExpandedView() -> AnyView? {
         AnyView(DemoWidgetView())
     }
 

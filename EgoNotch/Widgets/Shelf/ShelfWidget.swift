@@ -4,9 +4,9 @@ import SwiftUI
 /// out to any app, or AirDrop / copy / reveal / clear from the tile.
 final class ShelfWidget: NotchWidget {
     let id = "shelf"
-    let displayName = "Shelf"
+    let displayName = "Files"
     let icon = "tray.full"
-    let tileSize: WidgetTileSize = .wide
+    let tileSize: WidgetTileSize = .small
     let tab: NotchTab = .shelf
     let acceptsDroppedFiles = true
 
@@ -30,7 +30,7 @@ final class ShelfWidget: NotchWidget {
         return AnyView(ShelfCountBadge(store: store))
     }
 
-    func makeExpandedView() -> AnyView {
+    func makeExpandedView() -> AnyView? {
         AnyView(ShelfTileView(widget: self))
     }
 }

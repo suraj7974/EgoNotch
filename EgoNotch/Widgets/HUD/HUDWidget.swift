@@ -17,8 +17,11 @@ final class HUDWidget: NotchWidget {
     func activate() { controller.start() }
     func deactivate() { controller.stop() }
 
-    func makeExpandedView() -> AnyView {
-        AnyView(HUDStatusTile(controller: controller))
+    /// Only surfaces on the Home strip while something needs attention —
+    /// a healthy HUD is invisible chrome.
+    func makeCompactView() -> AnyView? {
+        if case .active = controller.status { return nil }
+        return AnyView(HUDStatusTile(controller: controller))
     }
 }
 

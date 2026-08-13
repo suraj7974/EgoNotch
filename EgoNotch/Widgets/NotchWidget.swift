@@ -27,12 +27,15 @@ protocol NotchWidget: AnyObject {
     /// drop target so drags rubber-band back when nothing would take them).
     var acceptsDroppedFiles: Bool { get }
 
-    /// Slim live indicator beside the notch when closed (max ~20pt wide).
+    /// Slim live indicator beside the notch when closed (max ~24pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView?
-    /// Tile content for the expanded panel. Card chrome (surface, border,
-    /// section header) is applied by the grid — render content only.
-    func makeExpandedView() -> AnyView
+    /// Tile content for non-home tabs. nil = no tile (chrome-only widgets).
+    func makeExpandedView() -> AnyView?
+    /// Compact column for the Home strip (NotchNest-style). nil = not on it.
+    func makeCompactView() -> AnyView?
+    /// Tiny element for the panel's top bar (e.g. battery pill). nil = none.
+    func makeTopBarAccessory() -> AnyView?
 
     func activate()
     func deactivate()
@@ -48,6 +51,9 @@ extension NotchWidget {
     var tab: NotchTab { .home }
     var acceptsDroppedFiles: Bool { false }
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
+    func makeExpandedView() -> AnyView? { nil }
+    func makeCompactView() -> AnyView? { nil }
+    func makeTopBarAccessory() -> AnyView? { nil }
     func activate() {}
     func deactivate() {}
     func handleDroppedFiles(_ urls: [URL]) -> Bool { false }

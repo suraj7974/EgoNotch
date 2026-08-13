@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Composes enabled widgets into the expanded panel. Rows hold 2 units:
-/// .small = 1, .wide = 2, packed greedily in registry order.
+/// Non-home tabs: tiles in fixed rows (2 units per row; .small = 1,
+/// .wide = 2). No scrolling — content is sized to fit the short panel.
 struct WidgetGridView: View {
     private var ui = PanelUIState.shared
 
     var body: some View {
         // @Observable reads → auto-invalidates on toggle and tab switch.
-        let widgets = WidgetRegistry.enabled.filter { $0.tab == ui.selectedTab }
+        let widgets = WidgetRegistry.enabled.filter {
+            $0.tab == ui.selectedTab && $0.makeExpandedView() != nil
+        }
         Group {
             if widgets.isEmpty {
                 EmptyGridView()
@@ -16,20 +18,15 @@ struct WidgetGridView: View {
                     ForEach(Array(packRows(widgets).enumerated()), id: \.offset) { _, row in
                         GridRow {
                             ForEach(row, id: \.id) { widget in
-                                WidgetTile(widget: widget, index: fileIndex(of: widget))
+                                WidgetTile(widget: widget)
                                     .gridCellColumns(widget.tileSize == .wide ? 2 : 1)
                             }
                         }
                     }
                 }
-                // Ideal height only — the enclosing ScrollView owns overflow.
-                .frame(maxWidth: .infinity, alignment: .top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
         }
-    }
-
-    private func fileIndex(of widget: any NotchWidget) -> Int {
-        (WidgetRegistry.all.firstIndex { $0.id == widget.id } ?? 0) + 1
     }
 
     private func packRows(_ widgets: [any NotchWidget]) -> [[any NotchWidget]] {
@@ -53,20 +50,15 @@ struct WidgetGridView: View {
 
 struct WidgetTile: View {
     let widget: any NotchWidget
-    let index: Int
-    @State private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(index: index, title: widget.displayName)
+            SectionHeader(index: 0, title: widget.displayName)
             widget.makeExpandedView()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .egoCard(hovered: hovered)
-        .scaleEffect(hovered ? 1.008 : 1)   // haptic-feel lift, no sound
-        .onHover { over in
-            withAnimation(Ego.Motion.spring()) { hovered = over }
-        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .egoCard()
     }
 }
 

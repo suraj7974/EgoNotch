@@ -14,7 +14,7 @@ final class SystemStatsWidget: NotchWidget {
 
     let sampler = SystemSampler()
 
-    func makeExpandedView() -> AnyView {
+    func makeCompactView() -> AnyView? {
         AnyView(SystemStatsTileView(widget: self))
     }
 }
@@ -100,7 +100,8 @@ struct SystemStatsTileView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { context in
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
+                Spacer(minLength: 0)
                 StatRing(label: "CPU", percent: sample.cpuPercent, color: Ego.accentSoft)
                 StatRing(label: "RAM", percent: sample.ramPercent, color: Color(hex: "BF5AF2"))
                 if let battery = sample.batteryPercent {
@@ -110,6 +111,7 @@ struct SystemStatsTileView: View {
                 }
                 Spacer(minLength: 0)
             }
+            .frame(maxHeight: .infinity)
             .onChange(of: context.date, initial: true) {
                 sample = widget.sampler.sample()
             }
