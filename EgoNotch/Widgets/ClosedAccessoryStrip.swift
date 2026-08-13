@@ -34,7 +34,15 @@ struct ClosedAccessoryStrip: View {
     }
 
     private func accessories(on edge: NotchEdge) -> [Accessory] {
-        WidgetRegistry.enabled.compactMap { w in
+        // An exclusive claimant (media with an active session) silences every
+        // other widget's accessories so the wings never look crowded.
+        let widgets: [any NotchWidget]
+        if let exclusive = WidgetRegistry.enabled.first(where: \.wantsExclusiveClosedStrip) {
+            widgets = [exclusive]
+        } else {
+            widgets = WidgetRegistry.enabled
+        }
+        return widgets.compactMap { w in
             w.makeClosedAccessory(for: edge).map { Accessory(id: w.id, view: $0) }
         }
     }

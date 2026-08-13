@@ -143,10 +143,12 @@ struct NotesTileView: View {
             }
 
             HStack(spacing: 6) {
-                TextField("What's on your mind?", text: $draft)
+                TextField("", text: $draft,
+                          prompt: Text("What's on your mind?")
+                              .foregroundStyle(Color.white.opacity(0.45)))
                     .textFieldStyle(.plain)
                     .font(Ego.font(13))
-                    .foregroundStyle(Ego.text)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(Color.white.opacity(0.08),

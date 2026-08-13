@@ -13,6 +13,10 @@ final class MediaWidget: NotchWidget {
     let audioOutput = AudioOutputMonitor()
     private var active = false
 
+    /// Music owns the closed wings whenever a session exists — art on the
+    /// left, visualizer on the right, nothing else competing.
+    var wantsExclusiveClosedStrip: Bool { controller.model.hasSession }
+
     func activate() {
         guard !active else { return }
         active = true

@@ -26,6 +26,9 @@ protocol NotchWidget: AnyObject {
     /// Advertise file-drop support WITHOUT side effects (gates the chrome's
     /// drop target so drags rubber-band back when nothing would take them).
     var acceptsDroppedFiles: Bool { get }
+    /// True while this widget should OWN the closed strip exclusively
+    /// (media: whenever a song session exists). Others' accessories hide.
+    var wantsExclusiveClosedStrip: Bool { get }
 
     /// Slim live indicator beside the notch when closed (max ~24pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
@@ -50,6 +53,7 @@ extension NotchWidget {
     var tileSize: WidgetTileSize { .small }
     var tab: NotchTab { .home }
     var acceptsDroppedFiles: Bool { false }
+    var wantsExclusiveClosedStrip: Bool { false }
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func makeExpandedView() -> AnyView? { nil }
     func makeCompactView() -> AnyView? { nil }

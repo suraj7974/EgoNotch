@@ -77,6 +77,10 @@ final class ClipboardStore {
         items.removeAll()
     }
 
+    func remove(_ item: ClipItem) {
+        items.removeAll { $0.id == item.id }
+    }
+
     /// Copy an item back. Bumps lastChangeCount past our own write so the
     /// poll doesn't re-capture it as a new entry.
     func copy(_ item: ClipItem) {
@@ -165,6 +169,7 @@ final class ClipboardStore {
 
 struct ClipboardTileView: View {
     var store: ClipboardStore
+    @State private var selectedID: UUID?
     @State private var copiedID: UUID?
 
     var body: some View {
@@ -181,37 +186,66 @@ struct ClipboardTileView: View {
                 }
                 .frame(minHeight: 48)
             } else {
-                HStack {
-                    Text("\(store.items.count) item\(store.items.count == 1 ? "" : "s")")
-                        .font(Ego.font(10))
-                        .egoDigits()
-                        .foregroundStyle(Ego.textMute)
+                // Select an item, then act on it — any past clip is copyable,
+                // not just the newest.
+                HStack(spacing: 8) {
+                    if let selected = selectedItem {
+                        Button("Copy") {
+                            store.copy(selected)
+                            copiedID = selected.id
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.2))
+                                if copiedID == selected.id { copiedID = nil }
+                            }
+                        }
+                        .buttonStyle(.egoPrimary)
+                        Button("Remove") {
+                            store.remove(selected)
+                            selectedID = nil
+                        }
+                        .buttonStyle(.egoSecondary)
+                    } else {
+                        Text("\(store.items.count) item\(store.items.count == 1 ? "" : "s") — click to select")
+                            .font(Ego.font(10))
+                            .egoDigits()
+                            .foregroundStyle(Ego.textMute)
+                    }
                     Spacer()
-                    Button("Clear") { store.clear() }
-                        .buttonStyle(.plain)
-                        .font(Ego.font(10))
-                        .foregroundStyle(Ego.textMute)
+                    Button("Clear") {
+                        store.clear()
+                        selectedID = nil
+                    }
+                    .buttonStyle(.plain)
+                    .font(Ego.font(10))
+                    .foregroundStyle(Ego.textMute)
                 }
                 VStack(spacing: 4) {
                     // No-scroll rule: newest few visible; count above tells the rest.
                     ForEach(store.items.prefix(3)) { item in
-                        ClipRow(item: item, copied: copiedID == item.id) {
-                            store.copy(item)
-                            copiedID = item.id
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.2))
-                                if copiedID == item.id { copiedID = nil }
-                            }
+                        ClipRow(item: item,
+                                selected: selectedID == item.id,
+                                copied: copiedID == item.id) {
+                            selectedID = selectedID == item.id ? nil : item.id
                         }
                     }
                 }
             }
         }
+        .onChange(of: store.items.count) {
+            if let selectedID, !store.items.contains(where: { $0.id == selectedID }) {
+                self.selectedID = nil
+            }
+        }
+    }
+
+    private var selectedItem: ClipItem? {
+        store.items.first { $0.id == selectedID }
     }
 }
 
 private struct ClipRow: View {
     let item: ClipItem
+    let selected: Bool
     let copied: Bool
     let action: () -> Void
     @State private var hovered = false
@@ -219,11 +253,16 @@ private struct ClipRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Ego.accentSoft)
+                }
                 switch item.content {
                 case .text(let string):
                     Text(string.replacingOccurrences(of: "\n", with: " "))
                         .font(Ego.font(11))
-                        .foregroundStyle(Ego.text)
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 case .image(let thumbnail, _, _):
@@ -248,8 +287,13 @@ private struct ClipRow: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(hovered ? Ego.surface2 : Ego.surface2.opacity(0.5),
+            .background(selected ? Color.white.opacity(0.16)
+                        : (hovered ? Ego.surface2 : Ego.surface2.opacity(0.5)),
                         in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Ego.accentSoft.opacity(selected ? 0.6 : 0), lineWidth: 1)
+            )
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
