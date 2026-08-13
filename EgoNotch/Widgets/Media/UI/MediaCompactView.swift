@@ -27,6 +27,8 @@ struct MediaCompactView: View {
                     .foregroundStyle(Ego.textMute)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Opening the panel with no known session re-asks the player.
+            .onAppear { widget.controller.primeIfNeeded() }
         }
     }
 

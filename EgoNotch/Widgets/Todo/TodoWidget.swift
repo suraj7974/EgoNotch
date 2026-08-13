@@ -136,7 +136,17 @@ struct TodoTileView: View {
                                 .foregroundStyle(item.done ? Ego.textMute : .white)
                                 .lineLimit(1)
                             Spacer(minLength: 0)
+                            Button {
+                                store.delete(item)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Ego.textMute.opacity(0.5))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Delete")
                         }
+                        .contentShape(Rectangle())
                         .contextMenu {
                             Button("Delete") { store.delete(item) }
                         }

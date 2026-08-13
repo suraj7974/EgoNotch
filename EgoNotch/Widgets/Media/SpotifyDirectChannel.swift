@@ -81,6 +81,11 @@ final class SpotifyDirectChannel: NSObject {
 
     // MARK: - Artwork (official `artwork url`, cached per track)
 
+    /// Public entry point for priming (MediaController) — same cache rules.
+    func fetchArtwork(for track: NowPlayingTrack) {
+        fetchArtworkIfNeeded(for: track)
+    }
+
     private func fetchArtworkIfNeeded(for track: NowPlayingTrack) {
         let key = "\(track.title)|\(track.artist)"
         guard key != artworkTrackKey else { return }

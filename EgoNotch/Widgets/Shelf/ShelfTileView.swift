@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ShelfTileView: View {
     let widget: ShelfWidget
     @State private var dropTargeted = false
+    @State private var selectedID: UUID?
 
     var body: some View {
         let store = widget.store
@@ -15,6 +16,11 @@ struct ShelfTileView: View {
             } else {
                 itemsRow(store)
                 actions(store)
+            }
+        }
+        .onChange(of: store.items.count) {
+            if let selectedID, !store.items.contains(where: { $0.id == selectedID }) {
+                self.selectedID = nil
             }
         }
         .contentShape(Rectangle())
@@ -45,11 +51,18 @@ struct ShelfTileView: View {
         .frame(minHeight: 52)
     }
 
+    private var selectedItem: ShelfItem? {
+        widget.store.items.first { $0.id == selectedID }
+    }
+
     private func itemsRow(_ store: ShelfStore) -> some View {
         // No-scroll rule: first few items visible, the rest summarized.
         HStack(spacing: 10) {
             ForEach(store.items.prefix(5)) { item in
-                ShelfItemCell(item: item, store: store)
+                ShelfItemCell(item: item, store: store,
+                              selected: selectedID == item.id) {
+                    selectedID = selectedID == item.id ? nil : item.id
+                }
             }
             if store.items.count > 5 {
                 Text("+\(store.items.count - 5)")
@@ -62,23 +75,32 @@ struct ShelfTileView: View {
         .frame(height: 60)
     }
 
+    /// Actions apply to the SELECTED file, or to everything when nothing is
+    /// selected — click a file to target just that one.
     private func actions(_ store: ShelfStore) -> some View {
-        HStack(spacing: 8) {
+        let targets = selectedItem.map { [$0.url] } ?? store.items.map(\.url)
+        return HStack(spacing: 8) {
             shelfButton("AirDrop", symbol: "square.and.arrow.up") {
-                let urls = store.items.map(\.url)
-                NSSharingService(named: .sendViaAirDrop)?.perform(withItems: urls)
+                NSSharingService(named: .sendViaAirDrop)?.perform(withItems: targets)
             }
             shelfButton("Copy", symbol: "doc.on.doc") {
                 let pb = NSPasteboard.general
                 pb.clearContents()
-                pb.writeObjects(store.items.map { $0.url as NSURL })
+                pb.writeObjects(targets.map { $0 as NSURL })
             }
             shelfButton("Reveal", symbol: "magnifyingglass") {
-                NSWorkspace.shared.activateFileViewerSelecting(store.items.map(\.url))
+                NSWorkspace.shared.activateFileViewerSelecting(targets)
             }
             Spacer()
-            shelfButton("Clear", symbol: "trash") {
-                store.clear()
+            if let selected = selectedItem {
+                shelfButton("Remove", symbol: "minus.circle") {
+                    store.remove(selected)
+                    selectedID = nil
+                }
+            } else {
+                shelfButton("Clear", symbol: "trash") {
+                    store.clear()
+                }
             }
         }
     }
@@ -97,6 +119,8 @@ struct ShelfTileView: View {
 private struct ShelfItemCell: View {
     let item: ShelfItem
     let store: ShelfStore
+    let selected: Bool
+    let onTap: () -> Void
     @State private var hovered = false
 
     var body: some View {
@@ -106,7 +130,7 @@ private struct ShelfItemCell: View {
                 .frame(width: 34, height: 34)
             Text(item.name)
                 .font(Ego.font(9))
-                .foregroundStyle(Ego.textMute)
+                .foregroundStyle(selected ? .white : Ego.textMute)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
@@ -114,8 +138,15 @@ private struct ShelfItemCell: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(hovered ? Ego.surface2 : .clear)
+                .fill(selected ? Color.white.opacity(0.16)
+                      : (hovered ? Ego.surface2 : .clear))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Ego.accentSoft.opacity(selected ? 0.7 : 0), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture(perform: onTap)
         .onHover { hovered = $0 }
         .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
         .contextMenu {

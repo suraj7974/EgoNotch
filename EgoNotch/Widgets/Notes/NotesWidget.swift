@@ -172,6 +172,7 @@ struct NotesTileView: View {
 private struct NoteLineRow: View {
     let line: NoteLine
     let store: NotesStore
+    @State private var hovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -191,8 +192,20 @@ private struct NoteLineRow: View {
                 .foregroundStyle(line.checked ? Ego.textMute : .white)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            // Visible delete — a context menu alone was undiscoverable.
+            Button {
+                store.delete(line)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(hovered ? Ego.loss : Ego.textMute.opacity(0.5))
+            }
+            .buttonStyle(.plain)
+            .help("Delete")
         }
         .padding(.vertical, 1)
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
         .contextMenu {
             Button("Delete") { store.delete(line) }
         }

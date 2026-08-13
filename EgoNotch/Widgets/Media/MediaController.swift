@@ -11,6 +11,7 @@ final class MediaController {
     private var fallback: FallbackMediaProvider?
     private var spotify: SpotifyDirectChannel?
     private var active: (any MediaProvider)?
+    private var priming = false
 
     func start() {
         guard active == nil else { return }
@@ -26,6 +27,38 @@ final class MediaController {
         let s = SpotifyDirectChannel(model: model)
         spotify = s
         s.start()
+        primeIfNeeded()   // a song already playing shows up immediately
+    }
+
+    /// Ask the running player directly when we have no session yet — called
+    /// at launch and whenever the panel opens. No polling: one AppleScript
+    /// round-trip, and only while nothing is known to be playing.
+    func primeIfNeeded() {
+        guard !model.hasSession, !priming, active != nil else { return }
+        priming = true
+        Task { [weak self] in
+            let snapshot = await Task.detached(priority: .userInitiated) {
+                MediaPrimer.snapshot()
+            }.value
+            guard let self else { return }
+            self.priming = false
+            guard let snapshot, !self.model.hasSession else { return }
+
+            var track = NowPlayingTrack()
+            track.title = snapshot.title
+            track.artist = snapshot.artist
+            track.album = snapshot.album
+            track.duration = snapshot.duration
+            self.model.track = track
+            self.model.anchoredElapsed = snapshot.position
+            self.model.anchorDate = Date()
+            self.model.rate = 1
+            self.model.isPlaying = snapshot.isPlaying
+            self.model.appName = snapshot.app
+            if snapshot.app == "Spotify" {
+                self.spotify?.fetchArtwork(for: track)
+            }
+        }
     }
 
     func stop() {
