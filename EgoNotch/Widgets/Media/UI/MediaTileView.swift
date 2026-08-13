@@ -24,21 +24,22 @@ struct MediaTileView: View {
 
     // MARK: - Now playing
 
+    // NotchNest-style layout: big rounded art, bold title, round controls.
     private func sessionRow(_ model: NowPlayingModel) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             artwork(model)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(model.track?.title ?? "")
-                    .font(Ego.font(13, .semibold))
+                    .font(Ego.font(14, .bold))
                     .foregroundStyle(Ego.text)
                     .lineLimit(1)
                 Text(model.track?.artist ?? "")
-                    .font(Ego.font(11))
+                    .font(Ego.font(12))
                     .foregroundStyle(Ego.textMute)
                     .lineLimit(1)
                 ProgressRow(model: model)
-                    .padding(.top, 4)
+                    .padding(.top, 5)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -56,42 +57,31 @@ struct MediaTileView: View {
                 ZStack {
                     Ego.surface2
                     Image(systemName: "music.note")
-                        .font(.system(size: 18))
+                        .font(.system(size: 20))
                         .foregroundStyle(Ego.textMute)
                 }
             }
         }
-        .frame(width: 56, height: 56)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Ego.border, lineWidth: 1))
+        .frame(width: 64, height: 64)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
     }
 
     private var transport: some View {
-        HStack(spacing: 12) {
-            transportButton("backward.fill", size: 12) {
+        HStack(spacing: 7) {
+            RoundControlButton(symbol: "backward.fill", size: 11) {
                 widget.controller.send(.previousTrack)
             }
-            transportButton(widget.controller.model.isPlaying ? "pause.fill" : "play.fill",
-                            size: 18) {
+            RoundControlButton(symbol: widget.controller.model.isPlaying
+                               ? "pause.fill" : "play.fill",
+                               size: 14, diameter: 38) {
                 widget.controller.send(.togglePlayPause)
             }
-            transportButton("forward.fill", size: 12) {
+            RoundControlButton(symbol: "forward.fill", size: 11) {
                 widget.controller.send(.nextTrack)
             }
         }
         .opacity(widget.controller.model.controlsDenied ? 0.4 : 1)
-    }
-
-    private func transportButton(_ symbol: String, size: CGFloat,
-                                 action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(Ego.text)
-                .frame(width: max(size + 12, 26), height: max(size + 12, 26))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Empty / footer
@@ -149,6 +139,28 @@ struct MediaTileView: View {
         if let c = info.caseLevel {
             Chip(text: "Case \(c)%", variant: .neutral)
         }
+    }
+}
+
+/// Round translucent control button (NotchNest style).
+struct RoundControlButton: View {
+    let symbol: String
+    let size: CGFloat
+    var diameter: CGFloat = 32
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(Ego.text)
+                .frame(width: diameter, height: diameter)
+                .background(Color.white.opacity(hovered ? 0.22 : 0.10), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
     }
 }
 
