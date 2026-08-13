@@ -1,0 +1,9 @@
+import Foundation
+
+extension Notification.Name {
+    /// UI-level requests any decoupled widget view can post; AppDelegate
+    /// observes. Lives at app level so deleting a widget folder never breaks
+    /// the build.
+    static let egoOpenSettings = Notification.Name("EgoNotch.openSettings")
+    static let egoCollapseNotch = Notification.Name("EgoNotch.collapseNotch")
+}

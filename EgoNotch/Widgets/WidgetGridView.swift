@@ -1,0 +1,83 @@
+import SwiftUI
+
+/// Composes enabled widgets into the expanded panel. Rows hold 2 units:
+/// .small = 1, .wide = 2, packed greedily in registry order.
+struct WidgetGridView: View {
+    var body: some View {
+        let widgets = WidgetRegistry.enabled   // @Observable read → auto-invalidates on toggle
+        Group {
+            if widgets.isEmpty {
+                EmptyGridView()
+            } else {
+                Grid(horizontalSpacing: Ego.gridSpacing, verticalSpacing: Ego.gridSpacing) {
+                    ForEach(Array(packRows(widgets).enumerated()), id: \.offset) { _, row in
+                        GridRow {
+                            ForEach(row, id: \.id) { widget in
+                                WidgetTile(widget: widget, index: fileIndex(of: widget))
+                                    .gridCellColumns(widget.tileSize == .wide ? 2 : 1)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(16)
+            }
+        }
+    }
+
+    private func fileIndex(of widget: any NotchWidget) -> Int {
+        (WidgetRegistry.all.firstIndex { $0.id == widget.id } ?? 0) + 1
+    }
+
+    private func packRows(_ widgets: [any NotchWidget]) -> [[any NotchWidget]] {
+        var rows: [[any NotchWidget]] = []
+        var row: [any NotchWidget] = []
+        var units = 0
+        for w in widgets {
+            let u = w.tileSize == .wide ? 2 : 1
+            if units + u > 2 {
+                rows.append(row)
+                row = []
+                units = 0
+            }
+            row.append(w)
+            units += u
+        }
+        if !row.isEmpty { rows.append(row) }
+        return rows
+    }
+}
+
+struct WidgetTile: View {
+    let widget: any NotchWidget
+    let index: Int
+    @State private var hovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(index: index, title: widget.displayName)
+            widget.makeExpandedView()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .egoCard(hovered: hovered)
+        .onHover { over in
+            withAnimation(Ego.Motion.spring()) { hovered = over }
+        }
+    }
+}
+
+struct EmptyGridView: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("[ NO MODULES LOADED ]")
+                .font(Ego.mono(11))
+                .tracking(2)
+                .foregroundStyle(Ego.textMute)
+            Text("ENABLE MODULES IN SETTINGS")
+                .font(Ego.mono(9))
+                .tracking(Ego.headerTracking)
+                .foregroundStyle(Ego.textMute.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
