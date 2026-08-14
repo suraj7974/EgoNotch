@@ -2,8 +2,9 @@ APP      := EgoNotch
 CONFIG   := Debug
 DERIVED  := build
 APP_PATH := $(DERIVED)/Build/Products/$(CONFIG)/$(APP).app
+ICONSET  := EgoNotch/Resources/Assets.xcassets/AppIcon.appiconset
 
-.PHONY: bootstrap generate build run stop clean reset-tcc
+.PHONY: bootstrap generate build run install stop clean reset-tcc icons
 
 bootstrap:            ## one-time setup after clone
 	command -v xcodegen >/dev/null || brew install xcodegen
@@ -19,6 +20,26 @@ build: generate
 run: build
 	-pkill -x $(APP)
 	open $(APP_PATH)
+
+install: build          ## put it in /Applications and run it from there
+	-pkill -x $(APP)
+	rm -rf /Applications/$(APP).app
+	cp -R $(APP_PATH) /Applications/$(APP).app
+	/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -f /Applications/$(APP).app
+	killall Dock
+	open /Applications/$(APP).app
+
+icons:                  ## regenerate the icon set from new-icon.png
+	sips -Z 16   new-icon.png --out $(ICONSET)/icon_16.png
+	sips -Z 32   new-icon.png --out $(ICONSET)/icon_16@2x.png
+	sips -Z 32   new-icon.png --out $(ICONSET)/icon_32.png
+	sips -Z 64   new-icon.png --out $(ICONSET)/icon_32@2x.png
+	sips -Z 128  new-icon.png --out $(ICONSET)/icon_128.png
+	sips -Z 256  new-icon.png --out $(ICONSET)/icon_128@2x.png
+	sips -Z 256  new-icon.png --out $(ICONSET)/icon_256.png
+	sips -Z 512  new-icon.png --out $(ICONSET)/icon_256@2x.png
+	sips -Z 512  new-icon.png --out $(ICONSET)/icon_512.png
+	sips -Z 1024 new-icon.png --out $(ICONSET)/icon_512@2x.png
 
 stop:
 	-pkill -x $(APP)
