@@ -118,7 +118,7 @@ struct SystemStatsTileView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { context in
             // Vertical rows: ring on the left, name and detail to its right.
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 10) {
                 StatRow(label: "CPU", percent: sample.cpuPercent,
                         detail: "\(Int(sample.cpuPercent.rounded()))% used",
                         color: Ego.accentSoft)
@@ -151,29 +151,29 @@ private struct StatRow: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 3)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 3.5)
                 Circle()
                     .trim(from: 0, to: max(0.02, percent / 100))
-                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(percent.rounded()))")
-                    .font(Ego.font(8, .bold))
+                    .font(Ego.font(11, .bold))
                     .egoDigits()
                     .foregroundStyle(Ego.text)
             }
-            .frame(width: 26, height: 26)
+            .frame(width: 36, height: 36)
             .animation(Ego.Motion.spring(), value: percent)
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(label)
-                    .font(Ego.font(11, .semibold))
-                    .foregroundStyle(Ego.text)
+                    .font(Ego.font(12, .semibold))
+                    .foregroundStyle(.white)
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(Ego.font(9))
+                        .font(Ego.font(10))
                         .egoDigits()
                         .foregroundStyle(Ego.textMute)
                         .lineLimit(1)

@@ -47,21 +47,18 @@ struct MediaCompactView: View {
                     }
                 }
 
-                // Spread across the full column so the button row spans
-                // exactly the same width as the seek bar above it.
-                HStack(spacing: 0) {
+                HStack(spacing: 8) {
                     RoundControlButton(symbol: "backward.fill", size: 11, diameter: 30) {
                         widget.controller.send(.previousTrack)
                     }
-                    Spacer(minLength: 0)
                     RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
                                        size: 13, diameter: 34) {
                         widget.controller.send(.togglePlayPause)
                     }
-                    Spacer(minLength: 0)
                     RoundControlButton(symbol: "forward.fill", size: 11, diameter: 30) {
                         widget.controller.send(.nextTrack)
                     }
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
                 .opacity(model.hasSession ? 1 : 0.45)

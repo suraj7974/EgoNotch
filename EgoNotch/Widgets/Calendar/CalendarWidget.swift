@@ -247,41 +247,42 @@ private struct MonthGrid: View {
                             + cal.veryShortWeekdaySymbols[..<(cal.firstWeekday - 1)])
         let columns = Array(repeating: GridItem(.flexible(minimum: 13), spacing: 1), count: 7)
 
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(now, format: .dateTime.month(.wide).year())
-                .font(Ego.font(11, .bold))
+                .font(Ego.font(12, .bold))
                 .foregroundStyle(.white)
 
             HStack(spacing: 1) {
                 ForEach(Array(symbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
-                        .font(Ego.font(8, .semibold))
-                        .foregroundStyle(Ego.textMute.opacity(0.7))
+                        .font(Ego.font(9, .medium))
+                        .foregroundStyle(Ego.textMute.opacity(0.65))
                         .frame(maxWidth: .infinity)
                 }
             }
 
-            LazyVGrid(columns: columns, spacing: 2) {
+            LazyVGrid(columns: columns, spacing: 3) {
                 ForEach(cells) { cell in
                     Group {
                         if let day = cell.day {
+                            // Round marker for today — a square badge read
+                            // as "boxy" against the airy grid.
                             Text("\(day)")
-                                .font(Ego.font(9, day == today ? .bold : .regular))
+                                .font(Ego.font(10, day == today ? .bold : .regular))
                                 .egoDigits()
-                                .foregroundStyle(day == today ? .black : .white.opacity(0.85))
-                                .frame(width: 16, height: 13)
-                                .background(day == today ? Color.white : .clear,
-                                            in: RoundedRectangle(cornerRadius: 4))
+                                .foregroundStyle(day == today ? .black : .white.opacity(0.8))
+                                .frame(width: 19, height: 19)
+                                .background(day == today ? Color.white : .clear, in: Circle())
                                 .overlay(alignment: .bottom) {
                                     if eventDays.contains(day), day != today {
                                         Circle()
                                             .fill(Ego.accentSoft)
-                                            .frame(width: 2.5, height: 2.5)
-                                            .offset(y: 2)
+                                            .frame(width: 3, height: 3)
+                                            .offset(y: 1)
                                     }
                                 }
                         } else {
-                            Color.clear.frame(width: 16, height: 13)
+                            Color.clear.frame(width: 19, height: 19)
                         }
                     }
                     .frame(maxWidth: .infinity)
