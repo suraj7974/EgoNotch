@@ -51,10 +51,18 @@ final class NotchStateController {
     /// Never interrupts a panel the user has open or is hovering.
     func showBanner(title: String, subtitle: String?) {
         guard state == .closed || state == .peek else { return }
+        // Providers can announce the same change twice (MediaRemote and the
+        // Spotify channel). Update the text, but NEVER restart the timer —
+        // the peek must always retire on schedule.
+        if state == .peek {
+            bannerText = title
+            bannerSubtitle = subtitle
+            return
+        }
         bannerText = title
         bannerSubtitle = subtitle
         bannerTask?.cancel()
-        if state == .closed { transition(to: .peek) }
+        transition(to: .peek)
         bannerTask = Task { [weak self] in
             let hold = self?.config.peekDuration ?? 2
             try? await Task.sleep(for: .seconds(hold))
