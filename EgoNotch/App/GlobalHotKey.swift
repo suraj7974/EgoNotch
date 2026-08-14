@@ -21,10 +21,12 @@ final class GlobalHotKey {
         /// NSEvent modifier flags (device-independent).
         var modifiers: UInt
 
-        /// ⌃⌥T — deliberately awkward, so it collides with nothing.
+        /// ⌘⌥T. Free system-wide; note it shadows AppKit's "Hide Toolbar"
+        /// in apps that have one, since a registered hot key wins over an
+        /// app's own menu shortcut.
         static let terminalDefault = Combination(
             keyCode: UInt32(kVK_ANSI_T),
-            modifiers: NSEvent.ModifierFlags([.control, .option]).rawValue)
+            modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue)
 
         /// A shortcut without modifiers would swallow that key system-wide.
         var isValid: Bool { carbonModifiers != 0 }
