@@ -45,10 +45,9 @@ struct NotchRootView: View {
         .compositingGroup()
         .clipShape(shape)
         .overlay(                       // crisp hairline on the expanded panel
-            shape.stroke(Color.white.opacity(state == .expanded ? 0.07 : 0), lineWidth: 1)
+            shape.stroke(Color.white.opacity(state == .expanded ? 0.10 : 0), lineWidth: 1)
         )
-        .shadow(color: Ego.glowColor.opacity(state == .hover ? Ego.glowOpacity : 0),
-                radius: Ego.glowRadius)
+        // No glow: any halo makes the collapsed notch read as not-quite-black.
         .frame(width: size.width, height: size.height)
         .contentShape(shape)
         .onTapGesture { controller.clicked() }
@@ -72,16 +71,23 @@ struct NotchRootView: View {
 
     private func expandedContent(geometry: NotchGeometry, config: NotchConfiguration) -> some View {
         VStack(spacing: 0) {
-            // Dead zone behind the physical camera housing.
-            Color.clear.frame(height: geometry.notchRect.height)
+            if geometry.isPhysicalNotch {
+                // Reclaim the camera-housing strip: the bar flanks the notch
+                // instead of leaving a dead black band above the content.
+                PanelTopBar(notchGap: geometry.notchRect.width)
+                    .frame(height: geometry.notchRect.height)
+                    .padding(.horizontal, 14)
+            }
             ZStack(alignment: .top) {
-                Ego.panelGradient
+                Color.black
                 VStack(spacing: 10) {
-                    PanelTopBar()
+                    if !geometry.isPhysicalNotch {
+                        PanelTopBar(notchGap: nil)
+                    }
                     PanelContent()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .padding(.top, 12)
+                .padding(.top, geometry.isPhysicalNotch ? 10 : 12)
                 .padding(.horizontal, 22)
                 .padding(.bottom, 18)
             }
@@ -91,42 +97,61 @@ struct NotchRootView: View {
 
 /// NotchNest-style top bar: icon-only tab circles on the left; widget
 /// accessories (battery pill), settings gear, and close on the right.
+/// When `notchGap` is set the bar straddles the physical camera housing —
+/// left group, gap, right group — so that strip isn't wasted.
 struct PanelTopBar: View {
+    var notchGap: CGFloat?
     private var ui = PanelUIState.shared
+
+    init(notchGap: CGFloat? = nil) {
+        self.notchGap = notchGap
+    }
+
+    private var compact: Bool { notchGap != nil }
+    private var circle: CGFloat { compact ? 26 : 30 }
 
     var body: some View {
         let tabs = ui.availableTabs
-        HStack(spacing: 6) {
-            ForEach(tabs) { tab in
-                Button {
-                    withAnimation(Ego.Motion.spring()) { ui.selectedTab = tab }
-                } label: {
-                    Image(systemName: tab.icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(ui.selectedTab == tab ? Ego.text : Ego.textMute)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            ui.selectedTab == tab ? Color.white.opacity(0.14) : .clear,
-                            in: Circle()
-                        )
-                        .contentShape(Circle())
+        HStack(spacing: 0) {
+            HStack(spacing: compact ? 3 : 6) {
+                ForEach(tabs) { tab in
+                    Button {
+                        withAnimation(Ego.Motion.spring()) { ui.selectedTab = tab }
+                    } label: {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: compact ? 11 : 12, weight: .semibold))
+                            .foregroundStyle(ui.selectedTab == tab ? Ego.text : Ego.textMute)
+                            .frame(width: circle, height: circle)
+                            .background(
+                                ui.selectedTab == tab ? Color.white.opacity(0.14) : .clear,
+                                in: Circle()
+                            )
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(tab.title)
                 }
-                .buttonStyle(.plain)
-                .help(tab.title)
+                if !compact { Spacer(minLength: 0) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let notchGap {
+                Color.clear.frame(width: notchGap)   // the camera housing
             }
 
-            Spacer(minLength: 0)
-
-            ForEach(topBarAccessories, id: \.id) { accessory in
-                accessory.view
+            HStack(spacing: compact ? 4 : 6) {
+                if !compact { Spacer(minLength: 0) }
+                ForEach(topBarAccessories, id: \.id) { accessory in
+                    accessory.view
+                }
+                barButton("gearshape.fill") {
+                    NotificationCenter.default.post(name: .egoOpenSettings, object: nil)
+                }
+                barButton("xmark") {
+                    NotificationCenter.default.post(name: .egoCollapseNotch, object: nil)
+                }
             }
-
-            barButton("gearshape.fill") {
-                NotificationCenter.default.post(name: .egoOpenSettings, object: nil)
-            }
-            barButton("xmark") {
-                NotificationCenter.default.post(name: .egoCollapseNotch, object: nil)
-            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .onAppear { ui.normalize() }
         .onChange(of: tabs) { ui.normalize() }
@@ -146,9 +171,9 @@ struct PanelTopBar: View {
     private func barButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: compact ? 10 : 11, weight: .semibold))
                 .foregroundStyle(Ego.textMute)
-                .frame(width: 28, height: 28)
+                .frame(width: compact ? 24 : 28, height: compact ? 24 : 28)
                 .background(Color.white.opacity(0.06), in: Circle())
                 .contentShape(Circle())
         }

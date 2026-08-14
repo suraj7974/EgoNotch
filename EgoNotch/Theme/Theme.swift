@@ -5,21 +5,12 @@ import SwiftUI
 /// SF Pro, white/gray text, sparing blue accent, near-zero glow.
 /// Tokens are nonisolated so nonisolated Shape/drawing code can read them.
 nonisolated enum Ego {
-    // MARK: Palette — near-black (user: panel must read black, not grey)
-    static let bg         = Color(hex: "0C0C0D")     // panel base
-    static let surface    = Color(hex: "18181A")     // card/tile background
-    static let surface2   = Color(hex: "232326")     // hover / elevated tile
-    static let border     = Color.white.opacity(0.08)
-
-    // Depth gradients — subtle lift on black, never grey.
-    static var panelGradient: LinearGradient {
-        LinearGradient(colors: [Color(hex: "121213"), Color(hex: "09090A")],
-                       startPoint: .top, endPoint: .bottom)
-    }
-    static var tileGradient: LinearGradient {
-        LinearGradient(colors: [Color(hex: "1B1B1D"), Color(hex: "121214")],
-                       startPoint: .top, endPoint: .bottom)
-    }
+    // MARK: Palette — ABSOLUTE black. No gradients, no grey washes; things
+    // are separated by hairlines and borders, never by background shade.
+    static let bg         = Color.black              // panel base
+    static let surface    = Color.black              // card/tile background
+    static let surface2   = Color(hex: "141414")     // rows/fields: the only lift
+    static let border     = Color.white.opacity(0.12)
     static let accent     = Color(hex: "0A84FF")     // interactive accent — use sparingly
     static let accentSoft = Color(hex: "64D2FF")
     static let text       = Color.white.opacity(0.95)
@@ -37,11 +28,8 @@ nonisolated enum Ego {
     static let tilePadding: CGFloat = 12
     static let gridSpacing: CGFloat = 12
 
-    // MARK: Glow — near-zero by design (user preference: minimal glow).
-    // These are the ONLY glow knobs; never hardcode glow values elsewhere.
-    static let glowColor = Color.white
-    static let glowOpacity: Double = 0.10
-    static let glowRadius: CGFloat = 6
+    // Glow is deliberately absent app-wide: pure black surfaces separated by
+    // hairlines only. Do not reintroduce shadows/halos on the chrome.
 
     // MARK: Motion — every animation goes through here so the user's
     // animation-speed setting applies app-wide. (MainActor: reads SettingsStore.)

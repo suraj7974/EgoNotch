@@ -7,13 +7,7 @@ struct EgoCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(Ego.tilePadding)
-            .background {
-                if hovered {
-                    RoundedRectangle(cornerRadius: Ego.cardRadius).fill(Ego.surface2)
-                } else {
-                    RoundedRectangle(cornerRadius: Ego.cardRadius).fill(Ego.tileGradient)
-                }
-            }
+            .background(Ego.surface, in: RoundedRectangle(cornerRadius: Ego.cardRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Ego.cardRadius)
                     .strokeBorder(Ego.border, lineWidth: 1)
@@ -21,7 +15,7 @@ struct EgoCardModifier: ViewModifier {
     }
 }
 
-/// Active element: slightly brighter hairline + the faintest lift.
+/// Active element: a brighter hairline. No glow — separation is by line only.
 struct EgoActiveModifier: ViewModifier {
     var isActive = true
 
@@ -29,10 +23,8 @@ struct EgoActiveModifier: ViewModifier {
         content
             .overlay(
                 RoundedRectangle(cornerRadius: Ego.cardRadius)
-                    .strokeBorder(Color.white.opacity(isActive ? 0.22 : 0), lineWidth: 1)
+                    .strokeBorder(Color.white.opacity(isActive ? 0.28 : 0), lineWidth: 1)
             )
-            .shadow(color: Ego.glowColor.opacity(isActive ? Ego.glowOpacity : 0),
-                    radius: Ego.glowRadius)
     }
 }
 
