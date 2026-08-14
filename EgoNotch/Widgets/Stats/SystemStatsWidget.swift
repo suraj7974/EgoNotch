@@ -24,6 +24,8 @@ struct SystemSample {
     var ramPercent = 0.0
     var batteryPercent: Double?
     var charging = false
+    var diskPercent = 0.0
+    var diskFreeText = ""
 }
 
 final class SystemSampler {
@@ -36,7 +38,22 @@ final class SystemSampler {
         let battery = sampleBattery()
         out.batteryPercent = battery.0
         out.charging = battery.1
+        let disk = sampleDisk()
+        out.diskPercent = disk.0
+        out.diskFreeText = disk.1
         return out
+    }
+
+    /// Boot volume usage — cheap enough for the 2s cadence.
+    private func sampleDisk() -> (Double, String) {
+        let url = URL(fileURLWithPath: "/")
+        guard let values = try? url.resourceValues(
+            forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]),
+              let total = values.volumeTotalCapacity, total > 0 else { return (0, "") }
+        let free = Int64(values.volumeAvailableCapacityForImportantUsage ?? 0)
+        let used = Double(Int64(total) - free) / Double(total) * 100
+        return (min(max(used, 0), 100),
+                ByteCountFormatter.string(fromByteCount: free, countStyle: .file) + " free")
     }
 
     private func sampleCPU() -> Double {
@@ -100,18 +117,26 @@ struct SystemStatsTileView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { context in
-            HStack(spacing: 14) {
-                Spacer(minLength: 0)
-                StatRing(label: "CPU", percent: sample.cpuPercent, color: Ego.accentSoft)
-                StatRing(label: "RAM", percent: sample.ramPercent, color: Color(hex: "BF5AF2"))
+            // Vertical rows: ring on the left, name and detail to its right.
+            VStack(alignment: .leading, spacing: 7) {
+                StatRow(label: "CPU", percent: sample.cpuPercent,
+                        detail: "\(Int(sample.cpuPercent.rounded()))% used",
+                        color: Ego.accentSoft)
+                StatRow(label: "RAM", percent: sample.ramPercent,
+                        detail: "\(Int(sample.ramPercent.rounded()))% used",
+                        color: Color(hex: "BF5AF2"))
+                StatRow(label: "Disk", percent: sample.diskPercent,
+                        detail: sample.diskFreeText,
+                        color: Color(hex: "FF9F0A"))
                 if let battery = sample.batteryPercent {
-                    StatRing(label: sample.charging ? "CHRG" : "BATT",
-                             percent: battery,
-                             color: battery <= 20 ? Ego.loss : Ego.win)
+                    StatRow(label: sample.charging ? "Charging" : "Battery",
+                            percent: battery,
+                            detail: "\(Int(battery.rounded()))%",
+                            color: battery <= 20 && !sample.charging ? Ego.loss : Ego.win)
                 }
                 Spacer(minLength: 0)
             }
-            .frame(maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .onChange(of: context.date, initial: true) {
                 sample = widget.sampler.sample()
             }
@@ -119,30 +144,42 @@ struct SystemStatsTileView: View {
     }
 }
 
-private struct StatRing: View {
+private struct StatRow: View {
     let label: String
     let percent: Double
+    let detail: String
     let color: Color
 
     var body: some View {
-        VStack(spacing: 4) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 3.5)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: max(0.02, percent / 100))
-                    .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(percent.rounded()))")
-                    .font(Ego.font(10, .bold))
+                    .font(Ego.font(8, .bold))
                     .egoDigits()
                     .foregroundStyle(Ego.text)
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 26, height: 26)
             .animation(Ego.Motion.spring(), value: percent)
-            Text(label)
-                .font(Ego.font(8, .semibold))
-                .foregroundStyle(Ego.textMute)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label)
+                    .font(Ego.font(11, .semibold))
+                    .foregroundStyle(Ego.text)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(Ego.font(9))
+                        .egoDigits()
+                        .foregroundStyle(Ego.textMute)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
         }
     }
 }

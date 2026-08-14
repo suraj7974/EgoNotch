@@ -22,7 +22,7 @@ struct DisplaySettingsTab: View {
                         Text("Height")
                             .font(Ego.font(11))
                             .foregroundStyle(Ego.textMute)
-                        Slider(value: $settings.panelHeight, in: 200...340, step: 5)
+                        Slider(value: $settings.panelHeight, in: 170...300, step: 5)
                         Text("\(Int(settings.panelHeight)) pt")
                             .font(Ego.font(11))
                             .egoDigits()

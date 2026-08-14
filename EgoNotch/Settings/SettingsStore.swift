@@ -101,7 +101,7 @@ final class SettingsStore {
             Key.virtualNotchW: 190.0,
             Key.virtualNotchH: 32.0,
             Key.panelWidth: 960.0,
-            Key.panelHeight: 235.0,
+            Key.panelHeight: 205.0,
             Key.focusMinutes: 25,
             Key.breakMinutes: 5,
             Key.deepMinutes: 50,

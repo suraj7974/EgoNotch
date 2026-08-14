@@ -6,79 +6,63 @@ import SwiftUI
 struct MediaCompactView: View {
     let widget: MediaWidget
 
+    /// Fixed skeleton — artwork box, text block and transport row always
+    /// occupy the same slots, so a missing cover can never shift anything.
     var body: some View {
         let model = widget.controller.model
-        if model.hasSession {
-            // Adaptive: full → no device label → no artwork, so the column
-            // never clips at narrow panel widths.
-            ViewThatFits(in: .horizontal) {
-                sessionRow(model, artSize: 92, showDevice: true)
-                sessionRow(model, artSize: 72, showDevice: false)
-                sessionRow(model, artSize: nil, showDevice: false)
-            }
-            .frame(maxHeight: .infinity, alignment: .center)
-        } else {
-            VStack(spacing: 6) {
-                Image(systemName: "music.note")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Ego.textMute)
-                Text("Nothing playing")
-                    .font(Ego.font(11))
-                    .foregroundStyle(Ego.textMute)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Opening the panel with no known session re-asks the player.
-            .onAppear { widget.controller.primeIfNeeded() }
-        }
-    }
-
-    private func sessionRow(_ model: NowPlayingModel, artSize: CGFloat?,
-                            showDevice: Bool) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            if let artSize {
-                artwork(model, size: artSize)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(model.track?.title ?? "")
-                    .font(Ego.font(13, .bold))
-                    .foregroundStyle(Ego.text)
-                    .lineLimit(1)
-                Text(model.track?.artist ?? "")
-                    .font(Ego.font(11))
-                    .foregroundStyle(Ego.textMute)
-                    .lineLimit(1)
-                SeekableProgressBar(model: model) { target in
-                    widget.controller.seek(to: target)
-                }
-                .padding(.top, 2)
-                HStack(spacing: 6) {
-                    RoundControlButton(symbol: "backward.fill", size: 10, diameter: 28) {
-                        widget.controller.send(.previousTrack)
-                    }
-                    RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
-                                       size: 12, diameter: 32) {
-                        widget.controller.send(.togglePlayPause)
-                    }
-                    RoundControlButton(symbol: "forward.fill", size: 10, diameter: 28) {
-                        widget.controller.send(.nextTrack)
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                artwork(model, size: 84)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(model.track?.title ?? "Nothing playing")
+                        .font(Ego.font(13, .bold))
+                        .foregroundStyle(model.hasSession ? .white : Ego.textMute)
+                        .lineLimit(1)
+                    Text(model.hasSession
+                         ? (model.track?.artist ?? "")
+                         : "Play something to see it here")
+                        .font(Ego.font(11))
+                        .foregroundStyle(Ego.textMute)
+                        .lineLimit(1)
                     Spacer(minLength: 0)
-                    if showDevice {
-                        Text(widget.audioOutput.deviceName)
-                            .font(Ego.font(9))
-                            .foregroundStyle(Ego.textMute.opacity(0.8))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 90, alignment: .trailing)
+                    if model.hasSession {
+                        SeekableProgressBar(model: model) { target in
+                            widget.controller.seek(to: target)
+                        }
                     }
                 }
-                .padding(.top, 3)
+                .frame(height: 84)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Transport lives at the bottom of the column, always in place.
+            HStack(spacing: 8) {
+                RoundControlButton(symbol: "backward.fill", size: 11, diameter: 30) {
+                    widget.controller.send(.previousTrack)
+                }
+                RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
+                                   size: 13, diameter: 34) {
+                    widget.controller.send(.togglePlayPause)
+                }
+                RoundControlButton(symbol: "forward.fill", size: 11, diameter: 30) {
+                    widget.controller.send(.nextTrack)
+                }
+                Spacer(minLength: 0)
+                Text(widget.audioOutput.deviceName)
+                    .font(Ego.font(9))
+                    .foregroundStyle(Ego.textMute.opacity(0.8))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 96, alignment: .trailing)
+            }
+            .opacity(model.hasSession ? 1 : 0.45)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Opening the panel with no known session re-asks the player.
+        .onAppear { widget.controller.primeIfNeeded() }
     }
 
-    private func artwork(_ model: NowPlayingModel, size: CGFloat = 92) -> some View {
+    private func artwork(_ model: NowPlayingModel, size: CGFloat = 84) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let artwork = model.artwork {
