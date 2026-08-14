@@ -51,6 +51,10 @@ final class RecorderCamera: NSObject {
     private(set) var saveFailed = false
 
     @ObservationIgnored private(set) var session: AVCaptureSession?
+    /// ONE long-lived preview layer. Letting SwiftUI create/destroy layers
+    /// per appearance deadlocks: the layer's dealloc runs on the main thread
+    /// and blocks on the session lock held by our session queue.
+    @ObservationIgnored let previewLayer = AVCaptureVideoPreviewLayer()
     @ObservationIgnored private let photoOutput = AVCapturePhotoOutput()
     @ObservationIgnored private let movieOutput = AVCaptureMovieFileOutput()
     // Written on sessionQueue (attach) / read+cleared on main (detach) —
@@ -117,6 +121,15 @@ final class RecorderCamera: NSObject {
             if s.canAddOutput(photoOutput) { s.addOutput(photoOutput) }
             if s.canAddOutput(movieOutput) { s.addOutput(movieOutput) }
             session = s
+
+            // Attach the persistent layer once, while the session is idle.
+            previewLayer.session = s
+            previewLayer.videoGravity = .resizeAspectFill
+            if let connection = previewLayer.connection,
+               connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = true   // mirror in the pipeline
+            }
         }
         applyDesiredState()
     }
@@ -302,18 +315,17 @@ struct RecorderTileView: View {
 
     private var preview: some View {
         // Circular bubble: aspect-fill keeps the whole face in frame even in
-        // the short panel.
+        // the short panel. Mirroring and the circular mask happen in the
+        // layer, so SwiftUI never transforms a live capture layer.
         Group {
-            if let session = camera.session {
-                CameraPreview(session: session)
-                    .scaleEffect(x: -1)   // mirror like a real mirror
+            if camera.session != nil {
+                CameraPreview(previewLayer: camera.previewLayer)
             } else {
-                Ego.surface2
+                Ego.surface2.clipShape(Circle())
             }
         }
         .aspectRatio(1, contentMode: .fit)
         .frame(maxWidth: 148, maxHeight: 148)   // shrinks with the panel height
-        .clipShape(Circle())
         .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
     }
 
@@ -372,17 +384,46 @@ struct RecorderTileView: View {
     }
 }
 
+/// Hosts the camera's persistent preview layer as a SUBLAYER, so appearing
+/// and disappearing never releases the layer (which would deadlock the main
+/// thread against the capture session's lock).
 struct CameraPreview: NSViewRepresentable {
-    let session: AVCaptureSession
+    let previewLayer: AVCaptureVideoPreviewLayer
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+    func makeNSView(context: Context) -> LayerHostView {
+        let view = LayerHostView()
         view.wantsLayer = true
-        let layer = AVCaptureVideoPreviewLayer(session: session)
-        layer.videoGravity = .resizeAspectFill
-        view.layer = layer
+        view.layer?.masksToBounds = true
+        view.hostedLayer = previewLayer
+        previewLayer.removeFromSuperlayer()
+        view.layer?.addSublayer(previewLayer)
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: LayerHostView, context: Context) {
+        nsView.layoutHostedLayer()
+    }
+
+    /// Detach only — the layer itself stays alive, owned by the camera.
+    static func dismantleNSView(_ nsView: LayerHostView, coordinator: ()) {
+        nsView.hostedLayer?.removeFromSuperlayer()
+        nsView.hostedLayer = nil
+    }
+}
+
+final class LayerHostView: NSView {
+    var hostedLayer: CALayer?
+
+    override func layout() {
+        super.layout()
+        layoutHostedLayer()
+    }
+
+    func layoutHostedLayer() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        hostedLayer?.frame = bounds
+        layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+        CATransaction.commit()
+    }
 }
