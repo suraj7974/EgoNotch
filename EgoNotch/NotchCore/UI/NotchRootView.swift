@@ -76,14 +76,14 @@ struct NotchRootView: View {
             Color.clear.frame(height: geometry.notchRect.height)
             ZStack(alignment: .top) {
                 Ego.panelGradient
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     PanelTopBar()
                     PanelContent()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .padding(.top, 8)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 12)
+                .padding(.top, 12)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 18)
             }
         }
     }
