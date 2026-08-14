@@ -54,23 +54,6 @@ struct GeneralPane: View {
                 }
             }
 
-            SettingsCard(title: "Shortcut") {
-                SettingsRow(label: "Open the Terminal tab",
-                            hint: HotKeyStatus.shared.terminalTaken
-                                ? "Another app already owns that combination — pick a different one."
-                                : "Works anywhere. Press it again to put the notch away.",
-                            icon: "terminal") {
-                    HStack(spacing: 8) {
-                        if settings.terminalHotKeyEnabled {
-                            HotKeyRecorder(combination: $settings.terminalHotKey)
-                        }
-                        Toggle("", isOn: $settings.terminalHotKeyEnabled)
-                            .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
-                            .labelsHidden()
-                    }
-                }
-            }
-
             SettingsCard(title: "Visibility") {
                 SettingsRow(label: "Hide during fullscreen",
                             hint: "Gets out of the way of fullscreen video, presentations and games.",
