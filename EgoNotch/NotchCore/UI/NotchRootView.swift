@@ -91,13 +91,16 @@ struct NotchRootView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .padding(.top, geometry.isPhysicalNotch ? 10 : 12)
-                .padding(.horizontal, 22)
+                // + the flare inset, which the outer shape clips away.
+                .padding(.horizontal, 22 + config.topFlareRadius)
                 .padding(.bottom, 18)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Clip overflow WITHOUT squaring the panel: a plain .clipped()
-            // rectangle would cut the rounded bottom corners.
-            .clipShape(RoundedRectangle(cornerRadius: config.expandedBottomRadius))
+            // Contain overflow without touching the panel's silhouette:
+            // square at the top (flush with the strip), round at the bottom.
+            .clipShape(UnevenRoundedRectangle(
+                bottomLeadingRadius: config.expandedBottomRadius,
+                bottomTrailingRadius: config.expandedBottomRadius))
         }
     }
 }
