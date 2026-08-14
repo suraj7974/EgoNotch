@@ -75,19 +75,25 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     func newShell() { restart(arguments: ["-l"], session: nil) }
 
-    /// Put the caret in the shell so the first keystroke after opening the tab
-    /// isn't swallowed.
+    /// Put the caret in the shell so the very first keystroke lands.
     ///
-    /// `claimKeyboard` is only true for a deliberate click on the terminal:
-    /// a panel that opened on hover must never yank focus out of whatever the
-    /// user was typing in.
-    func focus(claimKeyboard: Bool = false) {
-        // A tick later: on the first render the view isn't in a window yet.
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let window = self.view.window else { return }
-            if claimKeyboard, !window.isKeyWindow { window.makeKey() }
-            guard window.isKeyWindow, window.firstResponder !== self.view else { return }
-            window.makeFirstResponder(self.view)
+    /// Retries briefly: on the frame the tab appears the view isn't in a
+    /// window yet, and the panel may still be taking key status, so a single
+    /// attempt silently does nothing and typing goes nowhere.
+    func focus(attempt: Int = 0) {
+        guard let window = view.window else {
+            retryFocus(attempt: attempt)
+            return
+        }
+        if !window.isKeyWindow { window.makeKey() }
+        if window.firstResponder !== view { window.makeFirstResponder(view) }
+        if window.firstResponder !== view { retryFocus(attempt: attempt) }
+    }
+
+    private func retryFocus(attempt: Int) {
+        guard attempt < 8 else { return }              // ~0.4s, then give up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.focus(attempt: attempt + 1)
         }
     }
 

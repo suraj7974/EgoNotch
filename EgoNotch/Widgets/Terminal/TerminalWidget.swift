@@ -63,7 +63,7 @@ struct TerminalTileView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: 10))
-            .onTapGesture { widget.terminal.focus(claimKeyboard: true) }
+            .onTapGesture { widget.terminal.focus() }
             .onAppear {
                 widget.terminal.applyTheme()
                 widget.terminal.startIfNeeded()
