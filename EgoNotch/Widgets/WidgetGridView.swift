@@ -53,7 +53,9 @@ struct WidgetTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(index: 0, title: widget.displayName)
+            ColumnHeader(title: widget.displayName,
+                         appName: widget.companionAppName,
+                         openApp: { widget.openCompanionApp() })
             widget.makeExpandedView()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

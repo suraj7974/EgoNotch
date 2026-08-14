@@ -35,6 +35,10 @@ protocol NotchWidget: AnyObject {
     /// Maximum width for the column — keeps compact content from leaving a
     /// dead gap and hands the slack to its neighbours.
     var compactMaxWidth: CGFloat? { get }
+    /// Name of the app this section stands in for ("Calendar"); nil = none.
+    /// Shown as a hint on hover and opened when the section is clicked.
+    var companionAppName: String? { get }
+    func openCompanionApp()
 
     /// Slim live indicator beside the notch when closed (max ~24pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
@@ -62,6 +66,8 @@ extension NotchWidget {
     var wantsExclusiveClosedStrip: Bool { false }
     var compactMinWidth: CGFloat? { nil }
     var compactMaxWidth: CGFloat? { nil }
+    var companionAppName: String? { nil }
+    func openCompanionApp() {}
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func makeExpandedView() -> AnyView? { nil }
     func makeCompactView() -> AnyView? { nil }

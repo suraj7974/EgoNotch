@@ -203,6 +203,44 @@ struct PanelTopBar: View {
     }
 }
 
+/// Section title that doubles as "open the app this stands in for" — the
+/// whole header is the hit target, so it never competes with the controls
+/// inside the column.
+struct ColumnHeader: View {
+    let title: String
+    let appName: String?
+    let openApp: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        if let appName {
+            Button(action: openApp) {
+                HStack(spacing: 4) {
+                    Text(title)
+                        .font(Ego.font(11, .semibold))
+                        .foregroundStyle(hovered ? .white : Ego.textMute)
+                    Image(systemName: "arrow.up.forward")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Ego.textMute)
+                        .opacity(hovered ? 1 : 0)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { over in
+                withAnimation(Ego.Motion.spring()) { hovered = over }
+            }
+            .help("Open \(appName)")
+        } else {
+            Text(title)
+                .font(Ego.font(11, .semibold))
+                .foregroundStyle(Ego.textMute)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 /// Per-tab content. Home is a NotchNest-style strip of divided columns;
 /// other tabs lay their tiles out in fixed (non-scrolling) rows.
 struct PanelContent: View {
@@ -225,6 +263,8 @@ struct HomeStripView: View {
         let title: String
         let minWidth: CGFloat?
         let maxWidth: CGFloat?
+        let appName: String?
+        let openApp: () -> Void
         let view: AnyView
     }
 
@@ -235,7 +275,10 @@ struct HomeStripView: View {
                 w.makeCompactView().map {
                     Column(id: w.id, title: w.displayName,
                            minWidth: w.compactMinWidth,
-                           maxWidth: w.compactMaxWidth, view: $0)
+                           maxWidth: w.compactMaxWidth,
+                           appName: w.companionAppName,
+                           openApp: { w.openCompanionApp() },
+                           view: $0)
                 }
             }
 
@@ -251,9 +294,8 @@ struct HomeStripView: View {
                             .padding(.vertical, 10)
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(column.title)
-                            .font(Ego.font(11, .semibold))
-                            .foregroundStyle(Ego.textMute)
+                        ColumnHeader(title: column.title, appName: column.appName,
+                                     openApp: column.openApp)
                         column.view
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }

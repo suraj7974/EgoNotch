@@ -18,6 +18,9 @@ final class SystemStatsWidget: NotchWidget {
     /// so the slack goes to the widgets that can use it.
     var compactMaxWidth: CGFloat? { 146 }
 
+    var companionAppName: String? { "Activity Monitor" }
+    func openCompanionApp() { AppLauncher.open(bundleID: "com.apple.ActivityMonitor") }
+
     func makeCompactView() -> AnyView? {
         AnyView(SystemStatsTileView(widget: self))
     }

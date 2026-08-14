@@ -14,6 +14,9 @@ final class CalendarWidget: NotchWidget {
     let store = CalendarStore()
     private var active = false
 
+    var companionAppName: String? { "Calendar" }
+    func openCompanionApp() { AppLauncher.open(bundleID: "com.apple.iCal") }
+
     func activate() {
         guard !active else { return }
         active = true

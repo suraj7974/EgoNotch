@@ -20,6 +20,13 @@ final class MediaWidget: NotchWidget {
     /// Big artwork + title/seek/transport needs more room than a plain tile.
     var compactMinWidth: CGFloat? { 300 }
 
+    /// Whatever is actually playing — Spotify, Music, a browser…
+    var companionAppName: String? { controller.model.appName ?? "Spotify" }
+
+    func openCompanionApp() {
+        AppLauncher.open(named: controller.model.appName ?? "Spotify")
+    }
+
     func activate() {
         guard !active else { return }
         active = true

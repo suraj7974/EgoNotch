@@ -12,6 +12,15 @@ final class ShelfWidget: NotchWidget {
 
     let store = ShelfStore()
 
+    var companionAppName: String? { "Finder" }
+    func openCompanionApp() {
+        if let first = store.items.first {
+            AppLauncher.reveal(first.url)
+        } else {
+            AppLauncher.open(bundleID: "com.apple.finder")
+        }
+    }
+
     func activate() {
         // Debug: EGO_DEBUG_SHELF_ADD=/path/a:/path/b seeds the shelf.
         if let paths = ProcessInfo.processInfo.environment["EGO_DEBUG_SHELF_ADD"] {
