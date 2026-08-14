@@ -13,6 +13,8 @@ final class SettingsStore {
     static let geometryDidChange = Notification.Name("EgoNotch.geometryDidChange")
     /// Posted when a rule about *when the notch is shown* changes.
     static let visibilityRulesDidChange = Notification.Name("EgoNotch.visibilityRulesDidChange")
+    /// Posted when a global shortcut is enabled, disabled or re-recorded.
+    static let hotKeysDidChange = Notification.Name("EgoNotch.hotKeysDidChange")
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -30,6 +32,9 @@ final class SettingsStore {
         static let terminalFont   = "terminal.fontSize"    // pt, default 12
         static let hideFullScreen = "hideInFullScreen"     // Bool, default true
         static let hideMeetings   = "hideInMeetings"       // Bool, default false
+        static let termHotKeyOn   = "hotkey.terminal.enabled"  // Bool, default true
+        static let termHotKeyCode = "hotkey.terminal.keyCode"
+        static let termHotKeyMods = "hotkey.terminal.modifiers"
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -81,6 +86,21 @@ final class SettingsStore {
             NotificationCenter.default.post(name: Self.visibilityRulesDidChange, object: nil)
         }
     }
+    /// System-wide shortcut that opens the notch straight on the Terminal tab.
+    var terminalHotKeyEnabled: Bool {
+        didSet {
+            defaults.set(terminalHotKeyEnabled, forKey: Key.termHotKeyOn)
+            NotificationCenter.default.post(name: Self.hotKeysDidChange, object: nil)
+        }
+    }
+    var terminalHotKey: GlobalHotKey.Combination {
+        didSet {
+            defaults.set(Int(terminalHotKey.keyCode), forKey: Key.termHotKeyCode)
+            defaults.set(Int(terminalHotKey.modifiers), forKey: Key.termHotKeyMods)
+            NotificationCenter.default.post(name: Self.hotKeysDidChange, object: nil)
+        }
+    }
+
     /// Disappear while you're on a call or sharing your screen.
     var hideInMeetings: Bool {
         didSet {
@@ -113,7 +133,8 @@ final class SettingsStore {
         let keys = [Key.expandOnHover, Key.hoverDwell, Key.animationSpeed,
                     Key.virtualNotchW, Key.virtualNotchH, Key.panelWidth,
                     Key.panelHeight, Key.focusMinutes, Key.breakMinutes,
-                    Key.deepMinutes, Key.terminalFont, Key.hideFullScreen, Key.hideMeetings]
+                    Key.deepMinutes, Key.terminalFont, Key.hideFullScreen, Key.hideMeetings,
+                    Key.termHotKeyOn, Key.termHotKeyCode, Key.termHotKeyMods]
             + WidgetRegistry.all.map { Key.widgetEnabled($0.id) }
         for key in keys { defaults.removeObject(forKey: key) }
 
@@ -131,6 +152,10 @@ final class SettingsStore {
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
         hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
+        terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
+        terminalHotKey = GlobalHotKey.Combination(
+            keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),
+            modifiers: UInt(defaults.integer(forKey: Key.termHotKeyMods)))
 
         WidgetRegistry.syncActivation()
         NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
@@ -158,6 +183,9 @@ final class SettingsStore {
             Key.terminalFont: 12.0,
             Key.hideFullScreen: true,
             Key.hideMeetings: false,  // visible by default; opt in per call
+            Key.termHotKeyOn: true,
+            Key.termHotKeyCode: Int(GlobalHotKey.Combination.terminalDefault.keyCode),
+            Key.termHotKeyMods: Int(GlobalHotKey.Combination.terminalDefault.modifiers),
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -172,5 +200,9 @@ final class SettingsStore {
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
         hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
+        terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
+        terminalHotKey = GlobalHotKey.Combination(
+            keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),
+            modifiers: UInt(defaults.integer(forKey: Key.termHotKeyMods)))
     }
 }

@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: StatusItemController?
     private var notchPanel: NotchPanelController?
+    private let terminalHotKey = GlobalHotKey()
     private let settingsWindow = SettingsWindowController()
     private let onboarding = OnboardingWindowController()
 
@@ -67,6 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                        name: .egoMenuBarText, object: nil)
         nc.addObserver(self, selector: #selector(showOnboarding),
                        name: .egoShowOnboarding, object: nil)
+        nc.addObserver(self, selector: #selector(refreshHotKeys),
+                       name: SettingsStore.hotKeysDidChange, object: nil)
+
+        terminalHotKey.action = { [weak self] in self?.toggleTerminalTab() }
+        refreshHotKeys()
 
         onboarding.showIfNeeded()
 
@@ -98,4 +104,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             ?? menuBarTexts["default"])
     }
     @objc private func showOnboarding() { onboarding.show() }
+
+    // MARK: - Global shortcut
+
+    @objc private func refreshHotKeys() {
+        let settings = SettingsStore.shared
+        guard settings.terminalHotKeyEnabled else {
+            terminalHotKey.unregister()
+            HotKeyStatus.shared.terminalTaken = false
+            return
+        }
+        HotKeyStatus.shared.terminalTaken = !terminalHotKey.register(settings.terminalHotKey)
+    }
+
+    /// Press once to land in the terminal; press again to put it away.
+    private func toggleTerminalTab() {
+        guard let notchPanel else { return }
+        let ui = PanelUIState.shared
+        if notchPanel.stateController.state == .expanded, ui.selectedTab == .terminal {
+            notchPanel.stateController.collapse()
+            return
+        }
+        ui.selectedTab = .terminal
+        notchPanel.expand()
+    }
 }
