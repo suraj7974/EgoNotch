@@ -14,6 +14,10 @@ final class SystemStatsWidget: NotchWidget {
 
     let sampler = SystemSampler()
 
+    /// Compact rows don't need a full quarter of the strip — cap the column
+    /// so the slack goes to the widgets that can use it.
+    var compactMaxWidth: CGFloat? { 168 }
+
     func makeCompactView() -> AnyView? {
         AnyView(SystemStatsTileView(widget: self))
     }
@@ -151,29 +155,29 @@ private struct StatRow: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 3.5)
+                    .stroke(Color.white.opacity(0.10), lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: max(0.02, percent / 100))
-                    .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(Int(percent.rounded()))")
-                    .font(Ego.font(11, .bold))
+                    .font(Ego.font(10, .bold))
                     .egoDigits()
                     .foregroundStyle(Ego.text)
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 28, height: 28)
             .animation(Ego.Motion.spring(), value: percent)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(label)
-                    .font(Ego.font(12, .semibold))
+                    .font(Ego.font(11.5, .semibold))
                     .foregroundStyle(.white)
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(Ego.font(10))
+                        .font(Ego.font(9.5))
                         .egoDigits()
                         .foregroundStyle(Ego.textMute)
                         .lineLimit(1)

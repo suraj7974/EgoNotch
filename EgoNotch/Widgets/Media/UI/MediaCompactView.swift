@@ -47,7 +47,9 @@ struct MediaCompactView: View {
                     }
                 }
 
+                // Centred under the seek bar, which spans this same column.
                 HStack(spacing: 8) {
+                    Spacer(minLength: 0)
                     RoundControlButton(symbol: "backward.fill", size: 11, diameter: 30) {
                         widget.controller.send(.previousTrack)
                     }
@@ -90,14 +92,14 @@ struct MediaCompactView: View {
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            // Source badge sits INSIDE the artwork, never beside the tile.
+            // Source badge straddles the artwork's bottom-right corner.
             if let icon = Self.appIcon(named: model.appName) {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 24, height: 24)
                     .clipShape(RoundedRectangle(cornerRadius: 7))
                     .shadow(color: .black.opacity(0.6), radius: 3)
-                    .padding(7)
+                    .offset(x: 7, y: 7)
             }
         }
         .frame(width: size, height: size)

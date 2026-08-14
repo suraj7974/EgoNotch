@@ -32,6 +32,9 @@ protocol NotchWidget: AnyObject {
     /// Minimum width for this widget's Home-strip column; nil = share
     /// equally with the rest.
     var compactMinWidth: CGFloat? { get }
+    /// Maximum width for the column — keeps compact content from leaving a
+    /// dead gap and hands the slack to its neighbours.
+    var compactMaxWidth: CGFloat? { get }
 
     /// Slim live indicator beside the notch when closed (max ~24pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
@@ -58,6 +61,7 @@ extension NotchWidget {
     var acceptsDroppedFiles: Bool { false }
     var wantsExclusiveClosedStrip: Bool { false }
     var compactMinWidth: CGFloat? { nil }
+    var compactMaxWidth: CGFloat? { nil }
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func makeExpandedView() -> AnyView? { nil }
     func makeCompactView() -> AnyView? { nil }

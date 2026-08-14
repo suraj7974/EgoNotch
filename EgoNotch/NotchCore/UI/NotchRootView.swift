@@ -207,6 +207,7 @@ struct HomeStripView: View {
         let id: String
         let title: String
         let minWidth: CGFloat?
+        let maxWidth: CGFloat?
         let view: AnyView
     }
 
@@ -216,7 +217,8 @@ struct HomeStripView: View {
             .compactMap { w in
                 w.makeCompactView().map {
                     Column(id: w.id, title: w.displayName,
-                           minWidth: w.compactMinWidth, view: $0)
+                           minWidth: w.compactMinWidth,
+                           maxWidth: w.compactMaxWidth, view: $0)
                 }
             }
 
@@ -239,7 +241,8 @@ struct HomeStripView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                     .padding(.horizontal, 12)
-                    .frame(minWidth: column.minWidth, maxWidth: .infinity,
+                    .frame(minWidth: column.minWidth,
+                           maxWidth: column.maxWidth ?? .infinity,
                            maxHeight: .infinity, alignment: .top)
                 }
             }
