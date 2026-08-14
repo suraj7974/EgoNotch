@@ -28,7 +28,7 @@ struct ShelfTileView: View {
             }
         }
         .contentShape(Rectangle())
-        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+        .onDrop(of: FileDropHandler.acceptedTypes, isTargeted: $dropTargeted) { providers in
             FileDropHandler.load(providers) { urls in
                 widget.store.add(urls: urls)
             }
@@ -47,7 +47,7 @@ struct ShelfTileView: View {
             Image(systemName: "tray.and.arrow.down")
                 .font(.system(size: 18))
                 .foregroundStyle(Ego.textMute)
-            Text("Drop files on the notch to stage them here")
+            Text("Drop files or a screenshot on the notch")
                 .font(Ego.font(11))
                 .foregroundStyle(Ego.textMute)
             Spacer(minLength: 0)

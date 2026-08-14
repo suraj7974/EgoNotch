@@ -54,7 +54,10 @@ struct NotchRootView: View {
         .frame(width: size.width, height: size.height)
         .contentShape(shape)
         .onTapGesture { controller.clicked() }
-        .onDrop(of: acceptsDrops ? [.fileURL] : [], isTargeted: $dragTargeted) { providers in
+        // Panel-wide: a drop anywhere (any tab, or the collapsed notch)
+        // lands on the shelf and switches to it.
+        .onDrop(of: acceptsDrops ? FileDropHandler.acceptedTypes : [],
+                isTargeted: $dragTargeted) { providers in
             guard WidgetRegistry.canAcceptDroppedFiles else { return false }
             FileDropHandler.load(providers) { urls in
                 if let consumer = WidgetRegistry.handleDroppedFiles(urls) {
