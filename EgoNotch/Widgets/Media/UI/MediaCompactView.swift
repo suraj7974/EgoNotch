@@ -6,7 +6,10 @@ import SwiftUI
 struct MediaCompactView: View {
     let widget: MediaWidget
 
-    private static let artSize: CGFloat = 100
+    /// Upper bound only — the artwork grows to whatever height the panel
+    /// gives the column, so its top and bottom edges stay flush with the
+    /// info stacked beside it.
+    private static let maxArtSize: CGFloat = 142
 
     /// Big artwork on the left; title, artist, seek bar and transport stacked
     /// on the right. The bar and the button row are siblings in one column,
@@ -14,8 +17,8 @@ struct MediaCompactView: View {
     /// missing cover can never shift the layout.
     var body: some View {
         let model = widget.controller.model
-        HStack(alignment: .center, spacing: 14) {
-            artwork(model, size: Self.artSize)
+        HStack(alignment: .top, spacing: 14) {
+            artwork(model)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.track?.title ?? "Nothing playing")
@@ -65,15 +68,14 @@ struct MediaCompactView: View {
                 .frame(maxWidth: .infinity)
                 .opacity(model.hasSession ? 1 : 0.45)
             }
-            .frame(height: Self.artSize)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: Self.maxArtSize, alignment: .leading)
         // Opening the panel with no known session re-asks the player.
         .onAppear { widget.controller.primeIfNeeded() }
     }
 
-    private func artwork(_ model: NowPlayingModel, size: CGFloat = 84) -> some View {
+    private func artwork(_ model: NowPlayingModel) -> some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let artwork = model.artwork {
@@ -89,7 +91,7 @@ struct MediaCompactView: View {
                     }
                 }
             }
-            .frame(width: size, height: size)
+            .aspectRatio(1, contentMode: .fit)   // square, as tall as the row
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
             // Source badge straddles the artwork's bottom-right corner.
@@ -102,7 +104,7 @@ struct MediaCompactView: View {
                     .offset(x: 7, y: 7)
             }
         }
-        .frame(width: size, height: size)
+        .aspectRatio(1, contentMode: .fit)
     }
 
     /// Icon of the source player (Spotify, Music, browser…).
