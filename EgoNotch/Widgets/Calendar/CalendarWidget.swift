@@ -193,6 +193,7 @@ struct CalendarCompactView: View {
                 Text("No events today")
                     .font(Ego.font(10))
                     .foregroundStyle(Ego.textMute)
+                    .frame(maxWidth: .infinity, alignment: .center)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(store.todaysEvents.prefix(2)) { event in

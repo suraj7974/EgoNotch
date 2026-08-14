@@ -9,7 +9,7 @@ struct MediaCompactView: View {
     /// Upper bound only — the artwork grows to whatever height the panel
     /// gives the column, so its top and bottom edges stay flush with the
     /// info stacked beside it.
-    private static let maxArtSize: CGFloat = 142
+    private static let maxArtSize: CGFloat = 132
 
     /// Big artwork on the left; title, artist, seek bar and transport stacked
     /// on the right. The bar and the button row are siblings in one column,

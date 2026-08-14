@@ -8,9 +8,9 @@ struct NotchConfiguration: Equatable {
     // below the chrome, reading as a "double notch".
     var wingWidth: CGFloat = 50          // closed-state strip on each side of the notch
     var closedExtraHeight: CGFloat = 0
-    var topFlareRadius: CGFloat = 10     // outward top curves blending into the bezel
-    var closedBottomRadius: CGFloat = 13
-    var expandedBottomRadius: CGFloat = 42   // deep NotchNest-style curves when open
+    var topFlareRadius: CGFloat = 18     // outward top curves blending into the bezel
+    var closedBottomRadius: CGFloat = 14
+    var expandedBottomRadius: CGFloat = 46   // deep NotchNest-style curves when open
     var hoverOutset: CGFloat = 8         // extra width per side while hovering
     var hoverDrop: CGFloat = 6           // extra height while hovering
     var hoverGlowMargin: CGFloat = 12    // transparent slack so the glow isn't clipped

@@ -16,7 +16,7 @@ final class SystemStatsWidget: NotchWidget {
 
     /// Compact rows don't need a full quarter of the strip — cap the column
     /// so the slack goes to the widgets that can use it.
-    var compactMaxWidth: CGFloat? { 168 }
+    var compactMaxWidth: CGFloat? { 146 }
 
     func makeCompactView() -> AnyView? {
         AnyView(SystemStatsTileView(widget: self))

@@ -33,7 +33,7 @@ struct NotchRootView: View {
             shape.fill(Color.black)
 
             if state == .expanded {
-                expandedContent(geometry: geometry, config: config)
+                expandedContent(geometry: geometry, config: config, size: size)
                     .transition(.opacity)
             } else {
                 ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
@@ -69,17 +69,20 @@ struct NotchRootView: View {
         }
     }
 
-    private func expandedContent(geometry: NotchGeometry, config: NotchConfiguration) -> some View {
-        VStack(spacing: 0) {
+    private func expandedContent(geometry: NotchGeometry, config: NotchConfiguration,
+                                 size: CGSize) -> some View {
+        let stripHeight = geometry.isPhysicalNotch ? geometry.notchRect.height : 0
+        // HARD-clamped: a ZStack sizes to its largest child, so without an
+        // exact height the content could grow and shove the strip off-screen.
+        let contentHeight = max(size.height - stripHeight, 0)
+
+        return VStack(spacing: 0) {
             if geometry.isPhysicalNotch {
                 // Reclaim the camera-housing strip: the bar flanks the notch
                 // instead of leaving a dead black band above the content.
-                // layoutPriority pins it — content that outgrows the panel
-                // must clip at the bottom, never shove the bar off-screen.
                 PanelTopBar(notchGap: geometry.notchRect.width)
-                    .frame(height: geometry.notchRect.height)
-                    .padding(.horizontal, 14)
-                    .layoutPriority(1)
+                    .frame(height: stripHeight)
+                    .padding(.horizontal, 16)
             }
             ZStack(alignment: .top) {
                 Color.black
@@ -90,18 +93,19 @@ struct NotchRootView: View {
                     PanelContent()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-                .padding(.top, geometry.isPhysicalNotch ? 10 : 12)
+                .padding(.top, geometry.isPhysicalNotch ? 12 : 16)
                 // + the flare inset, which the outer shape clips away.
                 .padding(.horizontal, 22 + config.topFlareRadius)
                 .padding(.bottom, 18)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: size.width, height: contentHeight)
             // Contain overflow without touching the panel's silhouette:
             // square at the top (flush with the strip), round at the bottom.
             .clipShape(UnevenRoundedRectangle(
                 bottomLeadingRadius: config.expandedBottomRadius,
                 bottomTrailingRadius: config.expandedBottomRadius))
         }
+        .frame(width: size.width, height: size.height, alignment: .top)
     }
 }
 
