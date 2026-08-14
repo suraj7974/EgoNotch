@@ -17,6 +17,9 @@ final class MediaWidget: NotchWidget {
     /// left, visualizer on the right, nothing else competing.
     var wantsExclusiveClosedStrip: Bool { controller.model.hasSession }
 
+    /// Big artwork + title/seek/transport needs more room than a plain tile.
+    var compactMinWidth: CGFloat? { 300 }
+
     func activate() {
         guard !active else { return }
         active = true

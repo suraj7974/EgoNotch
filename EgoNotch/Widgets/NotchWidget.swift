@@ -29,6 +29,9 @@ protocol NotchWidget: AnyObject {
     /// True while this widget should OWN the closed strip exclusively
     /// (media: whenever a song session exists). Others' accessories hide.
     var wantsExclusiveClosedStrip: Bool { get }
+    /// Minimum width for this widget's Home-strip column; nil = share
+    /// equally with the rest.
+    var compactMinWidth: CGFloat? { get }
 
     /// Slim live indicator beside the notch when closed (max ~24pt wide).
     /// Called once per edge; return nil for edges this widget doesn't use.
@@ -54,6 +57,7 @@ extension NotchWidget {
     var tab: NotchTab { .home }
     var acceptsDroppedFiles: Bool { false }
     var wantsExclusiveClosedStrip: Bool { false }
+    var compactMinWidth: CGFloat? { nil }
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func makeExpandedView() -> AnyView? { nil }
     func makeCompactView() -> AnyView? { nil }

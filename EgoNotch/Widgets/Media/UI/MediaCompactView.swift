@@ -6,58 +6,70 @@ import SwiftUI
 struct MediaCompactView: View {
     let widget: MediaWidget
 
-    /// Fixed skeleton — artwork box, text block and transport row always
-    /// occupy the same slots, so a missing cover can never shift anything.
+    private static let artSize: CGFloat = 108
+
+    /// Big artwork on the left; title, artist, seek bar and transport stacked
+    /// on the right. The bar and the button row are siblings in one column,
+    /// so they always span exactly the same width. Every slot is fixed, so a
+    /// missing cover can never shift the layout.
     var body: some View {
         let model = widget.controller.model
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                artwork(model, size: 84)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.track?.title ?? "Nothing playing")
-                        .font(Ego.font(13, .bold))
-                        .foregroundStyle(model.hasSession ? .white : Ego.textMute)
+        HStack(alignment: .center, spacing: 14) {
+            artwork(model, size: Self.artSize)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.track?.title ?? "Nothing playing")
+                    .font(Ego.font(15, .bold))
+                    .foregroundStyle(model.hasSession ? .white : Ego.textMute)
+                    .lineLimit(1)
+                Text(model.hasSession
+                     ? (model.track?.artist ?? "")
+                     : "Play something to see it here")
+                    .font(Ego.font(12))
+                    .foregroundStyle(Ego.textMute)
+                    .lineLimit(1)
+
+                HStack(spacing: 3) {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .font(.system(size: 8))
+                    Text(widget.audioOutput.deviceName)
+                        .font(Ego.font(9))
                         .lineLimit(1)
-                    Text(model.hasSession
-                         ? (model.track?.artist ?? "")
-                         : "Play something to see it here")
-                        .font(Ego.font(11))
-                        .foregroundStyle(Ego.textMute)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if model.hasSession {
-                        SeekableProgressBar(model: model) { target in
-                            widget.controller.seek(to: target)
-                        }
+                        .truncationMode(.tail)
+                }
+                .foregroundStyle(Ego.textMute.opacity(0.75))
+
+                Spacer(minLength: 2)
+
+                if model.hasSession {
+                    SeekableProgressBar(model: model) { target in
+                        widget.controller.seek(to: target)
                     }
                 }
-                .frame(height: 84)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
 
-            // Transport lives at the bottom of the column, always in place.
-            HStack(spacing: 8) {
-                RoundControlButton(symbol: "backward.fill", size: 11, diameter: 30) {
-                    widget.controller.send(.previousTrack)
+                // Spread across the full column so the button row spans
+                // exactly the same width as the seek bar above it.
+                HStack(spacing: 0) {
+                    RoundControlButton(symbol: "backward.fill", size: 11, diameter: 30) {
+                        widget.controller.send(.previousTrack)
+                    }
+                    Spacer(minLength: 0)
+                    RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
+                                       size: 13, diameter: 34) {
+                        widget.controller.send(.togglePlayPause)
+                    }
+                    Spacer(minLength: 0)
+                    RoundControlButton(symbol: "forward.fill", size: 11, diameter: 30) {
+                        widget.controller.send(.nextTrack)
+                    }
                 }
-                RoundControlButton(symbol: model.isPlaying ? "pause.fill" : "play.fill",
-                                   size: 13, diameter: 34) {
-                    widget.controller.send(.togglePlayPause)
-                }
-                RoundControlButton(symbol: "forward.fill", size: 11, diameter: 30) {
-                    widget.controller.send(.nextTrack)
-                }
-                Spacer(minLength: 0)
-                Text(widget.audioOutput.deviceName)
-                    .font(Ego.font(9))
-                    .foregroundStyle(Ego.textMute.opacity(0.8))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 96, alignment: .trailing)
+                .frame(maxWidth: .infinity)
+                .opacity(model.hasSession ? 1 : 0.45)
             }
-            .opacity(model.hasSession ? 1 : 0.45)
+            .frame(height: Self.artSize)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         // Opening the panel with no known session re-asks the player.
         .onAppear { widget.controller.primeIfNeeded() }
     }
@@ -80,17 +92,18 @@ struct MediaCompactView: View {
             }
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
 
+            // Source badge sits INSIDE the artwork, never beside the tile.
             if let icon = Self.appIcon(named: model.appName) {
                 Image(nsImage: icon)
                     .resizable()
-                    .frame(width: 22, height: 22)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .offset(x: 5, y: 5)
-                    .shadow(color: .black.opacity(0.5), radius: 3)
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .shadow(color: .black.opacity(0.6), radius: 3)
+                    .padding(7)
             }
         }
+        .frame(width: size, height: size)
     }
 
     /// Icon of the source player (Spotify, Music, browser…).

@@ -201,6 +201,7 @@ struct HomeStripView: View {
     private struct Column: Identifiable {
         let id: String
         let title: String
+        let minWidth: CGFloat?
         let view: AnyView
     }
 
@@ -208,7 +209,10 @@ struct HomeStripView: View {
         let columns: [Column] = WidgetRegistry.enabled
             .filter { $0.tab == .home }
             .compactMap { w in
-                w.makeCompactView().map { Column(id: w.id, title: w.displayName, view: $0) }
+                w.makeCompactView().map {
+                    Column(id: w.id, title: w.displayName,
+                           minWidth: w.compactMinWidth, view: $0)
+                }
             }
 
         if columns.isEmpty {
@@ -230,7 +234,8 @@ struct HomeStripView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                     .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(minWidth: column.minWidth, maxWidth: .infinity,
+                           maxHeight: .infinity, alignment: .top)
                 }
             }
         }
