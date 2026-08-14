@@ -17,6 +17,22 @@ final class NotchTerminalView: LocalProcessTerminalView {
             return super.performKeyEquivalent(with: event)
         }
 
+        // Line editing the way macOS text fields do it — the shell's own
+        // control codes, sent on the keys muscle memory reaches for.
+        switch event.keyCode {
+        case 51:                                    // ⌘⌫ — wipe the line
+            send(txt: "\u{15}")                     // ^U
+            return true
+        case 123:                                   // ⌘← — start of line
+            send(txt: "\u{1}")                      // ^A
+            return true
+        case 124:                                   // ⌘→ — end of line
+            send(txt: "\u{5}")                      // ^E
+            return true
+        default:
+            break
+        }
+
         switch event.charactersIgnoringModifiers?.lowercased() {
         case "c":
             copy(self)

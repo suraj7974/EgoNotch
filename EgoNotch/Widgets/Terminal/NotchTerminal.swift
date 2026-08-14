@@ -24,6 +24,9 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
         super.init()
         view.processDelegate = self
         view.allowMouseReporting = true
+        // Matches `macos-option-as-alt = true` in their Ghostty config, so
+        // ⌥⌫ deletes a word and ⌥←/→ jump one.
+        view.optionAsMetaKey = true
         view.onAppearanceChange = { [weak self] in
             self?.styledFontSize = 0            // force the guard to re-apply
             self?.applyTheme()
