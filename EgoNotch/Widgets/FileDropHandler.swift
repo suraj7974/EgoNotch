@@ -84,6 +84,21 @@ enum FileDropHandler {
 
     // MARK: - Staging
 
+    /// Files we copied in ourselves, and therefore own: deleting one is safe,
+    /// because nothing else on the Mac points at it. Anything dragged in from
+    /// Finder lives outside this folder and is never touched.
+    static func isStaged(_ url: URL) -> Bool {
+        url.standardizedFileURL.path.hasPrefix(stagingDirectory.standardizedFileURL.path)
+    }
+
+    /// Everything currently staged — for sweeping copies whose shelf entry is
+    /// gone (a crash between the copy and the shelf write orphans a file).
+    static func stagedFiles() -> [URL] {
+        (try? FileManager.default.contentsOfDirectory(
+            at: stagingDirectory, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles])) ?? []
+    }
+
     private static let stagingDirectory: URL = {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory,
                                            in: .userDomainMask)[0]

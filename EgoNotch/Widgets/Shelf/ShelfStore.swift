@@ -27,6 +27,7 @@ final class ShelfStore {
 
     init() {
         restore()
+        sweepOrphanedCopies()
     }
 
     /// Returns true if anything new landed on the shelf.
@@ -49,12 +50,34 @@ final class ShelfStore {
 
     func remove(_ item: ShelfItem) {
         items.removeAll { $0.id == item.id }
+        discardStagedCopy(item.url)
         persist()
     }
 
     func clear() {
+        items.forEach { discardStagedCopy($0.url) }
         items.removeAll()
         persist()
+    }
+
+    /// Removing a shelf entry deletes the file ONLY when it's a copy the app
+    /// made for itself (a dropped screenshot staged into Application Support).
+    /// Files dragged in from Finder are referenced where they live, so the
+    /// shelf must never delete them — losing a real document because a tray
+    /// was tidied is unforgivable.
+    private func discardStagedCopy(_ url: URL) {
+        guard FileDropHandler.isStaged(url) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Copies whose shelf entry no longer exists — a crash between staging the
+    /// file and writing the bookmarks leaves those behind forever otherwise.
+    func sweepOrphanedCopies() {
+        let kept = Set(items.map(\.url.standardizedFileURL.path))
+        for file in FileDropHandler.stagedFiles()
+        where !kept.contains(file.standardizedFileURL.path) {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     // MARK: - Persistence (bookmarks, not copies)
