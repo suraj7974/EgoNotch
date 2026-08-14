@@ -29,7 +29,7 @@ final class SettingsStore {
         static let deepMinutes    = "focus.deepMinutes"    // default 50
         static let terminalFont   = "terminal.fontSize"    // pt, default 12
         static let hideFullScreen = "hideInFullScreen"     // Bool, default true
-        static let hideMeetings   = "hideInMeetings"       // Bool, default true
+        static let hideMeetings   = "hideInMeetings"       // Bool, default false
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -157,7 +157,7 @@ final class SettingsStore {
             Key.deepMinutes: 50,
             Key.terminalFont: 12.0,
             Key.hideFullScreen: true,
-            Key.hideMeetings: true,
+            Key.hideMeetings: false,  // visible by default; opt in per call
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
