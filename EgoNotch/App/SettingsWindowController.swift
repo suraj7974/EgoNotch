@@ -16,7 +16,8 @@ final class SettingsWindowController {
             w.appearance = NSAppearance(named: .darkAqua)   // EgoLock is dark-only
             w.backgroundColor = NSColor(Ego.bg)
             w.isReleasedWhenClosed = false                  // reuse one instance
-            w.level = .floating       // never lost behind other apps' windows
+            // Ordinary level: clicking another app must put that app in front.
+            w.level = .normal
             w.center()
             window = w
         }

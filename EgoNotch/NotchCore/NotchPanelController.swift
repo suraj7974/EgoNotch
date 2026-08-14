@@ -9,6 +9,8 @@ final class NotchPanelController: NSObject {
     private let panel = NotchPanel()
     private var hostingView: PanelHostingView<NotchRootView>!
     private var displayObserver: DisplayObserver?
+    private var fullScreenObserver: FullScreenObserver?
+    private var hiddenForFullScreen = false
     private var clickMonitor: ClickOutsideMonitor?
     private var currentDisplayID: CGDirectDisplayID?
     private var previouslyActiveApp: NSRunningApplication?
@@ -34,6 +36,10 @@ final class NotchPanelController: NSObject {
         }
 
         displayObserver = DisplayObserver { [weak self] in self?.reposition(force: false) }
+        fullScreenObserver = FullScreenObserver()
+        fullScreenObserver?.onChange = { [weak self] fullScreen in
+            self?.setHiddenForFullScreen(fullScreen)
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(repositionFromNotification),
@@ -51,6 +57,26 @@ final class NotchPanelController: NSObject {
     }
 
     func expand() { stateController.expand() }
+
+    // MARK: - Fullscreen
+
+    /// A fullscreen window on the notch's display gets the screen to itself:
+    /// the panel is ordered out entirely (collapsing first, so it doesn't come
+    /// back mid-animation) and restored when that window leaves.
+    private func setHiddenForFullScreen(_ hidden: Bool) {
+        guard SettingsStore.shared.hideInFullScreen else {
+            if hiddenForFullScreen { hiddenForFullScreen = false; panel.orderFrontRegardless() }
+            return
+        }
+        guard hidden != hiddenForFullScreen else { return }
+        hiddenForFullScreen = hidden
+        if hidden {
+            stateController.collapse()
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+        }
+    }
 
     // MARK: - State side effects
 
@@ -104,17 +130,19 @@ final class NotchPanelController: NSObject {
         guard let screen = Self.preferredScreen() else {
             panel.orderOut(nil)
             currentDisplayID = nil
+            fullScreenObserver?.watch(displayID: nil)
             return
         }
         let geometry = NotchGeometry.resolve(for: screen, config: .current())
         if !force, geometry == stateController.geometry,
            screen.displayID == currentDisplayID {
-            panel.orderFrontRegardless()
+            if !hiddenForFullScreen { panel.orderFrontRegardless() }
             return
         }
         currentDisplayID = screen.displayID
         stateController.displayChanged(geometry: geometry)
-        panel.orderFrontRegardless()
+        if !hiddenForFullScreen { panel.orderFrontRegardless() }
+        fullScreenObserver?.watch(displayID: screen.displayID)
     }
 
     /// Priority: a screen with a real notch → the built-in display → main.

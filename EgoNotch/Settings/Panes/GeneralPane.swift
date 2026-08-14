@@ -54,6 +54,16 @@ struct GeneralPane: View {
                 }
             }
 
+            SettingsCard(title: "Visibility") {
+                SettingsRow(label: "Hide during fullscreen",
+                            hint: "Gets out of the way of fullscreen video, presentations and games.",
+                            icon: "rectangle.inset.filled.and.person.filled") {
+                    Toggle("", isOn: $settings.hideInFullScreen)
+                        .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                        .labelsHidden()
+                }
+            }
+
             SettingsCard(title: "Motion") {
                 SettingsSliderRow(label: "Animation speed",
                                   hint: "Applies to every spring in the app.",

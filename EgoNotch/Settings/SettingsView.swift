@@ -52,10 +52,10 @@ struct SettingsView: View {
                     .resizable()
                     .frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("EgoNotch")
+                    Text(AppInfo.name)
                         .font(Ego.font(13, .semibold))
                         .foregroundStyle(Ego.text)
-                    Text("v\(UpdateChecker.currentVersion)")
+                    Text("v\(AppInfo.version)")
                         .font(Ego.font(10))
                         .egoDigits()
                         .foregroundStyle(Ego.textMute)

@@ -75,11 +75,20 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     func newShell() { restart(arguments: ["-l"], session: nil) }
 
-    /// Put the caret in the shell — the whole card is a hit target, not just
-    /// the glyph area.
-    func focus() {
-        guard let window = view.window else { return }
-        window.makeFirstResponder(view)
+    /// Put the caret in the shell so the first keystroke after opening the tab
+    /// isn't swallowed.
+    ///
+    /// `claimKeyboard` is only true for a deliberate click on the terminal:
+    /// a panel that opened on hover must never yank focus out of whatever the
+    /// user was typing in.
+    func focus(claimKeyboard: Bool = false) {
+        // A tick later: on the first render the view isn't in a window yet.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.view.window else { return }
+            if claimKeyboard, !window.isKeyWindow { window.makeKey() }
+            guard window.isKeyWindow, window.firstResponder !== self.view else { return }
+            window.makeFirstResponder(self.view)
+        }
     }
 
     private func restart(arguments: [String], session: String?, cwd: URL? = nil) {

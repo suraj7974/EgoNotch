@@ -20,8 +20,19 @@ final class TerminalWidget: NotchWidget {
         GhosttyLauncher.open(at: directory)
     }
 
+    /// Boot the shell at launch, not on first look: waiting for zsh + starship
+    /// the moment you open the tab is what made it feel unfocused.
+    func activate() { terminal.startIfNeeded() }
+
     /// The shell only lives while the widget is enabled.
     func deactivate() { terminal.stop() }
+
+    /// Session picker lives in the panel's top bar so nothing floats over the
+    /// terminal's own output.
+    func makeTopBarAccessory() -> AnyView? {
+        guard PanelUIState.shared.selectedTab == .terminal else { return nil }
+        return AnyView(TerminalSessionsButton(widget: self))
+    }
 
     func makeExpandedView() -> AnyView? {
         AnyView(TerminalTileView(widget: self))
@@ -32,13 +43,10 @@ final class TerminalWidget: NotchWidget {
 
 struct TerminalTileView: View {
     let widget: TerminalWidget
-    @State private var sessions = TerminalSessions()
-
-    @State private var hovering = false
 
     var body: some View {
-        // The terminal owns the whole tab; controls float on top of it so no
-        // row of chrome eats terminal lines.
+        // The terminal owns every pixel of the tab — its controls live in the
+        // panel's top bar so nothing covers the shell's own output.
         ZStack {
             // The card is the terminal's own background colour, so the inset
             // around the text still reads as part of the terminal — and a
@@ -48,7 +56,6 @@ struct TerminalTileView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
         }
-            .overlay(alignment: .topTrailing) { controls }
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
@@ -56,46 +63,45 @@ struct TerminalTileView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: 10))
-            .onTapGesture { widget.terminal.focus() }
-            .onHover { hovering = $0 }
+            .onTapGesture { widget.terminal.focus(claimKeyboard: true) }
             .onAppear {
                 widget.terminal.applyTheme()
                 widget.terminal.startIfNeeded()
-                sessions.refresh()
+                // Claim the keyboard now, not after the first click.
+                widget.terminal.focus()
             }
     }
+}
 
-    private var controls: some View {
-        HStack(spacing: 2) {
+/// Top-bar control for the Terminal tab: attach a live session, or hand the
+/// current directory to Ghostty.
+struct TerminalSessionsButton: View {
+    let widget: TerminalWidget
+    @State private var sessions = TerminalSessions()
+
+    var body: some View {
+        HStack(spacing: 4) {
             if let session = widget.terminal.attachedSession {
                 Text(session)
                     .font(Ego.font(9.5, .medium))
                     .foregroundStyle(Ego.win)
-                    .padding(.horizontal, 5)
             }
             Menu {
                 sessionMenu
             } label: {
                 Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 11, weight: .semibold))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .frame(width: 22, height: 18)
+            .frame(width: 24, height: 24)
             .foregroundStyle(Ego.textMute)
+            .background(Color.white.opacity(0.06), in: Circle())
             .help("Attach a running terminal")
             .onHover { if $0 { sessions.refresh() } }
-
-            iconButton("arrow.up.forward.app") { widget.openCompanionApp() }
-                .help("Open this directory in Ghostty")
         }
-        .padding(.horizontal, 3)
-        .padding(.vertical, 2)
-        .background(.black.opacity(0.45), in: Capsule())
-        .padding(5)
-        .opacity(hovering ? 1 : 0.25)
-        .animation(Ego.Motion.spring(response: 0.2), value: hovering)
+        .onAppear { sessions.refresh() }
     }
 
     @ViewBuilder
@@ -126,16 +132,6 @@ struct TerminalTileView: View {
         }
     }
 
-    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 11))
-                .foregroundStyle(Ego.textMute)
-                .frame(width: 20, height: 16)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 // MARK: - AppKit bridge

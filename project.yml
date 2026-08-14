@@ -39,7 +39,7 @@ targets:
       properties:
         LSUIElement: true            # menu-bar agent: no Dock icon, no app switcher
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "Copyright © 2026 Suraj. Personal use."
+        NSHumanReadableCopyright: "Copyright © 2026 Suraj Patel. Personal use."
         NSPrincipalClass: NSApplication
         NSAppleEventsUsageDescription: "EgoNotch controls media apps via AppleScript when MediaRemote is unavailable."
         NSCalendarsFullAccessUsageDescription: "EgoNotch shows your upcoming events in the notch."

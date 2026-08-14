@@ -26,6 +26,7 @@ final class SettingsStore {
         static let breakMinutes   = "focus.breakMinutes"   // default 5
         static let deepMinutes    = "focus.deepMinutes"    // default 50
         static let terminalFont   = "terminal.fontSize"    // pt, default 12
+        static let hideFullScreen = "hideInFullScreen"     // Bool, default true
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -57,9 +58,6 @@ final class SettingsStore {
             NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
         }
     }
-    var updateRepo: String {
-        didSet { defaults.set(updateRepo, forKey: "update.repo") }
-    }
     var focusMinutes: Int {
         didSet { defaults.set(focusMinutes, forKey: Key.focusMinutes) }
     }
@@ -72,6 +70,10 @@ final class SettingsStore {
     /// Ghostty's own size is tuned for a full window; the notch needs smaller.
     var terminalFontSize: Double {
         didSet { defaults.set(terminalFontSize, forKey: Key.terminalFont) }
+    }
+    /// Get out of the way of fullscreen video / presentations.
+    var hideInFullScreen: Bool {
+        didSet { defaults.set(hideInFullScreen, forKey: Key.hideFullScreen) }
     }
 
     // MARK: - Per-widget enabled (dynamic keys)
@@ -89,6 +91,35 @@ final class SettingsStore {
         widgetEnabledMirror[id] = enabled
         defaults.set(enabled, forKey: Key.widgetEnabled(id))
         WidgetRegistry.syncActivation()
+    }
+
+    /// Wipe every stored preference — including per-widget toggles — and fall
+    /// back to the registered defaults. Deleting the keys (rather than
+    /// assigning literals) means the defaults live in exactly one place.
+    func resetAll() {
+        let keys = [Key.expandOnHover, Key.hoverDwell, Key.animationSpeed,
+                    Key.virtualNotchW, Key.virtualNotchH, Key.panelWidth,
+                    Key.panelHeight, Key.focusMinutes, Key.breakMinutes,
+                    Key.deepMinutes, Key.terminalFont, Key.hideFullScreen]
+            + WidgetRegistry.all.map { Key.widgetEnabled($0.id) }
+        for key in keys { defaults.removeObject(forKey: key) }
+
+        widgetEnabledMirror.removeAll()
+        expandOnHover = defaults.bool(forKey: Key.expandOnHover)
+        hoverDwell = defaults.double(forKey: Key.hoverDwell)
+        animationSpeed = defaults.double(forKey: Key.animationSpeed)
+        virtualNotchSize = CGSize(width: defaults.double(forKey: Key.virtualNotchW),
+                                  height: defaults.double(forKey: Key.virtualNotchH))
+        panelWidth = defaults.double(forKey: Key.panelWidth)
+        panelHeight = defaults.double(forKey: Key.panelHeight)
+        focusMinutes = defaults.integer(forKey: Key.focusMinutes)
+        breakMinutes = defaults.integer(forKey: Key.breakMinutes)
+        deepMinutes = defaults.integer(forKey: Key.deepMinutes)
+        terminalFontSize = defaults.double(forKey: Key.terminalFont)
+        hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
+
+        WidgetRegistry.syncActivation()
+        NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
     }
 
     func enabledBinding(for widget: any NotchWidget) -> Binding<Bool> {
@@ -111,6 +142,7 @@ final class SettingsStore {
             Key.breakMinutes: 5,
             Key.deepMinutes: 50,
             Key.terminalFont: 12.0,
+            Key.hideFullScreen: true,
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -119,10 +151,10 @@ final class SettingsStore {
                                   height: defaults.double(forKey: Key.virtualNotchH))
         panelWidth = defaults.double(forKey: Key.panelWidth)
         panelHeight = defaults.double(forKey: Key.panelHeight)
-        updateRepo = defaults.string(forKey: "update.repo") ?? ""
         focusMinutes = defaults.integer(forKey: Key.focusMinutes)
         breakMinutes = defaults.integer(forKey: Key.breakMinutes)
         deepMinutes = defaults.integer(forKey: Key.deepMinutes)
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
+        hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
     }
 }
