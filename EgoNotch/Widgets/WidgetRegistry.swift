@@ -17,6 +17,7 @@ enum WidgetRegistry {
         FocusWidget(),
         NotesWidget(),
         TodoWidget(),
+        TerminalWidget(),
         RecorderWidget(),
         DemoWidget(),
     ]
@@ -26,11 +27,14 @@ enum WidgetRegistry {
         enabled.contains { $0.acceptsDroppedFiles }
     }
 
-    /// First enabled widget that consumes the dropped files, in display
-    /// order; nil when nothing took them.
+    /// Offers the drop to the tab you're currently looking at first (drop a
+    /// folder while the Terminal is open and it cds there), then to everyone
+    /// else in display order. nil when nothing took it.
     @discardableResult
     static func handleDroppedFiles(_ urls: [URL]) -> (any NotchWidget)? {
-        for widget in enabled where widget.handleDroppedFiles(urls) {
+        let onScreen = PanelUIState.shared.selectedTab
+        let ordered = enabled.filter { $0.tab == onScreen } + enabled.filter { $0.tab != onScreen }
+        for widget in ordered where widget.handleDroppedFiles(urls) {
             return widget
         }
         return nil
