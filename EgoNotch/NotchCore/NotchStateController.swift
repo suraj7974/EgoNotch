@@ -16,8 +16,10 @@ final class NotchStateController {
     /// Injected by NotchPanelController.
     @ObservationIgnored var applyPanelFrame: ((CGRect) -> Void)?
     @ObservationIgnored var onStateChange: ((NotchState) -> Void)?
-    /// True while the panel is the key window (user is typing in it).
-    @ObservationIgnored var isPanelKey: (() -> Bool)?
+    /// True while the user is actually mid-typing in the panel. Holding a
+    /// collapse for *key status alone* would keep the notch open forever now
+    /// that the terminal takes focus the moment its tab appears.
+    @ObservationIgnored var isTypingInPanel: (() -> Bool)?
 
     /// True when the current expansion came from a click / menu item — only
     /// then may the panel take key focus. Hover-dwell expansion must never
@@ -191,9 +193,9 @@ final class NotchStateController {
                 let halo = geometry.panelFrame(for: .expanded, config: self.config)
                     .insetBy(dx: -8, dy: -8)
                 if !halo.contains(NSEvent.mouseLocation) {
-                    // Never yank the panel away mid-typing (unsaved drafts);
-                    // Esc / click-outside still close it deliberately.
-                    if self.isPanelKey?() == true { continue }
+                    // Pointer gone means closed — the one exception is an
+                    // actively-typing user, and only until they pause.
+                    if self.isTypingInPanel?() == true { continue }
                     self.transition(to: .closed)
                     return
                 }

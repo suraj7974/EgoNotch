@@ -30,10 +30,17 @@ final class NotchPanel: NSPanel {
     /// Intercepted at the window, before the responder chain: otherwise the
     /// terminal (which is first responder whenever its tab is open) would
     /// swallow ⌥-digits as meta keys and you could never leave it.
+    /// When the user last typed into the panel — used to hold a collapse for a
+    /// moment while they're mid-sentence, without keeping it open forever.
+    private(set) var lastKeyDown: Date?
+
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, let index = Self.tabIndex(for: event) {
-            onTabShortcut?(index)
-            return
+        if event.type == .keyDown {
+            lastKeyDown = Date()
+            if let index = Self.tabIndex(for: event) {
+                onTabShortcut?(index)
+                return
+            }
         }
         super.sendEvent(event)
     }

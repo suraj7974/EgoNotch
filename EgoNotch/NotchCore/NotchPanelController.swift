@@ -31,8 +31,10 @@ final class NotchPanelController: NSObject {
         stateController.applyPanelFrame = { [weak self] frame in
             self?.panel.setFrame(frame, display: true)
         }
-        stateController.isPanelKey = { [weak self] in
-            self?.panel.isKeyWindow ?? false
+        stateController.isTypingInPanel = { [weak self] in
+            guard let self, self.panel.isKeyWindow, let last = self.panel.lastKeyDown
+            else { return false }
+            return Date().timeIntervalSince(last) < 2.5
         }
         stateController.onStateChange = { [weak self] state in
             self?.stateDidChange(state)
