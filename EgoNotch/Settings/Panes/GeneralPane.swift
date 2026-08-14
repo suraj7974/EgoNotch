@@ -62,6 +62,14 @@ struct GeneralPane: View {
                         .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
                         .labelsHidden()
                 }
+                SettingsDivider()
+                SettingsRow(label: "Invisible on shared screens",
+                            hint: "While a call is live — Meet, Zoom, Teams — the notch keeps working for you but is left out of screen shares, recordings and screenshots.",
+                            icon: "video.badge.waveform") {
+                    Toggle("", isOn: $settings.hideInMeetings)
+                        .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                        .labelsHidden()
+                }
             }
 
             SettingsCard(title: "Motion") {

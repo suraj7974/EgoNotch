@@ -23,4 +23,13 @@ final class NotchPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }    // future text input in the expanded panel
     override var canBecomeMain: Bool { false }
+
+    /// Excluded from screen capture — the window still draws on this Mac, but
+    /// screenshots, recordings and screen shares see straight through it. This
+    /// is the same mechanism macOS uses for password fields, and it applies to
+    /// every capture path (ScreenCaptureKit, display capture, `screencapture`).
+    var isHiddenFromCapture: Bool {
+        get { sharingType == .none }
+        set { sharingType = newValue ? .none : .readOnly }
+    }
 }

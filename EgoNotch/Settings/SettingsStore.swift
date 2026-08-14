@@ -11,6 +11,8 @@ final class SettingsStore {
     static let shared = SettingsStore()
     /// Posted whenever a setting that affects panel geometry changes.
     static let geometryDidChange = Notification.Name("EgoNotch.geometryDidChange")
+    /// Posted when a rule about *when the notch is shown* changes.
+    static let visibilityRulesDidChange = Notification.Name("EgoNotch.visibilityRulesDidChange")
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -27,6 +29,7 @@ final class SettingsStore {
         static let deepMinutes    = "focus.deepMinutes"    // default 50
         static let terminalFont   = "terminal.fontSize"    // pt, default 12
         static let hideFullScreen = "hideInFullScreen"     // Bool, default true
+        static let hideMeetings   = "hideInMeetings"       // Bool, default true
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -73,7 +76,17 @@ final class SettingsStore {
     }
     /// Get out of the way of fullscreen video / presentations.
     var hideInFullScreen: Bool {
-        didSet { defaults.set(hideInFullScreen, forKey: Key.hideFullScreen) }
+        didSet {
+            defaults.set(hideInFullScreen, forKey: Key.hideFullScreen)
+            NotificationCenter.default.post(name: Self.visibilityRulesDidChange, object: nil)
+        }
+    }
+    /// Disappear while you're on a call or sharing your screen.
+    var hideInMeetings: Bool {
+        didSet {
+            defaults.set(hideInMeetings, forKey: Key.hideMeetings)
+            NotificationCenter.default.post(name: Self.visibilityRulesDidChange, object: nil)
+        }
     }
 
     // MARK: - Per-widget enabled (dynamic keys)
@@ -100,7 +113,7 @@ final class SettingsStore {
         let keys = [Key.expandOnHover, Key.hoverDwell, Key.animationSpeed,
                     Key.virtualNotchW, Key.virtualNotchH, Key.panelWidth,
                     Key.panelHeight, Key.focusMinutes, Key.breakMinutes,
-                    Key.deepMinutes, Key.terminalFont, Key.hideFullScreen]
+                    Key.deepMinutes, Key.terminalFont, Key.hideFullScreen, Key.hideMeetings]
             + WidgetRegistry.all.map { Key.widgetEnabled($0.id) }
         for key in keys { defaults.removeObject(forKey: key) }
 
@@ -117,6 +130,7 @@ final class SettingsStore {
         deepMinutes = defaults.integer(forKey: Key.deepMinutes)
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
+        hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
 
         WidgetRegistry.syncActivation()
         NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
@@ -143,6 +157,7 @@ final class SettingsStore {
             Key.deepMinutes: 50,
             Key.terminalFont: 12.0,
             Key.hideFullScreen: true,
+            Key.hideMeetings: true,
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -156,5 +171,6 @@ final class SettingsStore {
         deepMinutes = defaults.integer(forKey: Key.deepMinutes)
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
+        hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
     }
 }

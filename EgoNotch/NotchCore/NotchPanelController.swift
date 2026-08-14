@@ -10,7 +10,10 @@ final class NotchPanelController: NSObject {
     private var hostingView: PanelHostingView<NotchRootView>!
     private var displayObserver: DisplayObserver?
     private var fullScreenObserver: FullScreenObserver?
-    private var hiddenForFullScreen = false
+    private var meetingObserver: MeetingObserver?
+    private var fullScreenActive = false
+    private var meetingActive = false
+    private var panelHidden = false
     private var clickMonitor: ClickOutsideMonitor?
     private var currentDisplayID: CGDirectDisplayID?
     private var previouslyActiveApp: NSRunningApplication?
@@ -38,8 +41,21 @@ final class NotchPanelController: NSObject {
         displayObserver = DisplayObserver { [weak self] in self?.reposition(force: false) }
         fullScreenObserver = FullScreenObserver()
         fullScreenObserver?.onChange = { [weak self] fullScreen in
-            self?.setHiddenForFullScreen(fullScreen)
+            self?.fullScreenActive = fullScreen
+            self?.updateVisibility()
         }
+        meetingObserver = MeetingObserver()
+        meetingObserver?.onChange = { [weak self] inMeeting in
+            self?.meetingActive = inMeeting
+            self?.updateVisibility()
+        }
+        meetingObserver?.start()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(visibilityRulesChanged),
+            name: SettingsStore.visibilityRulesDidChange,
+            object: nil
+        )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(repositionFromNotification),
@@ -54,29 +70,39 @@ final class NotchPanelController: NSObject {
         )
 
         reposition(force: true)
+        updateVisibility()      // apply the rules once, before anything changes
     }
 
     func expand() { stateController.expand() }
 
-    // MARK: - Fullscreen
+    // MARK: - When to disappear
 
-    /// A fullscreen window on the notch's display gets the screen to itself:
-    /// the panel is ordered out entirely (collapsing first, so it doesn't come
-    /// back mid-animation) and restored when that window leaves.
-    private func setHiddenForFullScreen(_ hidden: Bool) {
-        guard SettingsStore.shared.hideInFullScreen else {
-            if hiddenForFullScreen { hiddenForFullScreen = false; panel.orderFrontRegardless() }
-            return
-        }
-        guard hidden != hiddenForFullScreen else { return }
-        hiddenForFullScreen = hidden
-        if hidden {
-            stateController.collapse()
+    /// Two different answers to "get out of the way", and they are not the
+    /// same thing:
+    ///
+    /// • fullscreen → actually hide the window (nothing should sit over a
+    ///   fullscreen video on your own screen);
+    /// • call / screen share → keep it fully usable here, but make it
+    ///   invisible to capture, so the people watching never see it.
+    private func updateVisibility() {
+        let settings = SettingsStore.shared
+
+        // EGO_HIDE_FROM_CAPTURE=1 forces it on, for testing without a call.
+        panel.isHiddenFromCapture = (meetingActive && settings.hideInMeetings)
+            || ProcessInfo.processInfo.environment["EGO_HIDE_FROM_CAPTURE"] != nil
+
+        let shouldHide = fullScreenActive && settings.hideInFullScreen
+        guard shouldHide != panelHidden else { return }
+        panelHidden = shouldHide
+        if shouldHide {
+            stateController.collapse()      // collapse first, then vanish
             panel.orderOut(nil)
         } else {
             panel.orderFrontRegardless()
         }
     }
+
+    @objc private func visibilityRulesChanged() { updateVisibility() }
 
     // MARK: - State side effects
 
@@ -136,12 +162,12 @@ final class NotchPanelController: NSObject {
         let geometry = NotchGeometry.resolve(for: screen, config: .current())
         if !force, geometry == stateController.geometry,
            screen.displayID == currentDisplayID {
-            if !hiddenForFullScreen { panel.orderFrontRegardless() }
+            if !panelHidden { panel.orderFrontRegardless() }
             return
         }
         currentDisplayID = screen.displayID
         stateController.displayChanged(geometry: geometry)
-        if !hiddenForFullScreen { panel.orderFrontRegardless() }
+        if !panelHidden { panel.orderFrontRegardless() }
         fullScreenObserver?.watch(displayID: screen.displayID)
     }
 
