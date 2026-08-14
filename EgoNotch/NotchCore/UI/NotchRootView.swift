@@ -95,7 +95,9 @@ struct NotchRootView: View {
                 .padding(.bottom, 18)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
+            // Clip overflow WITHOUT squaring the panel: a plain .clipped()
+            // rectangle would cut the rounded bottom corners.
+            .clipShape(RoundedRectangle(cornerRadius: config.expandedBottomRadius))
         }
     }
 }
