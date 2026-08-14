@@ -24,8 +24,13 @@ final class NotchStateController {
     /// steal the user's keyboard.
     @ObservationIgnored private(set) var expandedInteractively = false
 
+    /// Text shown by the transient peek strip (e.g. a new track's title).
+    private(set) var bannerText: String?
+    private(set) var bannerSubtitle: String?
+
     @ObservationIgnored private var dwellTask: Task<Void, Never>?
     @ObservationIgnored private var collapseTask: Task<Void, Never>?
+    @ObservationIgnored private var bannerTask: Task<Void, Never>?
     @ObservationIgnored private(set) var config = NotchConfiguration.current()
 
     /// The frame most recently handed to the panel (window truth, which lags
@@ -42,9 +47,41 @@ final class NotchStateController {
 
     // MARK: - Inputs
 
+    /// Announce something briefly on the collapsed notch (song changed…).
+    /// Never interrupts a panel the user has open or is hovering.
+    func showBanner(title: String, subtitle: String?) {
+        guard state == .closed || state == .peek else { return }
+        bannerText = title
+        bannerSubtitle = subtitle
+        bannerTask?.cancel()
+        if state == .closed { transition(to: .peek) }
+        bannerTask = Task { [weak self] in
+            let hold = self?.config.peekDuration ?? 2
+            try? await Task.sleep(for: .seconds(hold))
+            guard !Task.isCancelled, let self, self.state == .peek else { return }
+            self.transition(to: .closed)
+            self.bannerText = nil
+            self.bannerSubtitle = nil
+        }
+    }
+
+    private func dismissBanner() {
+        bannerTask?.cancel()
+        bannerTask = nil
+        bannerText = nil
+        bannerSubtitle = nil
+    }
+
     func mouseEntered() {
         collapseTask?.cancel()
         collapseTask = nil
+        // A peek in progress gives way to the user's intent.
+        if state == .peek {
+            dismissBanner()
+            transition(to: .hover)
+            scheduleDwellIfNeeded()
+            return
+        }
         guard state == .closed, let geometry else { return }
         // During a deferred shrink the tracking rect is still the old, larger
         // frame — accept the enter only if the pointer is really on the
@@ -52,13 +89,16 @@ final class NotchStateController {
         let closedRect = geometry.panelFrame(for: .closed, config: config).insetBy(dx: -4, dy: -4)
         guard closedRect.contains(NSEvent.mouseLocation) else { return }
         transition(to: .hover)
-        if case .hoverWithDwell(let dwell) = behavior {
-            dwellTask?.cancel()
-            dwellTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(dwell))
-                guard !Task.isCancelled else { return }
-                self?.dwellFired()
-            }
+        scheduleDwellIfNeeded()
+    }
+
+    private func scheduleDwellIfNeeded() {
+        guard case .hoverWithDwell(let dwell) = behavior else { return }
+        dwellTask?.cancel()
+        dwellTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(dwell))
+            guard !Task.isCancelled else { return }
+            self?.dwellFired()
         }
     }
 
@@ -70,14 +110,15 @@ final class NotchStateController {
             transition(to: .closed)
         case .expanded:
             scheduleCollapseIfPointerOutside()
-        case .closed:
-            break
+        case .closed, .peek:
+            break   // the peek retires on its own timer
         }
     }
 
     /// Click on the notch chrome (any mode expands immediately).
     func clicked() {
         guard state != .expanded else { return }
+        dismissBanner()
         expandedInteractively = true
         transition(to: .expanded)
     }
@@ -109,6 +150,7 @@ final class NotchStateController {
     func displayChanged(geometry: NotchGeometry) {
         dwellTask?.cancel()
         collapseTask?.cancel()
+        dismissBanner()
         epoch += 1                       // stale spring completions must not fire
         config = NotchConfiguration.current()
         self.geometry = geometry

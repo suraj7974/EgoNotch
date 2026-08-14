@@ -28,7 +28,17 @@ struct NowPlayingTrack: Equatable {
 /// can derive live progress without the provider ticking.
 @Observable
 final class NowPlayingModel {
-    var track: NowPlayingTrack?
+    /// A genuine title change announces itself so the notch can show its
+    /// transient "now playing" peek.
+    var track: NowPlayingTrack? {
+        didSet {
+            guard let title = track?.title, !title.isEmpty,
+                  title != oldValue?.title else { return }
+            NotificationCenter.default.post(
+                name: .egoSongChanged, object: nil,
+                userInfo: ["title": title, "artist": track?.artist ?? ""])
+        }
+    }
     var artwork: NSImage?
     var isPlaying = false
     var appName: String?

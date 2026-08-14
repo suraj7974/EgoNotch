@@ -40,6 +40,10 @@ struct NotchGeometry: Equatable {
         case .closed:
             return CGSize(width: notchRect.width + 2 * config.wingWidth,
                           height: notchRect.height + config.closedExtraHeight)
+        case .peek:
+            let closed = chromeSize(for: .closed, config: config)
+            return CGSize(width: closed.width + config.peekExtraWidth,
+                          height: closed.height + config.peekExtraHeight)
         case .hover:
             let closed = chromeSize(for: .closed, config: config)
             return CGSize(width: closed.width + 2 * config.hoverOutset,
@@ -60,7 +64,7 @@ struct NotchGeometry: Equatable {
         let cx = notchRect.midX
         let chrome = chromeSize(for: state, config: config)
         let margin: CGFloat = switch state {
-        case .closed: 0
+        case .closed, .peek: 0
         case .hover: config.hoverGlowMargin
         case .expanded: config.expandedShadowMargin
         }

@@ -23,11 +23,15 @@ struct NotchRootView: View {
         let size = geometry.chromeSize(for: state, config: config)
         // Collapsed keeps just a hint of flare (like the stock macOS notch);
         // the deep bezel blend belongs to the open panel.
+        let bottomRadius: CGFloat = switch state {
+        case .expanded: config.expandedBottomRadius
+        case .peek: 20              // the taller pill wants more curve
+        default: config.closedBottomRadius
+        }
         let shape = NotchShape(
             topRadius: state == .expanded ? config.topFlareRadius
                                           : config.closedTopFlareRadius,
-            bottomRadius: state == .expanded ? config.expandedBottomRadius
-                                             : config.closedBottomRadius)
+            bottomRadius: bottomRadius)
         let acceptsDrops = WidgetRegistry.canAcceptDroppedFiles
 
         ZStack(alignment: .top) {
@@ -39,10 +43,30 @@ struct NotchRootView: View {
                 expandedContent(geometry: geometry, config: config, size: size)
                     .transition(.opacity)
             } else {
-                ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
-                    .frame(height: geometry.chromeSize(for: .closed, config: config).height)
-                    .padding(.horizontal, 8)
-                    .transition(.opacity)
+                VStack(spacing: 0) {
+                    ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
+                        .frame(height: geometry.chromeSize(for: .closed, config: config).height)
+                        .padding(.horizontal, 8)
+                    if state == .peek, let banner = controller.bannerText {
+                        // Live activity strip under the notch.
+                        VStack(spacing: 0) {
+                            Text(banner)
+                                .font(Ego.font(11, .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            if let subtitle = controller.bannerSubtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(Ego.font(9))
+                                    .foregroundStyle(Ego.textMute)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity)
+                    }
+                }
+                .transition(.opacity)
             }
         }
         .compositingGroup()

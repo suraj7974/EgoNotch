@@ -40,6 +40,12 @@ final class NotchPanelController: NSObject {
             name: SettingsStore.geometryDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(songChanged(_:)),
+            name: .egoSongChanged,
+            object: nil
+        )
 
         reposition(force: true)
     }
@@ -81,6 +87,12 @@ final class NotchPanelController: NSObject {
     // MARK: - Screen selection & positioning
 
     @objc private func repositionFromNotification() { reposition(force: true) }
+
+    @objc private func songChanged(_ note: Notification) {
+        guard let title = note.userInfo?["title"] as? String else { return }
+        stateController.showBanner(title: title,
+                                   subtitle: note.userInfo?["artist"] as? String)
+    }
 
     /// Re-derive everything from fresh screen data — never relative to the
     /// panel's previous frame. This is what makes drift impossible.

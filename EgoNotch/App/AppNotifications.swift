@@ -10,4 +10,7 @@ extension Notification.Name {
     static let egoMenuBarText = Notification.Name("EgoNotch.menuBarTextDidChange")
     /// Re-open the first-launch tour (Settings → About).
     static let egoShowOnboarding = Notification.Name("EgoNotch.showOnboarding")
+    /// A new track started ("title"/"artist" userInfo) — drives the notch's
+    /// transient song-change peek.
+    static let egoSongChanged = Notification.Name("EgoNotch.songChanged")
 }
