@@ -10,8 +10,9 @@ final class SettingsWindowController {
         if window == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
             w.title = "EgoNotch Settings"
-            w.styleMask = [.titled, .closable, .miniaturizable]
+            w.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
             w.titlebarAppearsTransparent = true
+            w.titleVisibility = .hidden        // the sidebar carries the title
             w.appearance = NSAppearance(named: .darkAqua)   // EgoLock is dark-only
             w.backgroundColor = NSColor(Ego.bg)
             w.isReleasedWhenClosed = false                  // reuse one instance
