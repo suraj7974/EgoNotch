@@ -79,6 +79,12 @@ struct TerminalSessionsButton: View {
     let widget: TerminalWidget
     @State private var sessions = TerminalSessions()
 
+    /// Only appears when there's actually a session to attach to; an empty
+    /// menu is worse than no button.
+    private var hasSomethingToAttach: Bool {
+        !sessions.tmuxSessions.isEmpty || widget.terminal.attachedSession != nil
+    }
+
     var body: some View {
         HStack(spacing: 4) {
             if let session = widget.terminal.attachedSession {
@@ -86,29 +92,28 @@ struct TerminalSessionsButton: View {
                     .font(Ego.font(9.5, .medium))
                     .foregroundStyle(Ego.win)
             }
-            Menu {
-                sessionMenu
-            } label: {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 11, weight: .semibold))
+            if hasSomethingToAttach {
+                Menu {
+                    sessionMenu
+                } label: {
+                    Image(systemName: "square.stack.3d.up")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .frame(width: 24, height: 24)
+                .foregroundStyle(Ego.textMute)
+                .background(Color.white.opacity(0.06), in: Circle())
+                .help("Attach a tmux session")
+                .onHover { if $0 { sessions.refresh() } }
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .frame(width: 24, height: 24)
-            .foregroundStyle(Ego.textMute)
-            .background(Color.white.opacity(0.06), in: Circle())
-            .help("Attach a running terminal")
-            .onHover { if $0 { sessions.refresh() } }
         }
         .onAppear { sessions.refresh() }
     }
 
     @ViewBuilder
     private var sessionMenu: some View {
-        if sessions.tmuxSessions.isEmpty && sessions.runningShells.isEmpty {
-            Text("No other terminals running")
-        }
         if !sessions.tmuxSessions.isEmpty {
             Section("tmux — shares the live session") {
                 ForEach(sessions.tmuxSessions) { session in
@@ -117,15 +122,6 @@ struct TerminalSessionsButton: View {
                     } label: {
                         Text("\(session.name) · \(session.windows) window\(session.windows == 1 ? "" : "s")"
                              + (session.attached ? " · attached" : ""))
-                    }
-                }
-            }
-        }
-        if !sessions.runningShells.isEmpty {
-            Section("Open terminals — continue in their folder") {
-                ForEach(sessions.runningShells.prefix(8)) { shell in
-                    Button("\(shell.app) · \(shell.displayName)") {
-                        widget.terminal.open(directory: shell.directory)
                     }
                 }
             }

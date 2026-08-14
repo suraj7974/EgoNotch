@@ -75,13 +75,6 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
                 session: name)
     }
 
-    /// Continue in another terminal's directory (a plain new shell there).
-    func open(directory url: URL) {
-        restart(arguments: ["-l"], session: nil, cwd: url)
-    }
-
-    func newShell() { restart(arguments: ["-l"], session: nil) }
-
     /// Put the caret in the shell so the very first keystroke lands.
     ///
     /// Retries briefly: on the frame the tab appears the view isn't in a
