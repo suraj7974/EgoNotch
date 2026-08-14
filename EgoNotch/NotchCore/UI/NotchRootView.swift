@@ -21,10 +21,11 @@ struct NotchRootView: View {
         let state = controller.state
         let config = controller.config
         let size = geometry.chromeSize(for: state, config: config)
-        // The bezel flare belongs to the OPEN panel only — collapsed, the
-        // notch keeps its original square-topped silhouette.
+        // Collapsed keeps just a hint of flare (like the stock macOS notch);
+        // the deep bezel blend belongs to the open panel.
         let shape = NotchShape(
-            topRadius: state == .expanded ? config.topFlareRadius : 0,
+            topRadius: state == .expanded ? config.topFlareRadius
+                                          : config.closedTopFlareRadius,
             bottomRadius: state == .expanded ? config.expandedBottomRadius
                                              : config.closedBottomRadius)
         let acceptsDrops = WidgetRegistry.canAcceptDroppedFiles

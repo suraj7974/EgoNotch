@@ -9,6 +9,7 @@ struct NotchConfiguration: Equatable {
     var wingWidth: CGFloat = 50          // closed-state strip on each side of the notch
     var closedExtraHeight: CGFloat = 0
     var topFlareRadius: CGFloat = 18     // outward top curves blending into the bezel
+    var closedTopFlareRadius: CGFloat = 6    // subtle, like the stock macOS notch
     var closedBottomRadius: CGFloat = 14
     var expandedBottomRadius: CGFloat = 46   // deep NotchNest-style curves when open
     var hoverOutset: CGFloat = 8         // extra width per side while hovering
