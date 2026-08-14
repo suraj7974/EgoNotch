@@ -52,15 +52,21 @@ struct WidgetTile: View {
     let widget: any NotchWidget
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ColumnHeader(title: widget.displayName,
-                         appName: widget.companionAppName,
-                         openApp: { widget.openCompanionApp() })
+        if widget.wantsTileChrome {
+            VStack(alignment: .leading, spacing: 8) {
+                ColumnHeader(title: widget.displayName,
+                             appName: widget.companionAppName,
+                             openApp: { widget.openCompanionApp() })
+                widget.makeExpandedView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .egoCard()
+        } else {
+            // Edge-to-edge: the widget owns every pixel of the tile.
             widget.makeExpandedView()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .egoCard()
     }
 }
 

@@ -25,6 +25,7 @@ final class SettingsStore {
         static let focusMinutes   = "focus.minutes"        // default 25
         static let breakMinutes   = "focus.breakMinutes"   // default 5
         static let deepMinutes    = "focus.deepMinutes"    // default 50
+        static let terminalFont   = "terminal.fontSize"    // pt, default 12
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -68,6 +69,10 @@ final class SettingsStore {
     var deepMinutes: Int {
         didSet { defaults.set(deepMinutes, forKey: Key.deepMinutes) }
     }
+    /// Ghostty's own size is tuned for a full window; the notch needs smaller.
+    var terminalFontSize: Double {
+        didSet { defaults.set(terminalFontSize, forKey: Key.terminalFont) }
+    }
 
     // MARK: - Per-widget enabled (dynamic keys)
 
@@ -105,6 +110,7 @@ final class SettingsStore {
             Key.focusMinutes: 25,
             Key.breakMinutes: 5,
             Key.deepMinutes: 50,
+            Key.terminalFont: 12.0,
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -117,5 +123,6 @@ final class SettingsStore {
         focusMinutes = defaults.integer(forKey: Key.focusMinutes)
         breakMinutes = defaults.integer(forKey: Key.breakMinutes)
         deepMinutes = defaults.integer(forKey: Key.deepMinutes)
+        terminalFontSize = defaults.double(forKey: Key.terminalFont)
     }
 }

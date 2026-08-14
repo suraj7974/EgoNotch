@@ -12,8 +12,9 @@ struct ClosedAccessoryStrip: View {
                     item.view
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 6)
+            // Sit against the outer edge (with a small inset), not against the
+            // camera housing — that's what keeps the wings narrow.
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Color.clear.frame(width: notchWidth)   // the camera housing itself
 
@@ -22,10 +23,9 @@ struct ClosedAccessoryStrip: View {
                     item.view
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 6)
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 9)
     }
 
     private struct Accessory: Identifiable {

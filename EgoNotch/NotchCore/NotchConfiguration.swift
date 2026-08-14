@@ -6,7 +6,9 @@ struct NotchConfiguration: Equatable {
     // Closed chrome: wider than the notch (horizontal presence), exactly the
     // physical notch's height — any shorter and the hardware cutout peeks
     // below the chrome, reading as a "double notch".
-    var wingWidth: CGFloat = 50          // closed-state strip on each side of the notch
+    // Just wide enough for a 22pt artwork/visualiser plus a small edge inset —
+    // the accessories sit near the outer edge, not floating in dead space.
+    var wingWidth: CGFloat = 40          // closed-state strip on each side of the notch
     var closedExtraHeight: CGFloat = 0
     var topFlareRadius: CGFloat = 18     // outward top curves blending into the bezel
     var closedTopFlareRadius: CGFloat = 6    // subtle, like the stock macOS notch

@@ -45,6 +45,9 @@ protocol NotchWidget: AnyObject {
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView?
     /// Tile content for non-home tabs. nil = no tile (chrome-only widgets).
     func makeExpandedView() -> AnyView?
+    /// False for widgets that draw their own frame edge-to-edge (the
+    /// terminal), so the tile adds no card, title or padding around them.
+    var wantsTileChrome: Bool { get }
     /// Compact column for the Home strip (NotchNest-style). nil = not on it.
     func makeCompactView() -> AnyView?
     /// Tiny element for the panel's top bar (e.g. battery pill). nil = none.
@@ -70,6 +73,7 @@ extension NotchWidget {
     func openCompanionApp() {}
     func makeClosedAccessory(for edge: NotchEdge) -> AnyView? { nil }
     func makeExpandedView() -> AnyView? { nil }
+    var wantsTileChrome: Bool { true }
     func makeCompactView() -> AnyView? { nil }
     func makeTopBarAccessory() -> AnyView? { nil }
     func activate() {}

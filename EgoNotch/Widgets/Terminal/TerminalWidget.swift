@@ -1,122 +1,182 @@
 import SwiftUI
+import SwiftTerm
 
-/// A live shell in the notch. Dropping a folder (or a Terminal window's proxy
-/// icon, which is its working directory) makes the session run there.
+/// A real terminal in the notch: the user's login shell inside a full xterm
+/// emulator, wearing their Ghostty theme and font.
 final class TerminalWidget: NotchWidget {
     let id = "terminal"
     let displayName = "Terminal"
     let icon = "terminal"
     let tileSize: WidgetTileSize = .wide
     let tab: NotchTab = .terminal
-    let acceptsDroppedFiles = true
+    /// The terminal fills the tab: no card, no title bar above it.
+    let wantsTileChrome = false
 
-    let session = TerminalSession()
+    let terminal = NotchTerminal()
 
-    var companionAppName: String? { "Terminal" }
+    var companionAppName: String? { "Ghostty" }
     func openCompanionApp() {
-        // Hand the current directory over to the real Terminal.
-        let path = session.workingDirectory.path
-        NSWorkspace.shared.open([URL(fileURLWithPath: path)],
-                                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
-                                configuration: NSWorkspace.OpenConfiguration())
+        let directory = terminal.directory ?? FileManager.default.homeDirectoryForCurrentUser
+        GhosttyLauncher.open(at: directory)
     }
 
-    /// The shell only exists while the widget is enabled.
-    func deactivate() { session.stop() }
-
-    /// A dropped folder becomes the session's working directory.
-    func handleDroppedFiles(_ urls: [URL]) -> Bool {
-        guard let first = urls.first else { return false }
-        session.changeDirectory(to: first)
-        return true
-    }
+    /// The shell only lives while the widget is enabled.
+    func deactivate() { terminal.stop() }
 
     func makeExpandedView() -> AnyView? {
         AnyView(TerminalTileView(widget: self))
     }
 }
 
+// MARK: - Tile
+
 struct TerminalTileView: View {
     let widget: TerminalWidget
-    @State private var input = ""
-    @FocusState private var inputFocused: Bool
+    @State private var sessions = TerminalSessions()
+
+    @State private var hovering = false
 
     var body: some View {
-        let session = widget.session
-        VStack(alignment: .leading, spacing: 6) {
-            header(session)
-            output(session)
-            prompt(session)
+        // The terminal owns the whole tab; controls float on top of it so no
+        // row of chrome eats terminal lines.
+        ZStack {
+            // The card is the terminal's own background colour, so the inset
+            // around the text still reads as part of the terminal — and a
+            // click anywhere on it lands in the shell.
+            widget.terminal.backgroundColor
+            TerminalHost(terminal: widget.terminal)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { session.start() }
+            .overlay(alignment: .topTrailing) { controls }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Ego.border, lineWidth: 1)
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture { widget.terminal.focus() }
+            .onHover { hovering = $0 }
+            .onAppear {
+                widget.terminal.applyTheme()
+                widget.terminal.startIfNeeded()
+                sessions.refresh()
+            }
     }
 
-    private func header(_ session: TerminalSession) -> some View {
-        HStack(spacing: 8) {
-            Text(session.displayPath(session.workingDirectory))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Ego.textMute)
-                .lineLimit(1)
-                .truncationMode(.head)
-            Spacer(minLength: 0)
-            Button("Stop") { session.interrupt() }
-                .buttonStyle(.plain)
-                .font(Ego.font(10))
-                .foregroundStyle(Ego.textMute)
-            Button("Clear") { session.clear() }
-                .buttonStyle(.plain)
-                .font(Ego.font(10))
-                .foregroundStyle(Ego.textMute)
+    private var controls: some View {
+        HStack(spacing: 2) {
+            if let session = widget.terminal.attachedSession {
+                Text(session)
+                    .font(Ego.font(9.5, .medium))
+                    .foregroundStyle(Ego.win)
+                    .padding(.horizontal, 5)
+            }
+            Menu {
+                sessionMenu
+            } label: {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 10.5))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .frame(width: 22, height: 18)
+            .foregroundStyle(Ego.textMute)
+            .help("Attach a running terminal")
+            .onHover { if $0 { sessions.refresh() } }
+
+            iconButton("arrow.up.forward.app") { widget.openCompanionApp() }
+                .help("Open this directory in Ghostty")
         }
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .background(.black.opacity(0.45), in: Capsule())
+        .padding(5)
+        .opacity(hovering ? 1 : 0.25)
+        .animation(Ego.Motion.spring(response: 0.2), value: hovering)
     }
 
-    /// The one place scrolling is right: a terminal needs its scrollback.
-    private func output(_ session: TerminalSession) -> some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    ForEach(Array(session.lines.enumerated()), id: \.offset) { index, line in
-                        Text(line)
-                            .font(.system(size: 10.5, design: .monospaced))
-                            .foregroundStyle(line.hasPrefix("❯ ") ? Ego.win : .white.opacity(0.9))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .id(index)
+    @ViewBuilder
+    private var sessionMenu: some View {
+        if sessions.tmuxSessions.isEmpty && sessions.runningShells.isEmpty {
+            Text("No other terminals running")
+        }
+        if !sessions.tmuxSessions.isEmpty {
+            Section("tmux — shares the live session") {
+                ForEach(sessions.tmuxSessions) { session in
+                    Button {
+                        widget.terminal.attach(tmuxSession: session.name)
+                    } label: {
+                        Text("\(session.name) · \(session.windows) window\(session.windows == 1 ? "" : "s")"
+                             + (session.attached ? " · attached" : ""))
                     }
                 }
-                .padding(.vertical, 2)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-            .onChange(of: session.lines.count) {
-                guard session.lines.count > 0 else { return }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo(session.lines.count - 1, anchor: .bottom)
+        }
+        if !sessions.runningShells.isEmpty {
+            Section("Open terminals — continue in their folder") {
+                ForEach(sessions.runningShells.prefix(8)) { shell in
+                    Button("\(shell.app) · \(shell.displayName)") {
+                        widget.terminal.open(directory: shell.directory)
+                    }
                 }
             }
         }
     }
 
-    private func prompt(_ session: TerminalSession) -> some View {
-        HStack(spacing: 6) {
-            Text("❯")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(Ego.win)
-            TextField("", text: $input)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(.white)
-                .focused($inputFocused)
-                .onSubmit {
-                    session.send(input)
-                    input = ""
-                }
+    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11))
+                .foregroundStyle(Ego.textMute)
+                .frame(width: 20, height: 16)
+                .contentShape(Rectangle())
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onTapGesture { inputFocused = true }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - AppKit bridge
+
+/// Hosts the one persistent terminal view. Never rebuilds it: the shell must
+/// survive tab switches and panel collapses.
+private struct TerminalHost: NSViewRepresentable {
+    let terminal: NotchTerminal
+
+    func makeNSView(context: Context) -> LocalProcessTerminalView {
+        terminal.view
+    }
+
+    func updateNSView(_ view: LocalProcessTerminalView, context: Context) {
+        terminal.applyTheme()
+        // Typing must land in the shell as soon as the tab is on screen.
+        DispatchQueue.main.async {
+            guard let window = view.window, window.isKeyWindow,
+                  window.firstResponder !== view else { return }
+            window.makeFirstResponder(view)
+        }
+    }
+}
+
+// MARK: - Ghostty
+
+enum GhosttyLauncher {
+    static let appURL: URL? = {
+        let candidates = [URL(fileURLWithPath: "/Applications/Ghostty.app"),
+                          FileManager.default.homeDirectoryForCurrentUser
+                              .appendingPathComponent("Applications/Ghostty.app")]
+        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+    }()
+
+    /// Opens Ghostty in `directory` (falls back to the default terminal).
+    static func open(at directory: URL) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        if let appURL {
+            NSWorkspace.shared.open([directory], withApplicationAt: appURL, configuration: configuration)
+        } else {
+            NSWorkspace.shared.open(directory)
+        }
     }
 }

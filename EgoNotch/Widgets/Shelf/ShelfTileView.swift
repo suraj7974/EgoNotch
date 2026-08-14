@@ -13,11 +13,9 @@ struct ShelfTileView: View {
         VStack(alignment: .leading, spacing: 10) {
             if store.items.isEmpty {
                 emptyState
-            } else if let selected = selectedItem {
-                // Selection swaps the row for a big preview of that file.
-                previewRow(selected)
-                actions(store)
             } else {
+                // Clicking only selects: the row never changes size, so the
+                // files stay where your eye left them.
                 itemsRow(store)
                 actions(store)
             }
@@ -79,52 +77,6 @@ struct ShelfTileView: View {
         .frame(height: 60)
     }
 
-    /// Actions apply to the SELECTED file, or to everything when nothing is
-    /// selected — click a file to target just that one.
-    /// Large QuickLook preview of the selected file + a way back to the row.
-    private func previewRow(_ item: ShelfItem) -> some View {
-        HStack(spacing: 12) {
-            Group {
-                if let preview = ThumbnailProvider.shared.thumbnail(for: item.url, size: 120) {
-                    Image(nsImage: preview)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } else {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                }
-            }
-            .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(Ego.font(12, .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(Self.fileSize(item.url))
-                    .font(Ego.font(10))
-                    .egoDigits()
-                    .foregroundStyle(Ego.textMute)
-            }
-            Spacer(minLength: 0)
-            Button {
-                selectedID = nil
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Ego.textMute)
-                    .frame(width: 24, height: 24)
-                    .background(Color.white.opacity(0.08), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .help("Back to files")
-        }
-        .frame(height: 60)
-    }
-
     private static func fileSize(_ url: URL) -> String {
         let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
@@ -144,7 +96,17 @@ struct ShelfTileView: View {
             shelfButton("Reveal", symbol: "magnifyingglass") {
                 NSWorkspace.shared.activateFileViewerSelecting(targets)
             }
-            Spacer()
+            // Says what the buttons will act on, since selection no longer
+            // changes the layout.
+            Text(targetSummary(store))
+                .font(Ego.font(10))
+                .foregroundStyle(Ego.textMute)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.leading, 4)
+                .frame(minWidth: 96, alignment: .leading)
+                .layoutPriority(-1)      // the buttons keep their width; this gives
+            Spacer(minLength: 0)
             if let selected = selectedItem {
                 shelfButton("Remove", symbol: "minus.circle") {
                     store.remove(selected)
@@ -158,14 +120,26 @@ struct ShelfTileView: View {
         }
     }
 
+    private func targetSummary(_ store: ShelfStore) -> String {
+        if let selected = selectedItem {
+            // The name is already highlighted in the row above — don't repeat
+            // it here, there isn't room.
+            return "selected · \(Self.fileSize(selected.url))"
+        }
+        return store.items.count == 1 ? "1 file" : "all \(store.items.count) files"
+    }
+
     private func shelfButton(_ title: String, symbol: String,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(Ego.font(11, .medium))
                 .labelStyle(.titleAndIcon)
+                .lineLimit(1)                       // never break "AirDrop" in half
+                .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.egoSecondary)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 

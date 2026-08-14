@@ -5,6 +5,14 @@ struct PanelPane: View {
 
     private static let defaultSize = CGSize(width: 960, height: 205)
 
+    /// Colours and typeface come from Ghostty's own config — only the size is
+    /// ours, because Ghostty's is tuned for a full window.
+    private var terminalHint: String {
+        let profile = GhosttyProfile.current
+        guard let theme = profile.themeName else { return "Using the default palette." }
+        return "Ghostty theme “\(theme)”" + (profile.fontFamily.map { ", \($0)" } ?? "")
+    }
+
     var body: some View {
         SettingsPane(title: "Panel", subtitle: "Size of the opened notch, and the fake notch used on other displays.") {
             SizePreview(width: settings.panelWidth, height: settings.panelHeight)
@@ -25,6 +33,13 @@ struct PanelPane: View {
                         settings.panelHeight = Self.defaultSize.height
                     }
                 }
+            }
+
+            SettingsCard(title: "Terminal") {
+                SettingsSliderRow(label: "Font size",
+                                  hint: terminalHint,
+                                  value: $settings.terminalFontSize,
+                                  range: 9...18, step: 0.5) { String(format: "%.1f pt", $0) }
             }
 
             SettingsCard(title: "Virtual notch") {
