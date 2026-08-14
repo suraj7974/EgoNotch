@@ -21,8 +21,10 @@ struct NotchRootView: View {
         let state = controller.state
         let config = controller.config
         let size = geometry.chromeSize(for: state, config: config)
+        // The bezel flare belongs to the OPEN panel only — collapsed, the
+        // notch keeps its original square-topped silhouette.
         let shape = NotchShape(
-            topRadius: config.topFlareRadius,
+            topRadius: state == .expanded ? config.topFlareRadius : 0,
             bottomRadius: state == .expanded ? config.expandedBottomRadius
                                              : config.closedBottomRadius)
         let acceptsDrops = WidgetRegistry.canAcceptDroppedFiles
@@ -38,7 +40,7 @@ struct NotchRootView: View {
             } else {
                 ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
                     .frame(height: geometry.chromeSize(for: .closed, config: config).height)
-                    .padding(.horizontal, config.topFlareRadius)
+                    .padding(.horizontal, 8)
                     .transition(.opacity)
             }
         }
@@ -82,7 +84,9 @@ struct NotchRootView: View {
                 // instead of leaving a dead black band above the content.
                 PanelTopBar(notchGap: geometry.notchRect.width)
                     .frame(height: stripHeight)
-                    .padding(.horizontal, 16)
+                    // + the flare inset the outer shape clips away, so the
+                    // buttons sit inside the visible edge, not on it.
+                    .padding(.horizontal, config.topFlareRadius + 14)
             }
             ZStack(alignment: .top) {
                 Color.black

@@ -22,10 +22,12 @@ nonisolated struct NotchShape: Shape {
 
         var p = Path()
         p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        // Top-left flare: top edge → left wall.
-        p.addArc(tangent1End: CGPoint(x: rect.minX + t, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.minX + t, y: rect.minY + t),
-                 radius: t)
+        if t > 0 {
+            // Top-left flare: top edge → left wall.
+            p.addArc(tangent1End: CGPoint(x: rect.minX + t, y: rect.minY),
+                     tangent2End: CGPoint(x: rect.minX + t, y: rect.minY + t),
+                     radius: t)
+        }
         // Left wall → bottom edge.
         p.addArc(tangent1End: CGPoint(x: rect.minX + t, y: rect.maxY),
                  tangent2End: CGPoint(x: rect.minX + t + b, y: rect.maxY),
@@ -35,9 +37,11 @@ nonisolated struct NotchShape: Shape {
                  tangent2End: CGPoint(x: rect.maxX - t, y: rect.maxY - b),
                  radius: b)
         // Right wall → top-right flare.
-        p.addArc(tangent1End: CGPoint(x: rect.maxX - t, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.maxX, y: rect.minY),
-                 radius: t)
+        if t > 0 {
+            p.addArc(tangent1End: CGPoint(x: rect.maxX - t, y: rect.minY),
+                     tangent2End: CGPoint(x: rect.maxX, y: rect.minY),
+                     radius: t)
+        }
         p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
         p.closeSubpath()
         return p
