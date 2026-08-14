@@ -37,6 +37,9 @@ final class NotchPanelController: NSObject {
         stateController.onStateChange = { [weak self] state in
             self?.stateDidChange(state)
         }
+        panel.onTabShortcut = { [weak self] index in
+            self?.selectTab(at: index)
+        }
 
         displayObserver = DisplayObserver { [weak self] in self?.reposition(force: false) }
         fullScreenObserver = FullScreenObserver()
@@ -103,6 +106,15 @@ final class NotchPanelController: NSObject {
     }
 
     @objc private func visibilityRulesChanged() { updateVisibility() }
+
+    /// ⌥N picks the Nth tab as drawn — the position you see, not the enum
+    /// order, so a disabled module never leaves a hole in the numbering.
+    private func selectTab(at index: Int) {
+        guard stateController.state == .expanded else { return }
+        let tabs = PanelUIState.shared.availableTabs
+        guard index >= 1, index <= tabs.count else { return }
+        PanelUIState.shared.selectedTab = tabs[index - 1]
+    }
 
     // MARK: - State side effects
 

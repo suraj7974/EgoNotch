@@ -27,31 +27,20 @@ struct ShortcutsPane: View {
             }
 
             SettingsCard(title: "Inside the notch") {
-                ForEach(Array(inNotchShortcuts.enumerated()), id: \.offset) { index, shortcut in
-                    if index > 0 { SettingsDivider() }
-                    SettingsRow(label: shortcut.label, icon: shortcut.icon) {
-                        KeyCapLabel(text: shortcut.keys)
+                SettingsRow(label: "Switch tabs",
+                            hint: "By position in the tab bar, so disabled modules never leave a gap.",
+                            icon: "square.grid.2x2") {
+                    KeyCapLabel(text: "⌥1…⌥\(min(PanelUIState.shared.availableTabs.count, 9))")
+                }
+                ForEach(Array(PanelUIState.shared.availableTabs.prefix(9).enumerated()),
+                        id: \.element.id) { index, tab in
+                    SettingsDivider()
+                    SettingsRow(label: tab.title, icon: tab.icon) {
+                        KeyCapLabel(text: "⌥\(index + 1)")
                     }
                 }
             }
         }
-    }
-
-    private struct InNotchShortcut {
-        let label: String
-        let icon: String
-        let keys: String
-    }
-
-    /// Fixed keys the panel handles itself while it's open.
-    private var inNotchShortcuts: [InNotchShortcut] {
-        [
-            .init(label: "Close the panel", icon: "escape", keys: "⎋"),
-            .init(label: "Copy / paste in the terminal", icon: "doc.on.doc", keys: "⌘C ⌘V"),
-            .init(label: "Clear the terminal", icon: "eraser", keys: "⌘K"),
-            .init(label: "Terminal font size", icon: "textformat.size", keys: "⌘+ ⌘− ⌘0"),
-            .init(label: "Wipe the current line", icon: "delete.left", keys: "⌘⌫"),
-        ]
     }
 }
 
