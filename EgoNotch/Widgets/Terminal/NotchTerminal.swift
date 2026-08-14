@@ -17,13 +17,17 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private(set) var attachedSession: String?
     private(set) var isRunning = false
 
-    @ObservationIgnored let view = LocalProcessTerminalView(frame: CGRect(x: 0, y: 0, width: 640, height: 200))
+    @ObservationIgnored let view = NotchTerminalView(frame: CGRect(x: 0, y: 0, width: 640, height: 200))
     @ObservationIgnored private var styledFontSize: CGFloat = 0
 
     override init() {
         super.init()
         view.processDelegate = self
         view.allowMouseReporting = true
+        view.onAppearanceChange = { [weak self] in
+            self?.styledFontSize = 0            // force the guard to re-apply
+            self?.applyTheme()
+        }
         applyTheme()
     }
 
