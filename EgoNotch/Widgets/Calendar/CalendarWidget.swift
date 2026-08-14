@@ -261,7 +261,7 @@ private struct MonthGrid: View {
                 }
             }
 
-            LazyVGrid(columns: columns, spacing: 3) {
+            LazyVGrid(columns: columns, spacing: 1) {
                 ForEach(cells) { cell in
                     Group {
                         if let day = cell.day {
@@ -271,7 +271,7 @@ private struct MonthGrid: View {
                                 .font(Ego.font(10, day == today ? .bold : .regular))
                                 .egoDigits()
                                 .foregroundStyle(day == today ? .black : .white.opacity(0.8))
-                                .frame(width: 19, height: 19)
+                                .frame(width: 18, height: 18)
                                 .background(day == today ? Color.white : .clear, in: Circle())
                                 .overlay(alignment: .bottom) {
                                     if eventDays.contains(day), day != today {
@@ -282,7 +282,7 @@ private struct MonthGrid: View {
                                     }
                                 }
                         } else {
-                            Color.clear.frame(width: 19, height: 19)
+                            Color.clear.frame(width: 18, height: 18)
                         }
                     }
                     .frame(maxWidth: .infinity)

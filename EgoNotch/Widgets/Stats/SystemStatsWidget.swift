@@ -118,7 +118,7 @@ struct SystemStatsTileView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { context in
             // Vertical rows: ring on the left, name and detail to its right.
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) {
                 StatRow(label: "CPU", percent: sample.cpuPercent,
                         detail: "\(Int(sample.cpuPercent.rounded()))% used",
                         color: Ego.accentSoft)
@@ -164,7 +164,7 @@ private struct StatRow: View {
                     .egoDigits()
                     .foregroundStyle(Ego.text)
             }
-            .frame(width: 36, height: 36)
+            .frame(width: 32, height: 32)
             .animation(Ego.Motion.spring(), value: percent)
 
             VStack(alignment: .leading, spacing: 1) {

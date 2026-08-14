@@ -74,9 +74,12 @@ struct NotchRootView: View {
             if geometry.isPhysicalNotch {
                 // Reclaim the camera-housing strip: the bar flanks the notch
                 // instead of leaving a dead black band above the content.
+                // layoutPriority pins it — content that outgrows the panel
+                // must clip at the bottom, never shove the bar off-screen.
                 PanelTopBar(notchGap: geometry.notchRect.width)
                     .frame(height: geometry.notchRect.height)
                     .padding(.horizontal, 14)
+                    .layoutPriority(1)
             }
             ZStack(alignment: .top) {
                 Color.black
@@ -91,6 +94,8 @@ struct NotchRootView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 18)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
     }
 }

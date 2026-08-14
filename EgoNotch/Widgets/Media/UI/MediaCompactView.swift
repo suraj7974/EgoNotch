@@ -6,7 +6,7 @@ import SwiftUI
 struct MediaCompactView: View {
     let widget: MediaWidget
 
-    private static let artSize: CGFloat = 108
+    private static let artSize: CGFloat = 100
 
     /// Big artwork on the left; title, artist, seek bar and transport stacked
     /// on the right. The bar and the button row are siblings in one column,
