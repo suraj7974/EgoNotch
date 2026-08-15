@@ -112,7 +112,7 @@ enum CommandGrammar {
     }
 
     private static let finished: Set<String> = [
-        "pause", "play", "resume", "stop the music", "stop music", "next", "next song",
+        "pause", "resume", "stop the music", "stop music", "next", "next song",
         "next track", "skip", "skip this", "previous", "previous song", "previous track",
         "back a track", "mute", "unmute", "louder", "quieter", "turn it up", "turn it down",
         "volume up", "volume down", "brighter", "dimmer", "whats playing", "what is playing",

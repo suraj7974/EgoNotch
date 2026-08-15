@@ -307,9 +307,13 @@ final class EgoEars {
             speechStartedAt = Date()
             lastCommandText = command
             partial = command
-            EgoLog.trace(String(format: "wake heard %.0f ms after you started speaking, "
-                                + "command so far: %@",
-                                Date().timeIntervalSince(speechHeardAt) * 1000, command))
+            let lag = Date().timeIntervalSince(speechHeardAt)
+            EgoLog.trace(lag < 8
+                         ? String(format: "wake heard %.0f ms after you started speaking, "
+                                  + "command so far: %@", lag * 1000, command)
+                         // With music playing the level never falls back to
+                         // silence, so there is no onset to measure from.
+                         : "wake heard (no quiet moment to measure from), command so far: \(command)")
             onWake?()
             armEndpoint()
 
@@ -348,15 +352,13 @@ final class EgoEars {
                 if lastCommandText.isEmpty, !command.isEmpty { speechStartedAt = Date() }
                 lastCommandText = command
                 partial = command
-                // A command with nothing that could follow it doesn't need the
-                // silence check at all — waiting would only add delay to the
-                // commands used most.
-                if !VoicePrintStore.shared.isEnrolling, CommandGrammar.isComplete(command) {
-                    EgoLog.trace("complete command — acting immediately")
-                    finishUtterance()
-                    return
-                }
-                armEndpoint()          // still talking — restart the silence clock
+                // A finished-sounding command waits only long enough to be
+                // sure nothing follows it. Acting on the very first match was
+                // faster still, but "play" is also the start of "play snake" —
+                // a quarter of a second is the difference between quick and
+                // wrong.
+                let settle = CommandGrammar.isComplete(command) ? 0.4 : nil
+                armEndpoint(settle: settle)
             }
             if update.isFinal, !command.isEmpty {
                 finishUtterance()
@@ -380,11 +382,11 @@ final class EgoEars {
     /// the wrong one: with music playing out of the speakers the level never
     /// drops, so every command sat until the hard cap — twelve seconds to
     /// answer "pause".
-    private func armEndpoint(grace: Double = 2.5) {
+    private func armEndpoint(grace: Double = 2.5, settle: Double? = nil) {
         endpoint?.cancel()
         // Nothing said yet means waiting for you to start; a command in
         // progress means waiting for you to finish.
-        let wait = lastCommandText.isEmpty ? grace : silenceWindow
+        let wait = lastCommandText.isEmpty ? grace : (settle ?? silenceWindow)
         endpoint = Task { [weak self] in
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
@@ -394,13 +396,14 @@ final class EgoEars {
         // restarts the timer above, so with music playing — the recogniser
         // endlessly revising lyrics — the utterance never settled at all, and
         // commands took anywhere from four to thirty-six seconds to land.
-        capTask?.cancel()
         // Measured from the first WORD, not from when the capture opened. A
         // follow-up spends most of its life waiting in silence, so timing the
         // cap from the open truncated real commands — "dismiss" arrived as
-        // "dism".
-        let began = speechStartedAt > wokeAt ? speechStartedAt : Date()
-        let remaining = hardCap - Date().timeIntervalSince(began)
+        // "dism". Nothing said yet means nothing to cap; the grace above ends
+        // an empty capture on its own.
+        capTask?.cancel()
+        guard speechStartedAt > .distantPast else { return }
+        let remaining = hardCap - Date().timeIntervalSince(speechStartedAt)
         capTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(max(remaining, 0.5)))
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
@@ -452,11 +455,15 @@ final class EgoEars {
             onIdle?()
             return
         }
-        // Belt and braces against the recogniser re-emitting a finished
-        // segment: the same words, with nothing said in between, are the same
-        // utterance — not a second instruction.
-        if command == lastDispatched, Date().timeIntervalSince(lastDispatchedAt) < 12 {
-            EgoLog.trace("same utterance again, ignoring: \(command)")
+        // One sentence, one command. The recogniser keeps a whole segment
+        // alive and revises it, so acting on "play" and then seeing "play the
+        // song" arrive is the SAME sentence growing — not a second order. That
+        // is how "hey zoro play the song" ran play, then play again, then
+        // pause. Either text containing the other means it is the same
+        // utterance still being written down.
+        if !lastDispatched.isEmpty, Date().timeIntervalSince(lastDispatchedAt) < 12,
+           command.hasPrefix(lastDispatched) || lastDispatched.hasPrefix(command) {
+            EgoLog.trace("still the same sentence, ignoring: \(command)")
             onIdle?()
             return
         }
