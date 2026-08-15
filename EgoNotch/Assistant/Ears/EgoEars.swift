@@ -63,7 +63,7 @@ final class EgoEars {
     /// this long before anything happens, so it is the single biggest
     /// contributor to Ego feeling slow — kept just long enough to survive the
     /// gap between two words.
-    private let silenceWindow: Double = 0.85
+    private let silenceWindow: Double = 1.0
     /// The longest an utterance may take before Ego acts on what it has. With
     /// music in the room the transcript never stops changing, so this is what
     /// actually ends most commands — twelve seconds felt broken.
@@ -453,6 +453,20 @@ final class EgoEars {
         guard !command.isEmpty else {
             EgoLog.trace("wake with no command")
             onIdle?()
+            return
+        }
+        // Half a sentence. With music playing, the recogniser hands over words
+        // more than a second apart, so an ordinary gap mid-command looked like
+        // the end of one. Wait for the rest — the cap still bounds it.
+        if CommandGrammar.looksUnfinished(command),
+           Date().timeIntervalSince(speechStartedAt) < hardCap {
+            EgoLog.trace("half a sentence — waiting for the rest: \(command)")
+            // Put back what was just cleared: the words so far are the start
+            // of the command, not a discarded one.
+            lastCommandText = command
+            partial = command
+            status = .capturing
+            armEndpoint(settle: 1.4)
             return
         }
         // One sentence, one command. The recogniser keeps a whole segment

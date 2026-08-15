@@ -109,13 +109,30 @@ enum CommandGrammar {
         if finished.contains(text) { return true }
         // "volume 40", "brightness 60" — a number ends the sentence.
         if text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$") { return true }
-        // Anything short that begins with a command verb. Waiting on silence
-        // never works with music playing — the recogniser keeps revising song
-        // lyrics, so the transcript never settles and every command ran to the
-        // cap instead, taking four to seven seconds.
-        let words = text.split(separator: " ")
-        return words.count >= 2 && words.count <= 5 && looksLikeCommand(text)
+        return false
     }
+
+    /// Plainly the middle of a sentence. Ending here would act on half a
+    /// command — which is how "play the song" became "play the", and then
+    /// "song" a second later as though it were a new instruction.
+    static func looksUnfinished(_ raw: String) -> Bool {
+        let text = normalise(raw)
+        guard let last = text.split(separator: " ").last.map(String.init) else { return false }
+        if dangling.contains(last) { return true }
+        // A lone verb is a request for something that hasn't arrived yet.
+        return text.split(separator: " ").count == 1 && needsObject.contains(text)
+    }
+
+    /// Words no English sentence ends on.
+    private static let dangling: Set<String> = [
+        "the", "a", "an", "to", "my", "of", "for", "and", "or", "in", "on",
+        "with", "at", "is", "it", "this", "that", "some", "go", "turn", "set",
+    ]
+
+    private static let needsObject: Set<String> = [
+        "open", "switch", "show", "jump", "play", "run", "take", "add", "note",
+        "set", "start", "complete", "read", "record", "execute", "type",
+    ]
 
     private static let finished: Set<String> = [
         "pause", "resume", "stop the music", "stop music", "next", "next song",
