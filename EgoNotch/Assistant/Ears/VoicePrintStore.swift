@@ -17,8 +17,13 @@ import Observation
 final class VoicePrintStore {
     static let shared = VoicePrintStore()
 
-    /// Enough speech to describe a voice. Around three sentences read aloud.
-    static let secondsWanted: Double = 12
+    /// Enough *recording* to describe a voice. Reading is full of pauses, so
+    /// this is comfortably more than the four seconds of actual speech the
+    /// profile needs.
+    static let secondsWanted: Double = 14
+
+    /// Frames of real speech below which a profile is noise rather than a voice.
+    private static let minimumFrames = 400
 
     private(set) var isEnrolling = false
     /// Seconds gathered so far, for the progress the user watches.
@@ -82,10 +87,15 @@ final class VoicePrintStore {
     func finishEnrolment(samples: [Float], sampleRate: Double) -> Bool {
         isEnrolling = false
         captured = 0
-        guard let built = VoiceProfile.make(samples: samples, sampleRate: sampleRate),
-              built.frameCount >= 200 else {
-            lastProblem = "I didn't hear enough — read it again, a bit closer to the Mac."
-            EgoLog.trace("voice enrolment: too little speech")
+        // Frames of actual speech, silences already discarded. Four seconds is
+        // the floor at which the measurements stop being noise — two seconds
+        // produces a profile that lets almost anyone through.
+        let attempt = VoiceProfile.make(samples: samples, sampleRate: sampleRate)
+        guard let built = attempt, built.frameCount >= Self.minimumFrames else {
+            let heard = Double(attempt?.frameCount ?? 0) / 100
+            lastProblem = String(format: "Only %.0f seconds of speech — read the whole passage, "
+                                 + "a bit closer to the Mac.", heard)
+            EgoLog.trace(String(format: "voice enrolment: only %.1fs of speech", heard))
             return false
         }
         profile = built
@@ -130,6 +140,13 @@ final class VoicePrintStore {
     private func load() {
         guard let data = try? Data(contentsOf: Self.url),
               let saved = try? JSONDecoder().decode(VoiceProfile.self, from: data) else { return }
+        // A profile saved under an older, laxer rule would quietly let anyone
+        // through. Better to ask for the passage again than to pretend.
+        guard saved.frameCount >= Self.minimumFrames else {
+            EgoLog.trace("voice profile discarded: too thin to trust")
+            try? FileManager.default.removeItem(at: Self.url)
+            return
+        }
         profile = saved
         isEnrolled = true
     }

@@ -156,8 +156,9 @@ nonisolated enum MFCC {
         }
         guard !all.isEmpty, let peak = energies.max(), let floor = energies.min() else { return nil }
 
-        // Keep the loud half of the dynamic range: speech, not the gaps in it.
-        let cutoff = floor + (peak - floor) * 0.4
+        // Speech, not the gaps in it — but not so strict that a quietly read
+        // passage is thrown away as silence.
+        let cutoff = floor + (peak - floor) * 0.28
         let speech = zip(all, energies).filter { $0.1 >= cutoff }.map(\.0)
         return speech.count >= 8 ? speech : all
     }

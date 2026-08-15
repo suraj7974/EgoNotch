@@ -224,6 +224,10 @@ struct SettingsBadge: View {
         Text(text)
             .font(Ego.font(10, .medium))
             .foregroundStyle(tint)
+            // Same reason as the action buttons: a crowded row otherwise wraps
+            // the label one letter at a time.
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(tint.opacity(0.14), in: Capsule())
