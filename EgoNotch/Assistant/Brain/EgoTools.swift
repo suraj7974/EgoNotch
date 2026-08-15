@@ -16,27 +16,50 @@ import FoundationModels
 
 @MainActor
 enum EgoToolBridge {
-    /// What the tools reported during the current turn, in order.
-    private static var receipts: [ActionResult] = []
+    /// What the tools reported during the current turn, in order. Reads are
+    /// kept apart from changes: a tool that *did* something owns the reply,
+    /// while a tool that merely *read* something is raw material for the
+    /// model's own sentence.
+    private static var changes: [ActionResult] = []
+    private static var reads: [ActionResult] = []
 
-    static func beginTurn() { receipts = [] }
+    static func beginTurn() {
+        changes = []
+        reads = []
+    }
 
     /// Runs an action on the main actor and returns what the model should see.
-    static func run(_ body: @MainActor () -> ActionResult) -> String {
+    /// `changing: false` marks a tool that only reports state.
+    static func run(changing: Bool = true, _ body: @MainActor () -> ActionResult) -> String {
         let result = body()
-        receipts.append(result)
-        // The model gets the detail too, because a follow-up question ("how
-        // long is left?") often depends on it.
+        if changing { changes.append(result) } else { reads.append(result) }
+        // The model gets the detail too: "how far through is this?" is
+        // answerable only from the position hidden in there.
         return [result.spoken, result.detail].compactMap { $0 }.joined(separator: " ")
     }
 
-    /// The line Ego should say: the tools' own words, joined. nil when the
-    /// model answered without doing anything, in which case its text is used.
+    /// The line Ego should say when something actually happened — the tools'
+    /// own words, which cannot be wrong. nil when the turn only read state or
+    /// did nothing, and the model's sentence is the better answer.
     static func spokenReceipt() -> ActionResult? {
-        guard !receipts.isEmpty else { return nil }
-        if receipts.count == 1 { return receipts[0] }
-        return ActionResult(receipts.map(\.spoken).joined(separator: " "),
-                            detail: receipts.compactMap(\.detail).joined(separator: " · "))
+        guard !changes.isEmpty else { return nil }
+        // The model sometimes calls the same tool twice in one turn; saying it
+        // twice would be a stutter.
+        var spoken: [String] = []
+        for change in changes where spoken.last != change.spoken {
+            spoken.append(change.spoken)
+        }
+        if spoken.count == 1 {
+            return ActionResult(spoken[0], detail: changes[0].detail)
+        }
+        return ActionResult(spoken.joined(separator: " "),
+                            detail: changes.compactMap(\.detail).joined(separator: " · "))
+    }
+
+    /// What a read-only turn found, for the notch to show under the model's
+    /// spoken answer.
+    static func readDetail() -> String? {
+        reads.compactMap { $0.detail ?? $0.spoken }.first
     }
 }
 
@@ -95,7 +118,7 @@ struct NowPlayingTool: Tool {
     struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
-        await EgoToolBridge.run { EgoActions.nowPlaying() }
+        await EgoToolBridge.run(changing: false) { EgoActions.nowPlaying() }
     }
 }
 
@@ -116,8 +139,9 @@ struct VolumeTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         let percent = arguments.percent
-        return await EgoToolBridge.run {
-            switch arguments.action.lowercased() {
+        let action = arguments.action.lowercased()
+        return await EgoToolBridge.run(changing: action != "report") {
+            switch action {
             case "set":
                 EgoActions.setVolume(fraction: Double(percent ?? 50) / 100)
             case "up":

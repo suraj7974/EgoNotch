@@ -14,10 +14,38 @@ enum CommandGrammar {
         let text = normalise(raw)
         guard !text.isEmpty else { return nil }
 
+        // Questions the shortlist genuinely answers come first.
+        if let answer = queryRules(text) { return answer }
+
+        // Then the gate: a question is not an order. The rules below match on
+        // substrings, so "what was the next song we played?" contains "next
+        // song" and would cheerfully skip the track. Anything still
+        // interrogative at this point belongs to the model, which can tell a
+        // question from an instruction.
+        if isQuestion(text) { return nil }
+
         for rule in rules {
             if let result = rule(text) { return result }
         }
         return nil
+    }
+
+    /// Read-only phrasings, matched before the question gate closes.
+    private static let queryRules: Rule = { text in
+        if text.hasAny("whats playing", "what is playing", "what song is this",
+                       "who sings this", "what am i listening to", "current song") {
+            return EgoActions.nowPlaying()
+        }
+        if text.hasAny("whats the volume", "how loud", "volume level") {
+            return EgoActions.volumeReport()
+        }
+        return nil
+    }
+
+    private static func isQuestion(_ text: String) -> Bool {
+        text.hasSuffix("?")
+            || text.matches("^(what|whats|which|who|whos|when|where|why|how|is|are|was|were"
+                            + "|can|could|do|does|did|should|shall|will|would|tell me)\\b")
     }
 
     /// Does this read like an order, without carrying it out? The wake matcher

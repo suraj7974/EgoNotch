@@ -20,6 +20,8 @@ final class EgoPlanner {
     /// and thrown away when the conversation has clearly moved on.
     private var session: LanguageModelSession?
     private var lastUsed = Date.distantPast
+    /// The turn currently inside the model, so the next one can queue behind it.
+    private var inFlight: Task<ActionResult, Never>?
 
     /// A conversation older than this is not a conversation any more. Keeping
     /// it would let a stale "it" refer to something from an hour ago.
@@ -49,7 +51,25 @@ final class EgoPlanner {
 
     /// Runs one utterance through the model. Never throws: a broken brain must
     /// degrade to a spoken apology, not take the assistant down with it.
+    ///
+    /// Turns are chained rather than run in parallel. `respond(to:)` rejects an
+    /// overlapping call outright — and cancelling the caller's task does NOT
+    /// free the generation already inside the session — so a quick second
+    /// command has to wait for the first to land instead of crashing into it.
     func think(_ command: String) async -> ActionResult {
+        let previous = inFlight
+        let turn = Task { [weak self] () -> ActionResult in
+            _ = await previous?.value
+            guard let self else { return ActionResult("I can't work that one out.") }
+            return await self.perform(command)
+        }
+        inFlight = turn
+        let result = await turn.value
+        if inFlight == turn { inFlight = nil }
+        return result
+    }
+
+    private func perform(_ command: String) async -> ActionResult {
         guard isReady else {
             if case .unavailable(let why) = Self.readiness {
                 return ActionResult("I can't work that one out.", detail: why)
@@ -74,25 +94,60 @@ final class EgoPlanner {
             }
             let reply = Self.trim(text)
             EgoLog.trace("model answered → \(reply)")
-            return ActionResult(reply, detail: text == reply ? nil : text)
+            return ActionResult(reply,
+                                detail: EgoToolBridge.readDetail() ?? (text == reply ? nil : text))
         } catch is DeadlineError {
             EgoLog.trace("model timed out")
             self.session = nil
             return ActionResult("That took too long.")
         } catch {
             EgoLog.trace("model failed: \(error)")
-            // A poisoned session (context overflow, a guardrail trip) stays
-            // poisoned — start fresh next time rather than failing forever.
-            self.session = nil
+            // Tools may have run before the failure — what happened, happened,
+            // and Ego must report it rather than claim it couldn't.
             if let receipt = EgoToolBridge.spokenReceipt() { return receipt }
+            return handle(error)
+        }
+    }
+
+    /// Not every failure is the same failure. A refusal is the model declining
+    /// one question and the session is still perfectly good; an overflowing
+    /// context window means the conversation itself is spent.
+    private func handle(_ error: Error) -> ActionResult {
+        guard let generation = error as? LanguageModelSession.GenerationError else {
+            session = nil
+            EgoLog.trace("not a GenerationError: \(type(of: error))")
             return ActionResult("I can't work that one out.",
                                 detail: error.localizedDescription)
+        }
+        EgoLog.trace("generation error case: \(String(describing: generation).prefix(40))")
+        switch generation {
+        case .guardrailViolation, .refusal:
+            return ActionResult("I'd rather not answer that.")
+        case .exceededContextWindowSize:
+            // The conversation is what's too big, so the conversation is what
+            // has to go. The next utterance starts clean.
+            session = nil
+            return ActionResult("Let's start again.")
+        case .rateLimited:
+            return ActionResult("Too many at once. Try again.")
+        case .assetsUnavailable:
+            session = nil
+            return ActionResult("The model isn't ready yet.")
+        case .unsupportedLanguageOrLocale:
+            return ActionResult("I can't understand that language yet.")
+        default:
+            session = nil
+            return ActionResult("I can't work that one out.",
+                                detail: generation.localizedDescription)
         }
     }
 
     /// Drop the conversation — used when Ego is switched off, and when the
     /// user has plainly started something new.
-    func reset() { session = nil }
+    func reset() {
+        session = nil
+        inFlight = nil
+    }
 
     // MARK: - Session
 
@@ -126,6 +181,8 @@ final class EgoPlanner {
         paused your music for you."
         • If the request is outside what your tools can do, say so in one \
         short sentence.
+        • Questions about yourself — what you are, what you can do — are \
+        answered from these rules. Do not call a tool to answer them.
         • The user is speaking, so their words arrive as an imperfect \
         transcript. Prefer the most likely intent over a literal reading.
         """
