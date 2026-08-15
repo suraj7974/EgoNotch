@@ -24,17 +24,14 @@ nonisolated enum WakePhrase {
     /// variants are far too loose to fire without a greeting in front.
     nonisolated(unsafe) private static var chosen: Set<String> = ["ego"]
 
-    /// Every word Ego answers to: the one picked in Settings plus any the user
-    /// has added themselves. All of them are live at once, so when the
-    /// recogniser keeps writing your name a particular way you add that
-    /// spelling and it works — no build, no new variant table from me.
-    static func setNames(_ requested: [String]) {
-        let cleaned = requested
-            .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let primary = cleaned.isEmpty ? ["ego"] : cleaned
-        chosen = Set(primary)
-        names = primary.flatMap { variants(for: $0) }
+    /// The single word Ego answers to. Names the user adds in Settings join
+    /// the list to *choose* from — one is active at a time, because two live
+    /// wake words means twice the chances of a false wake for no gain.
+    static func setName(_ requested: String) {
+        let cleaned = requested.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = cleaned.isEmpty ? "ego" : cleaned
+        chosen = [name]
+        names = variants(for: name)
     }
 
     /// The observed misrecognitions, per name. Everything here was seen coming

@@ -63,7 +63,7 @@ final class EgoEars {
         guard case .off = status else { return }
         // The recogniser is primed with the name at start time, so this is
         // where a changed wake word takes effect.
-        WakePhrase.setNames(SettingsStore.shared.allWakeNames)
+        WakePhrase.setName(SettingsStore.shared.egoWakeName)
         status = .preparing("Checking microphone…")
         EgoLog.trace("ears: asking for permissions")
 
@@ -112,7 +112,7 @@ final class EgoEars {
             acceptedGeneration = tap.currentGeneration
             try await transcriber.start(
                 audio: audio,
-                wakeNames: SettingsStore.shared.allWakeNames,
+                wakeName: SettingsStore.shared.egoWakeName,
                 generation: { [tap] in tap.currentGeneration },
                 onUpdate: { [weak self] update in
                     Task { @MainActor in self?.ingest(update) }

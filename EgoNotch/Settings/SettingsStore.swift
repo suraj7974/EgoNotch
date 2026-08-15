@@ -163,19 +163,15 @@ final class SettingsStore {
 
     /// The name Ego answers to. A setting because the speech recogniser, not
     /// taste, decides which words survive: a name it already knows is heard
-    /// Extra words Ego also answers to, added from Settings without a build.
-    /// The list exists because no variant table I write will ever cover how
-    /// *your* voice comes out of the recogniser — when you see it mishear the
-    /// name the same way twice, you add that spelling and it just works.
+    /// Names the user has added to the picker. They are *choices*, not extra
+    /// triggers — exactly one is ever live — so that adding a name never
+    /// quietly widens what wakes Ego.
     var egoExtraNames: [String] {
         didSet {
             defaults.set(egoExtraNames, forKey: Key.egoExtraNames)
             NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
         }
     }
-
-    /// Everything Ego answers to: the chosen name first, then the extras.
-    var allWakeNames: [String] { [egoWakeName] + egoExtraNames }
 
     /// every time, and a rare one is misheard half the time.
     var egoWakeName: String {

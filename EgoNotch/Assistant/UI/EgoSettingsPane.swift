@@ -84,36 +84,30 @@ struct EgoSettingsPane: View {
         SettingsCard(title: "Listening") {
             SettingsRow(label: "Answers to", hint: nameHint, icon: "person.text.rectangle") {
                 Picker("", selection: $settings.egoWakeName) {
-                    Text("Hey Zoro").tag("zoro")
-                    Text("Hey Ego").tag("ego")
-                    Text("Hey Siri").tag("siri")
-                    Text("Hey Notch").tag("notch")
-                    Text("Hey Jarvis").tag("jarvis")
-                    Text("Hey Edith").tag("edith")
-                    Text("Hey Friday").tag("friday")
+                    ForEach(Self.builtInNames, id: \.self) { name in
+                        Text("Hey \(display(name))").tag(name)
+                    }
+                    // The user's own, in the same list — one is live at a time.
+                    ForEach(settings.egoExtraNames, id: \.self) { name in
+                        Text("Hey \(display(name))").tag(name)
+                    }
                 }
                 .labelsHidden()
                 .frame(width: 140)
             }
             SettingsDivider()
-            SettingsRow(label: "Also answers to",
-                        hint: "Add any word you like — “quant”, “iris”. Useful when you notice the recogniser writing your name a particular way: add that spelling and it starts working.",
+            SettingsRow(label: "Add a name",
+                        hint: "Your own word — “quant”, “iris”. It joins the list above and is selected straight away.",
                         icon: "plus.bubble") {
                 HStack(spacing: 8) {
-                    EgoTextField(placeholder: "another name",
+                    EgoTextField(placeholder: "name",
                                  text: $newName,
                                  onSubmit: addName,
                                  placeholderColor: Ego.textMute)
-                        .frame(width: 150)
+                        .frame(width: 120)
                     SettingsActionButton(title: "Add") { addName() }
-                }
-            }
-            if !settings.egoExtraNames.isEmpty {
-                SettingsRow(label: "", hint: nil) {
-                    HStack(spacing: 6) {
-                        ForEach(settings.egoExtraNames, id: \.self) { name in
-                            nameChip(name)
-                        }
+                    if settings.egoExtraNames.contains(settings.egoWakeName) {
+                        SettingsActionButton(title: "Remove") { removeCurrentName() }
                     }
                 }
             }
@@ -235,36 +229,38 @@ struct EgoSettingsPane: View {
         }
     }
 
-    /// One extra trigger word. Kept lowercase and single-word: the matcher
-    /// works word by word, so a phrase here would simply never fire.
+    private static let builtInNames = ["zoro", "ego", "siri", "notch", "jarvis", "edith", "friday"]
+
+    private func display(_ name: String) -> String {
+        name.prefix(1).uppercased() + name.dropFirst()
+    }
+
+    /// Adding a name selects it too — you typed it because you want to use it,
+    /// and making you pick it from the list afterwards is a step for nothing.
+    /// Kept lowercase and single-word: the matcher works word by word, so a
+    /// phrase here would simply never fire.
     private func addName() {
         let cleaned = newName.lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .split(separator: " ").first.map(String.init) ?? ""
         newName = ""
-        guard cleaned.count >= 2,
-              !settings.egoExtraNames.contains(cleaned),
-              cleaned != settings.egoWakeName else { return }
-        settings.egoExtraNames.append(cleaned)
+        guard cleaned.count >= 2, !Self.builtInNames.contains(cleaned) else {
+            // A built-in typed by hand still selects it rather than doing nothing.
+            if Self.builtInNames.contains(cleaned) { settings.egoWakeName = cleaned }
+            return
+        }
+        if !settings.egoExtraNames.contains(cleaned) {
+            settings.egoExtraNames.append(cleaned)
+        }
+        settings.egoWakeName = cleaned
     }
 
-    private func nameChip(_ name: String) -> some View {
-        HStack(spacing: 4) {
-            Text(name)
-                .font(Ego.font(10.5, .medium))
-                .foregroundStyle(Ego.text)
-            Button {
-                settings.egoExtraNames.removeAll { $0 == name }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(Ego.textMute)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .overlay(Capsule().stroke(Ego.border, lineWidth: 1))
+    /// Removing the name in use falls back to the default rather than leaving
+    /// the picker pointing at something that no longer exists.
+    private func removeCurrentName() {
+        let going = settings.egoWakeName
+        settings.egoExtraNames.removeAll { $0 == going }
+        settings.egoWakeName = "zoro"
     }
 
     private func testVoice() {
