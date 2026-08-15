@@ -104,7 +104,7 @@ struct EgoSettingsPane: View {
                                  text: $newName,
                                  onSubmit: addName,
                                  placeholderColor: Ego.textMute)
-                        .frame(width: 120)
+                        .frame(width: 96)
                     SettingsActionButton(title: "Add") { addName() }
                     if settings.egoExtraNames.contains(settings.egoWakeName) {
                         SettingsActionButton(title: "Remove") { removeCurrentName() }

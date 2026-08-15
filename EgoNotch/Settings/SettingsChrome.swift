@@ -197,6 +197,10 @@ struct SettingsActionButton: View {
             Text(title)
                 .font(Ego.font(11.5, .medium))
                 .foregroundStyle(prominent ? Color.black : Ego.text)
+                // Without these a narrow row wraps the label one letter per
+                // line — "R e m o v e" down the side of the pane.
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)
                 .background(
