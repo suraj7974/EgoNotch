@@ -53,6 +53,7 @@ final class EgoAssistant {
         EgoLog.trace("activated")
 
         ears.onCommand = { [weak self] command in self?.handle(command) }
+        ears.onWake = { [weak self] in self?.beganCapturing() }
         voice.onFinish = { [weak self] in
             Task { @MainActor in self?.ears.resumeAfterSpeaking() }
         }
@@ -106,6 +107,9 @@ final class EgoAssistant {
         heard = ""
         reply = "Listening…"
         show()
+        // Without this the HUD stays open forever when no command follows —
+        // the listening state has no natural end of its own.
+        scheduleDismiss(after: 15)
         Task { await ears.beginPushToTalk() }
     }
 
@@ -177,6 +181,14 @@ final class EgoAssistant {
         scheduleDismiss(after: 2.6)
     }
 
+    /// Speaks a sample in the currently chosen voice, regardless of whether
+    /// spoken replies are switched on — it's a preview, not a reply.
+    func speakSample() {
+        voice.speak("Ego here. Volume thirty, terminal open.",
+                    voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
+                    rate: SettingsStore.shared.egoSpeechRate)
+    }
+
     private func say(_ text: String) {
         guard SettingsStore.shared.egoSpeakReplies, isActive else { return }
         // Mute BEFORE speaking: the tap stops producing audio entirely, so the
@@ -219,7 +231,18 @@ final class EgoAssistant {
 
     private func show() {
         dismissTask?.cancel()
+        EgoLog.trace("hud: open")
         NotchPanelController.current?.stateController.beginAssistant()
+    }
+
+    /// Ego heard the wake phrase and is taking a command. Shows the HUD with a
+    /// long safety net so a half-heard "hey ego" can't strand it open.
+    func beganCapturing() {
+        guard isActive, phase != .confirming else { return }
+        phase = .listening
+        reply = ""
+        show()
+        scheduleDismiss(after: 15)
     }
 
     private func scheduleDismiss(after seconds: Double) {
@@ -229,6 +252,7 @@ final class EgoAssistant {
             guard !Task.isCancelled, let self, self.pending == nil else { return }
             self.phase = .idle
             self.heard = ""
+            EgoLog.trace("hud: retired")
             NotchPanelController.current?.stateController.endAssistant()
         }
     }

@@ -144,26 +144,16 @@ struct NotchRootView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
     }
 
-    /// Ego's strip. Same construction as the expanded panel — the camera
-    /// housing keeps its own row, the content is hard-clamped underneath — but
-    /// the row below is one line of conversation instead of a tab.
+    /// Ego's strip: the collapsed notch with a waveform grown out of the
+    /// bottom, the same gesture the song-change peek uses.
     private func assistantContent(geometry: NotchGeometry, config: NotchConfiguration,
                                   size: CGSize) -> some View {
-        let stripHeight = geometry.isPhysicalNotch ? geometry.notchRect.height : 0
-        let contentHeight = max(size.height - stripHeight, 0)
-
-        return VStack(spacing: 0) {
-            if geometry.isPhysicalNotch {
-                Color.clear.frame(height: stripHeight)
-            }
-            ZStack {
-                Color.black
-                EgoOverlay(assistant: EgoAssistant.shared)
-                    .padding(.horizontal, config.topFlareRadius)
-            }
-            .frame(width: size.width, height: contentHeight)
-            .clipShape(UnevenRoundedRectangle(
-                bottomLeadingRadius: 28, bottomTrailingRadius: 28))
+        VStack(spacing: 0) {
+            ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
+                .frame(height: geometry.chromeSize(for: .closed, config: config).height)
+                .padding(.horizontal, 8)
+            EgoOverlay(assistant: EgoAssistant.shared)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: size.width, height: size.height, alignment: .top)
     }

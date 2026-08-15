@@ -41,18 +41,40 @@ nonisolated final class EgoVoice: NSObject, AVSpeechSynthesizerDelegate, @unchec
         finish()
     }
 
-    /// Prefers a premium/enhanced voice — the compact default sounds like a
-    /// 2005 GPS, which undercuts everything else about the assistant.
+    /// The voices Siri itself is built from. Apple never exposes Siri as a
+    /// selectable voice to third-party apps, but these are the same recordings
+    /// behind a different name — so "as close to Siri as an app can get" means
+    /// picking one of these, at the best quality installed.
+    private static let siriFamily: Set<String> =
+        ["ava", "zoe", "evan", "nathan", "samantha", "serena", "daniel", "karen", "moira", "rishi"]
+
+    /// Ranked: Siri's own voices first, then quality — the compact defaults
+    /// sound like a 2005 GPS, which undercuts everything else about Ego.
+    static func bestAvailable() -> AVSpeechSynthesisVoice? {
+        let english = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.hasPrefix("en") }
+        return english.max { first, second in rank(first) < rank(second) }
+            ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    /// Quality dominates — a compact Ava still sounds robotic — and among
+    /// equals a Siri voice wins.
+    private static func rank(_ voice: AVSpeechSynthesisVoice) -> Int {
+        let quality = switch voice.quality {
+        case .premium: 4
+        case .enhanced: 2
+        default: 0
+        }
+        let siri = siriFamily.contains(voice.name.lowercased()) ? 1 : 0
+        return quality + siri
+    }
+
     private static func voice(for identifier: String?) -> AVSpeechSynthesisVoice? {
         if let identifier, !identifier.isEmpty,
            let chosen = AVSpeechSynthesisVoice(identifier: identifier) {
             return chosen
         }
-        let english = AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("en") }
-        return english.first { $0.quality == .premium }
-            ?? english.first { $0.quality == .enhanced }
-            ?? AVSpeechSynthesisVoice(language: "en-US")
+        return bestAvailable()
     }
 
     private func finish() {

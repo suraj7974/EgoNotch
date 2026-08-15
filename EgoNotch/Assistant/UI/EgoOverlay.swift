@@ -1,95 +1,126 @@
 import SwiftUI
 
-/// Ego's face: what it heard, what it did, and — when something risky is on
-/// the table — a confirmation it will not act without.
+/// Ego's face: a waveform where the song title goes, and one line of text.
 ///
-/// Deliberately a strip rather than a panel. Ego interrupts whatever you were
-/// doing, so it has to read in one glance and then get out of the way.
+/// Strictly black and white. The notch's whole look is absolute black with
+/// hairlines, and a coloured assistant would be the one thing on screen
+/// shouting for attention.
 struct EgoOverlay: View {
     var assistant: EgoAssistant
 
     var body: some View {
-        HStack(spacing: 14) {
-            orb
-            VStack(alignment: .leading, spacing: 3) {
-                heardLine
-                replyLine
-                if let detail = assistant.detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.system(size: 10, design: assistant.pending != nil ? .monospaced : .default))
-                        .foregroundStyle(Ego.textMute)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        VStack(spacing: 4) {
+            EgoWaveform(level: assistant.level, mode: mode)
+                .frame(height: 22)
+            Text(caption)
+                .font(Ego.font(10.5, assistant.phase == .confirming ? .semibold : .regular))
+                .foregroundStyle(assistant.phase == .confirming ? Ego.text : Ego.textMute)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if assistant.pending != nil {
+                HStack(spacing: 6) {
+                    miniButton("Cancel") { assistant.cancelFromUI() }
+                    miniButton("Confirm") { assistant.confirmFromUI() }
                 }
             }
-            Spacer(minLength: 8)
-            if assistant.pending != nil { confirmButtons }
         }
-        .padding(.horizontal, 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    // MARK: - Pieces
-
-    /// Pulses while listening, settles while speaking — the one moving part,
-    /// so the state is readable without reading any words.
-    private var orb: some View {
-        ZStack {
-            Circle()
-                .fill(tint.opacity(0.16))
-                .frame(width: 42, height: 42)
-                .scaleEffect(assistant.phase == .listening ? 1 + assistant.level * 0.35 : 1)
-            Circle()
-                .strokeBorder(tint.opacity(0.5), lineWidth: 1)
-                .frame(width: 42, height: 42)
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(tint)
-        }
-        .animation(.easeOut(duration: 0.12), value: assistant.level)
-        .animation(Ego.Motion.spring(response: 0.28), value: assistant.phase)
-    }
-
-    private var heardLine: some View {
-        Text(assistant.heard.isEmpty ? "Listening…" : assistant.heard)
-            .font(Ego.font(11))
-            .foregroundStyle(Ego.textMute)
-            .lineLimit(1)
-            .truncationMode(.head)
-    }
-
-    private var replyLine: some View {
-        Text(assistant.reply)
-            .font(Ego.font(15, .semibold))
-            .foregroundStyle(assistant.pending != nil ? Ego.text : Ego.text)
-            .lineLimit(1)
-            .truncationMode(.tail)
-    }
-
-    private var confirmButtons: some View {
-        HStack(spacing: 8) {
-            Button("Cancel") { assistant.cancelFromUI() }
-                .buttonStyle(.egoSecondary)
-            Button("Confirm") { assistant.confirmFromUI() }
-                .buttonStyle(.egoPrimary)
-        }
-        .font(Ego.font(11, .medium))
-    }
-
-    private var tint: Color {
+    /// What the waveform is doing right now.
+    private var mode: EgoWaveform.Mode {
         switch assistant.phase {
-        case .confirming: Ego.loss
-        case .listening: Ego.accentSoft
-        default: Ego.win
+        case .listening: .listening
+        case .speaking, .thinking: .speaking
+        case .confirming: .waiting
+        case .idle: .idle
         }
     }
 
-    private var symbol: String {
-        switch assistant.phase {
-        case .idle, .speaking: "waveform"
-        case .listening: "mic.fill"
-        case .thinking: "ellipsis"
-        case .confirming: "exclamationmark.triangle.fill"
+    /// One line: what you said, or what Ego said back.
+    private var caption: String {
+        if assistant.phase == .confirming { return assistant.reply }
+        if !assistant.reply.isEmpty, assistant.phase == .speaking { return assistant.reply }
+        if !assistant.heard.isEmpty { return assistant.heard }
+        return "Listening…"
+    }
+
+    private func miniButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(Ego.font(9.5, .semibold))
+                .foregroundStyle(Ego.text)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.white.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The wavy line. Driven by a clock rather than by animations started on
+/// appear — the same lesson the music visualiser taught: an implicit animation
+/// begun before the view is on screen never runs at all.
+struct EgoWaveform: View {
+    enum Mode { case idle, listening, speaking, waiting }
+
+    let level: Double
+    let mode: Mode
+
+    private static let bars = 27
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: mode == .idle)) { context in
+            Canvas { drawing, size in
+                let time = context.date.timeIntervalSinceReferenceDate
+                let width = size.width / Double(Self.bars)
+                let barWidth = max(1.5, width * 0.42)
+
+                for index in 0..<Self.bars {
+                    let x = width * (Double(index) + 0.5)
+                    let height = barHeight(index: index, time: time, maxHeight: size.height)
+                    let rect = CGRect(x: x - barWidth / 2,
+                                      y: (size.height - height) / 2,
+                                      width: barWidth, height: height)
+                    // Centre bars are brightest, so the shape reads as a voice
+                    // rather than a bar chart.
+                    let distance = abs(Double(index) - Double(Self.bars - 1) / 2)
+                    let fade = 1 - (distance / Double(Self.bars)) * 1.1
+                    drawing.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2),
+                                 with: .color(.white.opacity(0.25 + 0.6 * fade)))
+                }
+            }
+        }
+    }
+
+    private func barHeight(index: Int, time: Double, maxHeight: Double) -> Double {
+        let centre = Double(Self.bars - 1) / 2
+        // A bell across the row: tall in the middle, quiet at the edges.
+        let envelope = exp(-pow((Double(index) - centre) / (centre * 0.62), 2))
+        let floor = 2.0
+
+        switch mode {
+        case .idle:
+            return floor
+        case .waiting:
+            // A slow, patient breath while it waits for a yes or no.
+            let breath = 0.5 + 0.5 * sin(time * 1.6)
+            return floor + maxHeight * 0.18 * envelope * breath
+        case .listening:
+            // Your voice drives it; the offsets keep neighbours out of step.
+            let wobble = sin(time * 7 + Double(index) * 0.7)
+                + 0.5 * sin(time * 11.3 + Double(index) * 1.3)
+            let amplitude = 0.12 + level * 0.88
+            return floor + maxHeight * 0.9 * envelope * amplitude * abs(wobble) / 1.5
+        case .speaking:
+            // Ego's own voice isn't measurable (the mic is muted while it
+            // talks), so this is a synthetic cadence — busier than idle,
+            // steadier than speech.
+            let wobble = sin(time * 9 + Double(index) * 0.9)
+                + 0.4 * sin(time * 14 + Double(index) * 1.7)
+            return floor + maxHeight * 0.62 * envelope * abs(wobble) / 1.4
         }
     }
 }

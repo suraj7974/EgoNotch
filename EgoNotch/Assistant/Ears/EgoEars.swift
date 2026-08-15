@@ -29,6 +29,9 @@ final class EgoEars {
 
     /// A finished command, ready for the brain.
     var onCommand: ((String) -> Void)?
+    /// The wake phrase landed — show the listening HUD immediately, rather
+    /// than only once the whole sentence is finished.
+    var onWake: (() -> Void)?
 
     @ObservationIgnored private let tap = EgoAudioTap()
     @ObservationIgnored private let transcriber = EgoTranscriber()
@@ -184,6 +187,7 @@ final class EgoEars {
             lastCommandText = hit.command
             partial = hit.command
             EgoLog.trace("wake heard, command so far: \(hit.command)")
+            onWake?()
             armEndpoint()
 
         case .capturing:

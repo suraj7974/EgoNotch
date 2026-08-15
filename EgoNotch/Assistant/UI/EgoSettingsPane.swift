@@ -34,7 +34,7 @@ struct EgoSettingsPane: View {
                             : "Off. Enable “Ego (voice)” in Modules to switch it on.",
                         icon: "waveform.circle.fill") {
                 SettingsBadge(text: assistant.isActive ? "On" : "Off",
-                              tint: assistant.isActive ? Ego.win : Ego.textMute)
+                              tint: assistant.isActive ? Ego.text : Ego.textMute)
             }
             SettingsDivider()
             SettingsRow(label: "Microphone",
@@ -50,7 +50,7 @@ struct EgoSettingsPane: View {
                             : "Required — without it Ego can't hear anything.",
                         icon: "waveform") {
                 if speechAuthorised {
-                    SettingsBadge(text: "Granted", tint: Ego.win)
+                    SettingsBadge(text: "Granted", tint: Ego.text)
                 } else {
                     SettingsActionButton(title: requesting ? "Asking…" : "Grant", prominent: true) {
                         requestSpeech()
@@ -110,15 +110,29 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
-            SettingsRow(label: "Voice", icon: "person.wave.2") {
+            SettingsRow(label: "Voice", hint: voiceHint, icon: "person.wave.2") {
                 Picker("", selection: $settings.egoVoiceIdentifier) {
-                    Text("System default").tag("")
+                    Text(automaticLabel).tag("")
                     ForEach(Self.voices, id: \.identifier) { voice in
-                        Text(voice.name).tag(voice.identifier)
+                        Text(Self.label(for: voice)).tag(voice.identifier)
                     }
                 }
                 .labelsHidden()
-                .frame(width: 190)
+                .frame(width: 210)
+            }
+            SettingsDivider()
+            SettingsRow(label: "Get better voices",
+                        hint: "Siri's voice is off-limits to apps by name, but the same recordings ship as Premium voices — download one and Ego uses it automatically.",
+                        icon: "arrow.down.circle") {
+                HStack(spacing: 8) {
+                    SettingsActionButton(title: "Test") { testVoice() }
+                    SettingsActionButton(title: "Download…", prominent: !hasGoodVoice) {
+                        if let url = URL(string:
+                            "x-apple.systempreferences:com.apple.preference.universalaccess?SpeakableItems") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
             }
             SettingsDivider()
             SettingsSliderRow(label: "Speaking rate", value: $settings.egoSpeechRate,
@@ -155,6 +169,37 @@ struct EgoSettingsPane: View {
         }
     }
 
+    private func testVoice() {
+        assistant.speakSample()
+    }
+
+    /// Nudges toward a Premium voice when only the compact ones are present —
+    /// the default voices are what make an assistant sound like a 2005 GPS.
+    private var voiceHint: String {
+        hasGoodVoice
+            ? "Automatic picks Siri's own voice at the best quality you have."
+            : "Only compact voices are installed — they sound robotic."
+    }
+
+    /// Names what Automatic actually resolves to, so the picker isn't a guess.
+    private var automaticLabel: String {
+        guard let voice = EgoVoice.bestAvailable() else { return "Automatic" }
+        return "Automatic (\(voice.name))"
+    }
+
+    private var hasGoodVoice: Bool {
+        Self.voices.contains { $0.quality != .default }
+    }
+
+    private static func label(for voice: AVSpeechSynthesisVoice) -> String {
+        let quality = switch voice.quality {
+        case .premium: " (Premium)"
+        case .enhanced: " (Enhanced)"
+        default: ""
+        }
+        return voice.name + quality
+    }
+
     private func run() {
         let command = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty else { return }
@@ -185,7 +230,7 @@ struct EgoSettingsPane: View {
     private func permissionControl(granted: Bool, settingsPath: String) -> some View {
         Group {
             if granted {
-                SettingsBadge(text: "Granted", tint: Ego.win)
+                SettingsBadge(text: "Granted", tint: Ego.text)
             } else {
                 SettingsActionButton(title: "Open Settings") {
                     if let url = URL(string:
@@ -211,7 +256,7 @@ struct EgoSettingsPane: View {
 
     private var earsTint: Color {
         switch assistant.ears.status {
-        case .listening, .capturing: Ego.win
+        case .listening, .capturing: Ego.text
         case .blocked: Ego.loss
         default: Ego.textMute
         }

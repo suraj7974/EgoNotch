@@ -24,10 +24,11 @@ struct NotchConfiguration: Equatable {
     var hoverGlowMargin: CGFloat = 12    // transparent slack so the glow isn't clipped
     var expandedSize = CGSize(width: 960, height: 205)   // wide-ish, short — NotchNest-like
     var expandedShadowMargin: CGFloat = 0    // no drop shadow → no slack needed
-    /// Ego's HUD: a strip, not a window — wide enough for a sentence, short
-    /// enough that it never feels like the panel opened.
-    var assistantWidth: CGFloat = 620
-    var assistantHeight: CGFloat = 104
+    /// Ego's HUD grows downward out of the collapsed notch, exactly like the
+    /// song-change peek — same gesture, slightly taller because it holds a
+    /// waveform rather than one line of text.
+    var assistantExtraWidth: CGFloat = 130
+    var assistantExtraHeight: CGFloat = 52
     var virtualNotchWidth: CGFloat = 190
     var virtualNotchHeight: CGFloat = 32
 
