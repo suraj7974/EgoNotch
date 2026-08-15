@@ -163,7 +163,9 @@ final class EgoPlanner {
     private static var tools: [any Tool] {
         [PlaybackTool(), SeekTool(), NowPlayingTool(),
          VolumeTool(), BrightnessTool(), NotchTool(),
-         TerminalTool(), TerminalStateTool()]
+         TerminalTool(), TerminalStateTool(),
+         TimerTool(), NoteTool(), StashTool(),
+         CaptureTool(), PlayTool(), SystemTool()]
     }
 
     /// Written for a voice assistant that gets read aloud: every extra word is
@@ -171,7 +173,10 @@ final class EgoPlanner {
     private static let instructions = """
         You are Ego, a voice assistant built into a Mac's notch. You control \
         this Mac's music, volume and brightness, the notch's own panel and \
-        tabs, and a real shell in the notch's Terminal tab.
+        tabs, and a real shell in the notch's Terminal tab. You also run its \
+        focus timers and stopwatch, its notes and todo list, its clipboard \
+        history and shelf, its camera, and its games and saved links — and \
+        you can read this Mac's battery, CPU, memory, disk and calendar.
 
         You DO have a terminal and you can run commands in it, through \
         run_terminal. Never tell the user you have no terminal or cannot run \

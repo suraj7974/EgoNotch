@@ -42,6 +42,29 @@ enum CommandGrammar {
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
         }
+        if text.hasAny("how long left", "how much time is left", "how long is left",
+                       "how much longer", "time left on the timer") {
+            return EgoActions.timeLeft()
+        }
+        if text.hasAny("whats next", "whats on my calendar", "next meeting",
+                       "next event", "whats my next") {
+            return EgoActions.nextEvent()
+        }
+        if text.hasAny("hows my battery", "whats my battery", "battery level", "how much battery") {
+            return EgoActions.systemReport("battery")
+        }
+        if text.hasAny("hows my cpu", "cpu usage", "how busy") { return EgoActions.systemReport("cpu") }
+        if text.hasAny("hows my memory", "how much ram", "memory usage") {
+            return EgoActions.systemReport("ram")
+        }
+        if text.hasAny("how much disk", "disk space", "hows my disk", "storage left") {
+            return EgoActions.systemReport("disk")
+        }
+        if text.hasAny("whats on my list", "read my list", "my todos", "whats left to do") {
+            return EgoActions.readTodos()
+        }
+        if text.hasAny("read my notes", "whats in my notes") { return EgoActions.readNotes() }
+        if text.hasAny("what did i copy", "whats in my clipboard") { return EgoActions.lastClip() }
         // The shell already reports its directory, so this is a read — not a
         // reason to ask permission to run `pwd`.
         if text.hasAny("what directory", "which directory", "where am i",
@@ -111,8 +134,107 @@ enum CommandGrammar {
     private typealias Rule = (String) -> ActionResult?
 
     private static let rules: [Rule] = [
-        terminalRules, mediaRules, volumeRules, brightnessRules, panelRules,
+        terminalRules, focusRules, listRules, captureRules,
+        mediaRules, volumeRules, brightnessRules, panelRules,
     ]
+
+    /// Timers, before the media rules: "start a timer" must not be heard as
+    /// "start" the music.
+    private static let focusRules: Rule = { text in
+        if text.hasAny("start a pomodoro", "start pomodoro", "start a focus", "focus session",
+                       "start focusing", "pomodoro") {
+            let mode: FocusTimer.Mode = text.contains("deep") ? .deep : .focus
+            return EgoActions.startFocus(mode)
+        }
+        if text.hasAny("take a break", "start a break", "break time", "short break") {
+            return EgoActions.startFocus(.shortBreak)
+        }
+        if text.hasAny("pause the timer", "pause the pomodoro", "pause focus") {
+            return EgoActions.pauseFocus()
+        }
+        if text.hasAny("reset the timer", "reset the pomodoro", "reset focus") {
+            return EgoActions.resetFocus()
+        }
+        if text.hasAny("start the stopwatch", "start a stopwatch", "stop the stopwatch") {
+            return EgoActions.stopwatch("toggle")
+        }
+        if text.hasAny("reset the stopwatch") { return EgoActions.stopwatch("reset") }
+        // "set a timer for 10 minutes" / "timer 25 minutes"
+        if text.contains("timer"), let minutes = text.firstNumber {
+            return EgoActions.startTimer(minutes: Int(minutes))
+        }
+        return nil
+    }
+
+    /// Notes, todos, clipboard and the shelf.
+    private static let listRules: Rule = { text in
+        for verb in ["note that ", "make a note ", "note down ", "note "]
+        where text.hasPrefix(verb) {
+            return EgoActions.addNote(String(text.dropFirst(verb.count)))
+        }
+        for verb in ["add a todo ", "add todo ", "todo ", "remind me to ", "add to my list "]
+        where text.hasPrefix(verb) {
+            return EgoActions.addTodo(String(text.dropFirst(verb.count)))
+        }
+        if text.hasAny("read my notes", "read notes", "whats in my notes") {
+            return EgoActions.readNotes()
+        }
+        if text.hasAny("whats on my list", "read my list", "my todos", "whats left to do") {
+            return EgoActions.readTodos()
+        }
+        for verb in ["complete ", "tick off ", "check off ", "mark done "]
+        where text.hasPrefix(verb) {
+            return EgoActions.completeTodo(String(text.dropFirst(verb.count)))
+        }
+        if text.hasAny("clear completed", "clear the done ones", "clear finished") {
+            return EgoActions.clearDoneTodos()
+        }
+        if text.hasAny("what did i copy", "whats in my clipboard", "last clip") {
+            return EgoActions.lastClip()
+        }
+        if text.hasAny("copy that again", "copy the last clip", "paste the last") {
+            return EgoActions.copyLastClip()
+        }
+        if text.hasAny("whats on the shelf", "whats in the shelf", "shelf") {
+            return text.hasAny("clear", "empty") ? EgoActions.clearShelf() : EgoActions.shelfReport()
+        }
+        return nil
+    }
+
+    /// The camera, games and links.
+    private static let captureRules: Rule = { text in
+        if text.hasAny("take a photo", "take a picture", "take a selfie", "photo of me") {
+            return EgoActions.capture(mode: .photo)
+        }
+        if text.hasAny("boomerang") { return EgoActions.capture(mode: .boomerang) }
+        if text.hasAny("photo booth", "booth strip", "four shots") {
+            return EgoActions.capture(mode: .booth)
+        }
+        if text.hasAny("daily selfie", "todays selfie", "streak selfie") {
+            return EgoActions.capture(mode: .daily)
+        }
+        if text.hasAny("make a gif", "caption gif") { return EgoActions.capture(mode: .gif) }
+        if text.hasAny("start recording", "stop recording", "record a video", "record video") {
+            return EgoActions.capture(mode: .video)
+        }
+        for filter in CaptureFilter.allCases
+        where text.contains(filter.rawValue) && text.hasAny("filter", "look") {
+            return EgoActions.setFilter(filter)
+        }
+        if text.hasAny("no filter", "clear the filter", "remove the filter") {
+            return EgoActions.setFilter(.none)
+        }
+        if text.hasPrefix("play ") || text.contains("play the ") {
+            for game in GameChoice.allCases
+            where text.contains(game.title.lowercased()) || text.contains(game.rawValue) {
+                return EgoActions.playGame(game)
+            }
+        }
+        for verb in ["open the link ", "open link "] where text.hasPrefix(verb) {
+            return EgoActions.openLink(named: String(text.dropFirst(verb.count)))
+        }
+        return nil
+    }
 
     /// First in the list on purpose: "run npm start" must never be read as
     /// "start" the music.

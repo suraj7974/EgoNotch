@@ -256,3 +256,178 @@ struct NotchTool: Tool {
         }
     }
 }
+
+// MARK: - Timers
+
+struct TimerTool: Tool {
+    let name = "control_timer"
+    let description = "Start, pause or reset a pomodoro/focus session, start a countdown of N minutes, "
+        + "run the stopwatch, or read how long is left."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.",
+               .anyOf(["focus", "break", "deep", "pause", "reset",
+                       "countdown", "stopwatch", "stopwatch_reset", "remaining"]))
+        var action: String
+        @Guide(description: "Minutes, for the 'countdown' action.")
+        var minutes: Int?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let minutes = arguments.minutes
+        return await EgoToolBridge.run(changing: action != "remaining") {
+            switch action {
+            case "focus": EgoActions.startFocus(.focus)
+            case "break": EgoActions.startFocus(.shortBreak)
+            case "deep": EgoActions.startFocus(.deep)
+            case "pause": EgoActions.pauseFocus()
+            case "reset": EgoActions.resetFocus()
+            case "countdown": EgoActions.startTimer(minutes: minutes ?? 10)
+            case "stopwatch": EgoActions.stopwatch("toggle")
+            case "stopwatch_reset": EgoActions.stopwatch("reset")
+            default: EgoActions.timeLeft()
+            }
+        }
+    }
+}
+
+// MARK: - Notes, todos, clipboard, shelf
+
+struct NoteTool: Tool {
+    let name = "capture_note"
+    let description = "Write a note, add something to the todo list, tick one off, "
+        + "or read back the notes or the list."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.",
+               .anyOf(["note", "checkbox", "todo", "complete", "read_notes",
+                       "read_todos", "clear_done"]))
+        var action: String
+        @Guide(description: "The text of the note or todo, or which item to complete.")
+        var text: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let text = arguments.text ?? ""
+        let reads = ["read_notes", "read_todos"]
+        return await EgoToolBridge.run(changing: !reads.contains(action)) {
+            switch action {
+            case "note": EgoActions.addNote(text)
+            case "checkbox": EgoActions.addNote(text, asCheckbox: true)
+            case "todo": EgoActions.addTodo(text)
+            case "complete": EgoActions.completeTodo(text)
+            case "clear_done": EgoActions.clearDoneTodos()
+            case "read_todos": EgoActions.readTodos()
+            default: EgoActions.readNotes()
+            }
+        }
+    }
+}
+
+struct StashTool: Tool {
+    let name = "clipboard_and_shelf"
+    let description = "Read or re-copy the last thing copied, and report or empty the notch's shelf."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.",
+               .anyOf(["read_clip", "copy_clip", "shelf", "clear_shelf"]))
+        var action: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let reads = ["read_clip", "shelf"]
+        return await EgoToolBridge.run(changing: !reads.contains(action)) {
+            switch action {
+            case "copy_clip": EgoActions.copyLastClip()
+            case "shelf": EgoActions.shelfReport()
+            case "clear_shelf": EgoActions.clearShelf()
+            default: EgoActions.lastClip()
+            }
+        }
+    }
+}
+
+// MARK: - Camera, games, links
+
+struct CaptureTool: Tool {
+    let name = "control_camera"
+    let description = "Take a photo, selfie, boomerang, photo-booth strip, caption GIF or video "
+        + "with the notch's camera, or change its live filter."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to capture. 'filter' only changes the look without capturing.",
+               .anyOf(["photo", "video", "boomerang", "gif", "booth", "daily", "filter"]))
+        var mode: String
+        @Guide(description: "The live filter to apply.",
+               .anyOf(["none", "mono", "sepia", "vhs", "thermal", "pixel"]))
+        var filter: String?
+        @Guide(description: "Self-timer in seconds: 0, 3 or 10.")
+        var selfTimer: Int?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let mode = arguments.mode.lowercased()
+        let filter = arguments.filter.flatMap { CaptureFilter(rawValue: $0.lowercased()) }
+        let timer = arguments.selfTimer
+        return await EgoToolBridge.run {
+            if mode == "filter" { return EgoActions.setFilter(filter ?? .none) }
+            let capture = CaptureMode(rawValue: mode) ?? .photo
+            return EgoActions.capture(mode: capture, filter: filter, selfTimer: timer)
+        }
+    }
+}
+
+struct PlayTool: Tool {
+    let name = "open_game_or_link"
+    let description = "Start one of the notch's games, or open one of the user's saved quick links by name."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "'game' or 'link'.", .anyOf(["game", "link"]))
+        var kind: String
+        @Guide(description: "Which game (runner, snake, pong, shooter) or the name of the link.")
+        var name: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let name = arguments.name.lowercased()
+        let isGame = arguments.kind.lowercased() == "game"
+        return await EgoToolBridge.run {
+            guard isGame else { return EgoActions.openLink(named: name) }
+            let game = GameChoice.allCases.first { $0.title.lowercased() == name || $0.rawValue == name }
+                ?? GameChoice.allCases.first {
+                    name.contains($0.title.lowercased()) || name.contains($0.rawValue)
+                }
+            return EgoActions.playGame(game ?? .dino)
+        }
+    }
+}
+
+// MARK: - The machine
+
+struct SystemTool: Tool {
+    let name = "read_system"
+    let description = "Read this Mac's battery, CPU, memory or free disk, or the next event in the "
+        + "user's calendar today. Always call this instead of guessing any of them."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to read.",
+               .anyOf(["battery", "cpu", "ram", "disk", "calendar"]))
+        var what: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let what = arguments.what.lowercased()
+        return await EgoToolBridge.run(changing: false) {
+            what == "calendar" ? EgoActions.nextEvent() : EgoActions.systemReport(what)
+        }
+    }
+}
