@@ -162,7 +162,8 @@ final class EgoPlanner {
 
     private static var tools: [any Tool] {
         [PlaybackTool(), SeekTool(), NowPlayingTool(),
-         VolumeTool(), BrightnessTool(), NotchTool()]
+         VolumeTool(), BrightnessTool(), NotchTool(),
+         TerminalTool(), TerminalStateTool()]
     }
 
     /// Written for a voice assistant that gets read aloud: every extra word is
@@ -183,6 +184,8 @@ final class EgoPlanner {
         short sentence.
         • Questions about yourself — what you are, what you can do — are \
         answered from these rules. Do not call a tool to answer them.
+        • run_terminal does not run anything; it asks. Never say a command \
+        ran, and never re-send it because nothing appeared to happen.
         • The user is speaking, so their words arrive as an imperfect \
         transcript. Prefer the most likely intent over a literal reading.
         """

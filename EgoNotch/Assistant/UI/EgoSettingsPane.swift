@@ -118,6 +118,14 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
+            SettingsRow(label: "Let Ego use the terminal",
+                        hint: "Every command is read back and waits for your yes. Dangerous ones are refused outright.",
+                        icon: "terminal") {
+                Toggle("", isOn: $settings.egoTerminalControl)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsDivider()
             SettingsRow(label: "Push to talk", hint: "Works whether or not the wake word is on.",
                         icon: "keyboard") {
                 KeyCapLabel(text: GlobalHotKey.Combination.egoDefault.displayName)

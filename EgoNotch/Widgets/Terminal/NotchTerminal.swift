@@ -129,6 +129,24 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
     /// Send a signal the way a keystroke would.
     func interrupt() { view.send(txt: "\u{3}") }
 
+    /// Type a command and press return, exactly as if you had.
+    ///
+    /// Ego's only way into the shell. It goes through the same PTY as your
+    /// keystrokes, so the command lands in history and its output is visible
+    /// on screen — there is no hidden execution channel, which is what makes
+    /// the confirmation gate meaningful rather than decorative.
+    ///
+    /// A leading space keeps it out of `HISTFILE` for nobody: it is left in
+    /// deliberately, because a command you didn't type is exactly the one you
+    /// want to find afterwards.
+    func run(_ command: String) {
+        startIfNeeded()
+        // ⌃U first: if the prompt already has half a line on it, appending
+        // would run something neither of us meant.
+        view.send(txt: "\u{15}")
+        view.send(txt: command + "\n")
+    }
+
     // MARK: - LocalProcessTerminalViewDelegate
 
     nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}

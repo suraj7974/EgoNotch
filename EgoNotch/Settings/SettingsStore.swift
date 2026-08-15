@@ -45,6 +45,7 @@ final class SettingsStore {
         static let egoSpeak       = "ego.speakReplies"     // Bool, default true
         static let egoVoice       = "ego.voice"            // AVSpeechSynthesisVoice id
         static let egoWakeName    = "ego.wakeName"         // the name in the wake phrase
+        static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
         static let egoRate        = "ego.speechRate"       // 0.3…0.7, default 0.52
         static let egoPauseInCall = "ego.pauseInMeetings"  // Bool, default true
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
@@ -143,6 +144,13 @@ final class SettingsStore {
     var egoSpeakReplies: Bool {
         didSet { defaults.set(egoSpeakReplies, forKey: Key.egoSpeak) }
     }
+    /// Whether Ego may type into the shell at all. On by default, but a
+    /// single switch to take the terminal away from it entirely — the one
+    /// place where a misheard word is unrecoverable.
+    var egoTerminalControl: Bool {
+        didSet { defaults.set(egoTerminalControl, forKey: Key.egoTerminal) }
+    }
+
     /// The name Ego answers to. A setting because the speech recogniser, not
     /// taste, decides which words survive: a name it already knows is heard
     /// every time, and a rare one is misheard half the time.
@@ -227,6 +235,7 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
         egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
@@ -295,6 +304,7 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
         egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)

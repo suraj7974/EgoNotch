@@ -43,6 +43,10 @@ enum EgoToolBridge {
     /// did nothing, and the model's sentence is the better answer.
     static func spokenReceipt() -> ActionResult? {
         guard !changes.isEmpty else { return nil }
+        // A held action outranks everything else in the turn: it has a question
+        // attached, and merging it into a summary would lose the very thing the
+        // user has to answer.
+        if let held = changes.first(where: { $0.pending != nil }) { return held }
         // The model sometimes calls the same tool twice in one turn; saying it
         // twice would be a stutter.
         var spoken: [String] = []
@@ -179,6 +183,46 @@ struct BrightnessTool: Tool {
             case "down": EgoActions.nudgeBrightness(by: -Double(percent ?? 10) / 100)
             default: EgoActions.nudgeBrightness(by: Double(percent ?? 10) / 100)
             }
+        }
+    }
+}
+
+// MARK: - The shell
+
+/// The one tool that cannot act on its own. `EgoActions.runTerminal` returns a
+/// *held* action, so what this reports back to the model is a question, not a
+/// result — and the model is told plainly not to pretend otherwise.
+struct TerminalTool: Tool {
+    let name = "run_terminal"
+    let description = "Ask to run a shell command in the notch's terminal. "
+        + "This does NOT run it: the user must confirm first. Pass the command exactly as it "
+        + "should be typed, with no explanation and no surrounding quotes."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The shell command, exactly as it should be typed. For example: git status")
+        var command: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        await EgoToolBridge.run { EgoActions.runTerminal(arguments.command) }
+    }
+}
+
+struct TerminalStateTool: Tool {
+    let name = "terminal_state"
+    let description = "Read the terminal's current directory, or stop whatever is running in it."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.", .anyOf(["directory", "interrupt"]))
+        var action: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let interrupt = arguments.action.lowercased() == "interrupt"
+        return await EgoToolBridge.run(changing: interrupt) {
+            interrupt ? EgoActions.interruptTerminal() : EgoActions.terminalDirectory()
         }
     }
 }

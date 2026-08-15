@@ -24,6 +24,9 @@ enum CommandGrammar {
         // question from an instruction.
         if isQuestion(text) { return nil }
 
+        // Before the normalised rules, because the shell needs the raw words.
+        if let terminal = terminalCommand(in: raw) { return terminal }
+
         for rule in rules {
             if let result = rule(text) { return result }
         }
@@ -38,6 +41,12 @@ enum CommandGrammar {
         }
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
+        }
+        // The shell already reports its directory, so this is a read — not a
+        // reason to ask permission to run `pwd`.
+        if text.hasAny("what directory", "which directory", "where am i",
+                       "what folder am i in", "whats the current directory") {
+            return EgoActions.terminalDirectory()
         }
         return nil
     }
@@ -84,8 +93,39 @@ enum CommandGrammar {
     private typealias Rule = (String) -> ActionResult?
 
     private static let rules: [Rule] = [
-        mediaRules, volumeRules, brightnessRules, panelRules,
+        terminalRules, mediaRules, volumeRules, brightnessRules, panelRules,
     ]
+
+    /// First in the list on purpose: "run npm start" must never be read as
+    /// "start" the music.
+    private static let terminalRules: Rule = { text in
+        if text.hasAny("stop the command", "cancel the command", "control c",
+                       "interrupt it", "kill it") {
+            return EgoActions.interruptTerminal()
+        }
+        if text.hasAny("what directory", "which directory", "where am i",
+                       "what folder am i in") {
+            return EgoActions.terminalDirectory()
+        }
+        return nil
+    }
+
+    /// Reads the command out of the RAW utterance, never the normalised one:
+    /// `normalise` lowercases and strips slashes, and both are load-bearing in
+    /// a shell. "run npm install in the terminal" → "npm install".
+    private static func terminalCommand(in raw: String) -> ActionResult? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        guard let verb = ["run ", "execute ", "type "].first(where: { lower.hasPrefix($0) })
+        else { return nil }
+
+        var command = String(trimmed.dropFirst(verb.count))
+        for tail in [" in the terminal", " in terminal", " in the shell", " for me", "."]
+        where command.lowercased().hasSuffix(tail) {
+            command = String(command.dropLast(tail.count))
+        }
+        return EgoActions.runTerminal(command.trimmingCharacters(in: .whitespaces))
+    }
 
     private static let mediaRules: Rule = { text in
         if text.hasAny("pause", "stop the music", "stop music", "shut up the music") {

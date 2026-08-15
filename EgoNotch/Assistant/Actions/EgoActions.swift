@@ -190,6 +190,68 @@ enum EgoActions {
         return ActionResult("Settings.")
     }
 
+    // MARK: - The terminal
+
+    private static func terminal() -> NotchTerminal? {
+        (WidgetRegistry.widget(id: "terminal") as? TerminalWidget)?.terminal
+    }
+
+    /// Never runs anything on its own: this returns a *held* action, and the
+    /// caller has to get a yes first. The one exception is a command the
+    /// guardrails refuse outright, which is reported and dropped.
+    static func runTerminal(_ command: String) -> ActionResult {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ActionResult("Run what?") }
+        guard SettingsStore.shared.egoTerminalControl else {
+            return ActionResult("Terminal control is switched off.")
+        }
+        guard terminal() != nil else { return ActionResult("The terminal is turned off.") }
+
+        if case .blocked(let why) = Guardrails.judge(command: trimmed) {
+            EgoLog.trace("terminal refused: \(trimmed) — \(why)")
+            return ActionResult("No — \(why).", detail: trimmed)
+        }
+        // Read the command back rather than paraphrasing it. The whole point of
+        // the gate is that you hear the exact thing that will run.
+        return ActionResult("Run \(trimmed)?",
+                            detail: trimmed,
+                            pending: PendingAction(
+                                question: "Run \(trimmed)?",
+                                detail: trimmed,
+                                perform: { performTerminal(trimmed) }))
+    }
+
+    private static func performTerminal(_ command: String) -> ActionResult {
+        // Checked again HERE, not just at the gate: the password field may
+        // have appeared during the seconds the question was on screen.
+        guard !Guardrails.secureInputActive else {
+            return ActionResult("Not while a password field is open.")
+        }
+        guard let terminal = terminal() else { return ActionResult("The terminal is turned off.") }
+        PanelUIState.shared.selectedTab = .terminal
+        panel?.expand()
+        terminal.run(command)
+        EgoLog.trace("terminal ran: \(command)")
+        return ActionResult("Running.", detail: command)
+    }
+
+    static func interruptTerminal() -> ActionResult {
+        guard let terminal = terminal(), terminal.isRunning else {
+            return ActionResult("Nothing to stop.")
+        }
+        terminal.interrupt()
+        return ActionResult("Stopped.")
+    }
+
+    static func terminalDirectory() -> ActionResult {
+        guard let terminal = terminal() else { return ActionResult("The terminal is turned off.") }
+        // The shell reports its own directory as it changes; before it has
+        // started there is nothing to report, and guessing would be worse.
+        guard terminal.isRunning else { return ActionResult("The terminal isn't running yet.") }
+        guard let directory = terminal.directory else { return ActionResult("I can't tell yet.") }
+        return ActionResult(directory.lastPathComponent, detail: directory.path)
+    }
+
     // MARK: - Helpers
 
     static func timeText(_ seconds: TimeInterval) -> String {

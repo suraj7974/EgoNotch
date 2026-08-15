@@ -41,6 +41,7 @@ final class EgoAssistant {
     @ObservationIgnored private var appliedWakeName = SettingsStore.shared.egoWakeName
     @ObservationIgnored let planner = EgoPlanner()
     @ObservationIgnored private var thinkTask: Task<Void, Never>?
+    @ObservationIgnored private var thinkCount = 0
 
     /// Why the model isn't answering, shown on screen rather than spoken.
     private static var plannerHint: String {
@@ -170,6 +171,15 @@ final class EgoAssistant {
             decision ? confirmPending() : cancelPending()
             return
         }
+        // "Yes" while Ego is still working out what to ask is an answer to a
+        // question that hasn't been asked yet. Dropping it is the safe move:
+        // sending it to the model would turn a confirmation into a command,
+        // and auto-applying it would run something the user never heard read
+        // back — which is the entire point of the gate.
+        if thinkTask != nil, ConfirmWords.decide(command) != nil {
+            EgoLog.trace("ignoring “\(command)” — nothing to answer yet")
+            return
+        }
 
         phase = .thinking
         if let result = CommandGrammar.match(command) {
@@ -189,10 +199,15 @@ final class EgoAssistant {
         }
         EgoLog.trace("no grammar match → asking the model")
         thinkTask?.cancel()
+        thinkCount += 1
+        let turn = thinkCount
         thinkTask = Task { [weak self] in
             guard let self else { return }
             let result = await self.planner.think(command)
             guard !Task.isCancelled else { return }
+            // Only the newest turn may clear the flag; an older one finishing
+            // late must not make Ego look idle while it is still thinking.
+            if self.thinkCount == turn { self.thinkTask = nil }
             self.deliver(result)
         }
     }
