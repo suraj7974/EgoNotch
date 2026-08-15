@@ -98,64 +98,6 @@ enum CommandGrammar {
                             + "|can|could|do|does|did|should|shall|will|would|tell me)\\b")
     }
 
-    /// A command that is unmistakably finished, so Ego can act on it the
-    /// instant it is heard rather than waiting to see whether more is coming.
-    ///
-    /// That wait — long enough to be sure you had stopped talking — was most
-    /// of what made Ego feel slow. These phrasings have nothing that can
-    /// sensibly follow them, so there is nothing to wait for.
-    static func isComplete(_ raw: String) -> Bool {
-        let text = normalise(raw)
-        if finished.contains(text) { return true }
-        // "volume 40", "brightness 60" — a number ends the sentence.
-        if text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$") { return true }
-        // A short, verb-initial phrase that does NOT read as the middle of a
-        // sentence. The same rule without that second half fired on "play the"
-        // and "go to"; with it, "go to home" settles quickly and "go to" waits.
-        let words = text.split(separator: " ")
-        return words.count >= 2 && words.count <= 5
-            && looksLikeCommand(text) && !looksUnfinished(text)
-    }
-
-    /// Plainly the middle of a sentence. Ending here would act on half a
-    /// command — which is how "play the song" became "play the", and then
-    /// "song" a second later as though it were a new instruction.
-    static func looksUnfinished(_ raw: String) -> Bool {
-        let text = normalise(raw)
-        guard let last = text.split(separator: " ").last.map(String.init) else { return false }
-        if dangling.contains(last) { return true }
-        // A lone verb is a request for something that hasn't arrived yet.
-        return text.split(separator: " ").count == 1 && needsObject.contains(text)
-    }
-
-    /// Words no English sentence ends on. Emphatically NOT "it", "this" or
-    /// "that" — "pause it" is a whole command, and treating it as half of one
-    /// left Ego waiting four and a half seconds for a word that never came.
-    private static let dangling: Set<String> = [
-        "the", "a", "an", "to", "my", "of", "for", "and", "or", "in", "on",
-        "with", "at", "go", "turn", "set",
-    ]
-
-    private static let needsObject: Set<String> = [
-        "open", "switch", "show", "jump", "play", "run", "take", "add", "note",
-        "set", "start", "complete", "read", "record", "execute", "type",
-    ]
-
-    private static let finished: Set<String> = [
-        "pause", "resume", "stop the music", "stop music", "next", "next song",
-        "next track", "skip", "skip this", "previous", "previous song", "previous track",
-        "back a track", "mute", "unmute", "louder", "quieter", "turn it up", "turn it down",
-        "volume up", "volume down", "brighter", "dimmer", "whats playing", "what is playing",
-        "whats the volume", "close the notch", "close notch", "open the notch",
-        "hows my battery", "whats next", "take a photo", "take a selfie", "boomerang",
-        "start the stopwatch", "start a pomodoro", "take a break", "read my notes",
-        "whats on my list", "gaana roko", "gaana chalu karo",
-        // Answers to a question Ego asked, and ways of calling it off. Nothing
-        // can follow these, and waiting on them is the most annoying wait.
-        "yes", "yeah", "yep", "confirm", "no", "nope", "cancel", "dismiss",
-        "stop it", "haan", "nahi", "theek hai", "kar do",
-    ]
-
     /// Does this read like an order, without carrying it out? The wake matcher
     /// asks: when the recogniser mangles the name past recognition ("Hey, Pen,
     /// next song"), a greeting followed by an unmistakable command is still

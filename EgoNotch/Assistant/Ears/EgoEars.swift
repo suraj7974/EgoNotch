@@ -52,11 +52,7 @@ final class EgoEars {
     /// recognised as a repeat rather than obeyed twice.
     @ObservationIgnored private var lastDispatched = ""
     @ObservationIgnored private var lastDispatchedAt = Date.distantPast
-    /// Commands already carried out, so their words can be recognised if the
-    /// recogniser hands them back inside a later sentence.
-    @ObservationIgnored private var recentlyDone: [String] = []
     @ObservationIgnored private var wokeAt = Date.distantPast
-    @ObservationIgnored private var capTask: Task<Void, Never>?
     /// When the microphone first heard speech, for measuring the lag.
     @ObservationIgnored private var speechHeardAt = Date.distantPast
     /// When the newest word arrived — the delay a person actually feels is
@@ -69,11 +65,7 @@ final class EgoEars {
     /// this long before anything happens, so it is the single biggest
     /// contributor to Ego feeling slow — kept just long enough to survive the
     /// gap between two words.
-    private let silenceWindow: Double = 1.0
-    /// The longest an utterance may take before Ego acts on what it has. With
-    /// music in the room the transcript never stops changing, so this is what
-    /// actually ends most commands — twelve seconds felt broken.
-    private let hardCap: Double = 4.5
+    private let silenceWindow: Double = 1.3
 
     // MARK: - Lifecycle
 
@@ -326,7 +318,7 @@ final class EgoEars {
         case .capturing:
             let command: String
             if capturingWithoutWake {
-                var whole = stripAlreadyDone(WakePhrase.normalise(update.text))
+                var whole = WakePhrase.normalise(update.text)
                 // A wake phrase inside a follow-up means the recogniser has
                 // handed back a segment that reaches further into the past
                 // than we asked for. Whatever came after it is the newest
@@ -359,13 +351,7 @@ final class EgoEars {
                 lastWordAt = Date()
                 lastCommandText = command
                 partial = command
-                // A finished-sounding command waits only long enough to be
-                // sure nothing follows it. Acting on the very first match was
-                // faster still, but "play" is also the start of "play snake" —
-                // a quarter of a second is the difference between quick and
-                // wrong.
-                let settle = CommandGrammar.isComplete(command) ? 0.4 : nil
-                armEndpoint(settle: settle)
+                armEndpoint()          // still talking — restart the silence clock
             }
             if update.isFinal, !command.isEmpty {
                 finishUtterance()
@@ -389,68 +375,33 @@ final class EgoEars {
     /// the wrong one: with music playing out of the speakers the level never
     /// drops, so every command sat until the hard cap — twelve seconds to
     /// answer "pause".
-    /// Removes commands already carried out from the front of a transcript.
+    /// Restarted on every new word; whichever fires first wins.
     ///
-    /// The analyser keeps one segment alive and revises it, so words already
-    /// acted on come back glued to newer speech — "open google meet open open
-    /// pms", which opened PMS a second time. Closing the segment after each
-    /// command fixed that and broke something worse: it discarded audio still
-    /// in flight, so the next sentence arrived in pieces ("open chat" for
-    /// "open chatgpt"). Trimming the text only touches what it should.
-    private func stripAlreadyDone(_ text: String) -> String {
-        var words = text.split(separator: " ").map(String.init)
-        var trimmed = true
-        while trimmed, !words.isEmpty {
-            trimmed = false
-            for done in recentlyDone {
-                let old = done.split(separator: " ").map(String.init)
-                guard !old.isEmpty, words.count >= old.count else { continue }
-                // The last word may differ by being cut short — "open google
-                // me" and "open google meet" are one utterance caught twice.
-                let head = Array(words.prefix(old.count))
-                guard zip(head, old).allSatisfy({ $0 == $1 || $0.hasPrefix($1) || $1.hasPrefix($0) })
-                else { continue }
-                words.removeFirst(old.count)
-                trimmed = true
-                break
-            }
-        }
-        return words.joined(separator: " ")
-    }
-
-    private func armEndpoint(grace: Double = 2.5, settle: Double? = nil) {
+    /// `grace` is how long to wait for the user to START talking. Without it,
+    /// a capture armed into a silent room ends about a second later with
+    /// nothing — which is exactly what happens when Ego asks a question and
+    /// waits for an answer a person needs a moment to give.
+    /// End-of-speech is measured on the TRANSCRIPT, not the microphone level.
+    ///
+    /// `ingest` re-arms this on every new word, so a timer that simply expires
+    /// *is* the silence detector. The level meter was the obvious choice and
+    /// the wrong one: with music playing out of the speakers the level never
+    /// drops, so every command sat until the hard cap — twelve seconds to
+    /// answer "pause".
+    private func armEndpoint(grace: Double = 2.5) {
         endpoint?.cancel()
         // Nothing said yet means waiting for you to start; a command in
         // progress means waiting for you to finish.
-        let wait = lastCommandText.isEmpty ? grace : (settle ?? silenceWindow)
+        let wait = lastCommandText.isEmpty ? grace : silenceWindow
         endpoint = Task { [weak self] in
             try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
-            self.finishUtterance()
-        }
-        // A cap measured from the wake, not from this re-arm. Every new word
-        // restarts the timer above, so with music playing — the recogniser
-        // endlessly revising lyrics — the utterance never settled at all, and
-        // commands took anywhere from four to thirty-six seconds to land.
-        // Measured from the first WORD, not from when the capture opened. A
-        // follow-up spends most of its life waiting in silence, so timing the
-        // cap from the open truncated real commands — "dismiss" arrived as
-        // "dism". Nothing said yet means nothing to cap; the grace above ends
-        // an empty capture on its own.
-        capTask?.cancel()
-        guard speechStartedAt > .distantPast else { return }
-        let remaining = hardCap - Date().timeIntervalSince(speechStartedAt)
-        capTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(max(remaining, 0.5)))
-            guard !Task.isCancelled, let self, self.status == .capturing else { return }
-            EgoLog.trace("utterance capped — taking what there is")
             self.finishUtterance()
         }
     }
 
     private func finishUtterance() {
         endpoint?.cancel(); endpoint = nil
-        capTask?.cancel(); capTask = nil
 
         // Teaching: the utterance that just ended is one repetition of the
         // phrase. Taken here rather than from the wake matcher, because this
@@ -475,10 +426,8 @@ final class EgoEars {
         capturingWithoutWake = false
         var command = lastCommandText.trimmingCharacters(in: .whitespaces)
         // A stray wake phrase can still be sitting in front of the command
-        // when the recogniser revises a segment it had already finished.
-        // Stripping it here means "heygo pause" and "hey ego pause" — the same
-        // words, transcribed twice — both reduce to "pause", so the repeat
-        // guard below recognises the second one for what it is.
+        // when the recogniser revises a segment it had already finished, so
+        // "heygo pause" and "hey ego pause" both reduce to "pause".
         if let hit = WakePhrase.match(in: command), !hit.command.isEmpty {
             command = hit.command
         }
@@ -491,59 +440,18 @@ final class EgoEars {
             onIdle?()
             return
         }
-        // Half a sentence. With music playing, the recogniser hands over words
-        // more than a second apart, so an ordinary gap mid-command looked like
-        // the end of one. Wait for the rest — the cap still bounds it.
-        if CommandGrammar.looksUnfinished(command),
-           Date().timeIntervalSince(speechStartedAt) < hardCap {
-            EgoLog.trace("half a sentence — waiting for the rest: \(command)")
-            // Put back what was just cleared: the words so far are the start
-            // of the command, not a discarded one.
-            lastCommandText = command
-            partial = command
-            status = .capturing
-            armEndpoint(settle: 1.4)
+        // The recogniser re-emits a finished segment: the same words, with
+        // nothing said in between, are the same utterance — not a second
+        // instruction.
+        if command == lastDispatched, Date().timeIntervalSince(lastDispatchedAt) < 12 {
+            EgoLog.trace("same utterance again, ignoring: \(command)")
+            onIdle?()
             return
-        }
-        // Words already acted on can come back attached to new ones. What
-        // matters is whether anything is LEFT once they are removed: "open
-        // terminal run kl" after "open terminal" is a real second command and
-        // was being thrown away, while "play the song" after "play" is the
-        // same sentence still being written down.
-        if !recentlyDone.isEmpty, Date().timeIntervalSince(lastDispatchedAt) < 12 {
-            let rest = stripAlreadyDone(command)
-            if rest.isEmpty {
-                EgoLog.trace("all of that was already done, ignoring: \(command)")
-                onIdle?()
-                return
-            }
-            if rest != command {
-                // Something new is attached. Act on it only if it reads like an
-                // instruction — otherwise it is the tail of the old sentence.
-                guard CommandGrammar.looksLikeCommand(rest) else {
-                    EgoLog.trace("still the same sentence, ignoring: \(command)")
-                    onIdle?()
-                    return
-                }
-                EgoLog.trace("already did “\(lastDispatched)” — taking the rest: \(rest)")
-                command = rest
-            } else if command.hasPrefix(lastDispatched) || lastDispatched.hasPrefix(command) {
-                EgoLog.trace("still the same sentence, ignoring: \(command)")
-                onIdle?()
-                return
-            }
         }
         lastDispatched = command
         lastDispatchedAt = Date()
-        recentlyDone.append(command)
-        if recentlyDone.count > 5 { recentlyDone.removeFirst() }
-        // The gate, judged on everything just said rather than on the wake
-        // word alone. A second of "hey zoro" is too small a sample to tell two
-        // people apart; wake word plus command is three times the evidence.
-        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking, "
-                            + "%.0f ms after your last word)",
-                            command, Date().timeIntervalSince(wokeAt) * 1000,
-                            Date().timeIntervalSince(lastWordAt) * 1000))
+        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after your last word)",
+                            command, Date().timeIntervalSince(lastWordAt) * 1000))
         onCommand?(command)
     }
 
