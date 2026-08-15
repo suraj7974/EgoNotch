@@ -2,15 +2,18 @@ import SwiftUI
 import AVFoundation
 import Observation
 
-/// Recorder tab: live camera preview (mirrored), photo capture, and video
-/// recording — files are saved to the Desktop. The session runs ONLY while
-/// the tab is visible; permission is requested lazily on first appearance.
+/// Recorder tab: a camera bubble on the left, everything you can do with it on
+/// the right. Photos, video, boomerangs, caption GIFs, a four-shot photo booth
+/// and a daily selfie streak — all rendered from live frames, so the filter you
+/// see is the filter that gets saved.
 final class RecorderWidget: NotchWidget {
     let id = "recorder"
     let displayName = "Recorder"
     let icon = "video.fill"
     let tileSize: WidgetTileSize = .wide
     let tab: NotchTab = .recorder
+    /// The tab is one composed layout, not a card with a title on top.
+    let wantsTileChrome = false
 
     let camera = RecorderCamera()
 
@@ -40,6 +43,49 @@ private struct RecordingDot: View {
     }
 }
 
+// MARK: - Modes
+
+enum CaptureMode: String, CaseIterable, Identifiable {
+    case photo, video, boomerang, gif, booth, daily
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .photo: "Photo"
+        case .video: "Video"
+        case .boomerang: "Boom"
+        case .gif: "GIF"
+        case .booth: "Booth"
+        case .daily: "Daily"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .photo: "camera.fill"
+        case .video: "video.fill"
+        case .boomerang: "arrow.trianglehead.2.clockwise"
+        case .gif: "text.bubble.fill"
+        case .booth: "square.grid.3x1.folder.badge.plus"
+        case .daily: "flame.fill"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .photo: "Saved to Pictures › EgoNotch"
+        case .video: "Records with your mic"
+        case .boomerang: "1.5s loop, copied for pasting"
+        case .gif: "2s clip with your caption"
+        case .booth: "Four shots, one strip"
+        case .daily: "One a day builds the streak"
+        }
+    }
+}
+
+// MARK: - Camera
+
 @Observable
 final class RecorderCamera: NSObject {
     enum Access { case unknown, granted, denied }
@@ -49,34 +95,91 @@ final class RecorderCamera: NSObject {
     private(set) var recordingStarted: Date?
     private(set) var lastSavedName: String?
     private(set) var saveFailed = false
+    private(set) var busy = false
+
+    /// Live, filtered frame for the bubble.
+    private(set) var preview: CGImage?
+    /// The same frame under each look, for the filter chips.
+    private(set) var chips: [String: CGImage] = [:]
+
+    var mode: CaptureMode = .photo
+    var filter: CaptureFilter = .none {
+        didSet { frames.set(filter: filter) }
+    }
+    var mirrored = true {
+        didSet { frames.set(mirrored: mirrored) }
+    }
+    var selfTimer = 0                      // 0, 3 or 10 seconds
+    var gifCaption = ""
+
+    /// Countdown and flash drive the booth's on-screen drama.
+    private(set) var countdown: Int?
+    private(set) var flash: Double = 0
+    private(set) var prompt: String?
+
+    let library = CaptureLibrary()
+    let streak = SelfieStreak()
 
     @ObservationIgnored private(set) var session: AVCaptureSession?
-    /// ONE long-lived preview layer. Letting SwiftUI create/destroy layers
-    /// per appearance deadlocks: the layer's dealloc runs on the main thread
-    /// and blocks on the session lock held by our session queue.
-    @ObservationIgnored let previewLayer = AVCaptureVideoPreviewLayer()
-    @ObservationIgnored private let photoOutput = AVCapturePhotoOutput()
+    @ObservationIgnored private let frames = CameraFrames()
     @ObservationIgnored private let movieOutput = AVCaptureMovieFileOutput()
-    // Written on sessionQueue (attach) / read+cleared on main (detach) —
-    // strictly serialized by the recording lifecycle.
     @ObservationIgnored nonisolated(unsafe) private var micInput: AVCaptureDeviceInput?
     @ObservationIgnored private let sessionQueue = DispatchQueue(
         label: "EgoNotch.recorder.session", qos: .userInitiated)
     @ObservationIgnored private var visible = 0
+    @ObservationIgnored private var pump: Task<Void, Never>?
+    @ObservationIgnored private var sequence: Task<Void, Never>?
+
+    private static let prompts = ["Look up", "Big smile", "Silly one", "Peace ✌︎"]
 
     // MARK: - Lifecycle
-    // visible tracks ACTUAL tile visibility (appear/disappear), independent
-    // of the permission dance — otherwise a first-run grant double-counts
-    // and the camera never turns off.
 
     func appear() {
         visible += 1
         requestAndStart()
+        library.refresh()
+        streak.refresh()
+        startPump()
     }
 
     func disappear() {
         visible = max(0, visible - 1)
+        if visible == 0 {
+            pump?.cancel()
+            pump = nil
+            sequence?.cancel()
+            sequence = nil
+            countdown = nil
+            prompt = nil
+        }
         applyDesiredState()
+    }
+
+    /// One loop drives both the bubble and the chips — chips refresh far more
+    /// slowly, because six extra filter passes per frame is a waste of a fan.
+    private func startPump() {
+        guard pump == nil else { return }
+        pump = Task { @MainActor [weak self] in
+            var tick = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(33))
+                guard let self else { return }
+                self.preview = self.frames.currentPreview()
+                tick += 1
+                if tick % 15 == 0 {
+                    // Six filter passes is real work — never on the main actor,
+                    // where it would stutter every animation in the panel.
+                    let source = self.frames
+                    self.chips = await Task.detached(priority: .utility) {
+                        var built: [String: CGImage] = [:]
+                        for option in CaptureFilter.allCases {
+                            built[option.rawValue] = source.preview(with: option, maxWidth: 96)
+                        }
+                        return built
+                    }.value
+                }
+            }
+        }
     }
 
     private func requestAndStart() {
@@ -118,18 +221,11 @@ final class RecorderCamera: NSObject {
             s.addInput(input)
             // NO mic here: the preview must never prompt for (or hold) the
             // microphone — it attaches lazily when a recording starts.
-            if s.canAddOutput(photoOutput) { s.addOutput(photoOutput) }
+            if s.canAddOutput(frames.output) { s.addOutput(frames.output) }
             if s.canAddOutput(movieOutput) { s.addOutput(movieOutput) }
             session = s
-
-            // Attach the persistent layer once, while the session is idle.
-            previewLayer.session = s
-            previewLayer.videoGravity = .resizeAspectFill
-            if let connection = previewLayer.connection,
-               connection.isVideoMirroringSupported {
-                connection.automaticallyAdjustsVideoMirroring = false
-                connection.isVideoMirrored = true   // mirror in the pipeline
-            }
+            frames.set(filter: filter)
+            frames.set(mirrored: mirrored)
         }
         applyDesiredState()
     }
@@ -138,6 +234,10 @@ final class RecorderCamera: NSObject {
     func shutdown() {
         if isRecording { movieOutput.stopRecording() }
         visible = 0
+        pump?.cancel()
+        pump = nil
+        sequence?.cancel()
+        sequence = nil
         applyDesiredState()
     }
 
@@ -152,24 +252,115 @@ final class RecorderCamera: NSObject {
         }
     }
 
-    // MARK: - Capture
+    // MARK: - The shutter
 
-    func capturePhoto() {
-        guard access == .granted, session?.isRunning == true else { return }
+    /// One button, six behaviours — whatever the selected mode means.
+    func trigger() {
+        guard access == .granted else { return }
+        if isRecording { movieOutput.stopRecording(); return }
+        guard session?.isRunning == true, sequence == nil, !busy else { return }
         saveFailed = false
-        let settings = AVCapturePhotoSettings()
-        photoOutput.capturePhoto(with: settings, delegate: self)
+
+        switch mode {
+        case .photo:   run { await self.shootPhoto() }
+        case .video:   startVideo()
+        case .boomerang: run { await self.shootLoop(seconds: 1.5, boomerang: true) }
+        case .gif:     run { await self.shootLoop(seconds: 2.0, boomerang: false) }
+        case .booth:   run { await self.runBooth() }
+        case .daily:   run { await self.shootDaily() }
+        }
     }
 
-    func toggleRecording() {
-        guard access == .granted else { return }
-        if isRecording {
-            movieOutput.stopRecording()
-            // isRecording flips in the delegate when the file is finished.
+    private func run(_ work: @escaping () async -> Void) {
+        sequence = Task { @MainActor [weak self] in
+            await work()
+            self?.sequence = nil
+        }
+    }
+
+    // MARK: - Stills
+
+    private func shootPhoto() async {
+        await countIn(seconds: selfTimer)
+        await flashNow()
+        guard let frame = frames.currentFull() else { saveFailed = true; return }
+        let url = CaptureExport.url(prefix: "EgoNotch Photo", ext: "png")
+        let ok = CaptureExport.writePNG(CaptureExport.squareCrop(frame), to: url)
+        finish(ok: ok, name: url.lastPathComponent)
+    }
+
+    private func shootDaily() async {
+        await countIn(seconds: selfTimer)
+        await flashNow()
+        guard let frame = frames.currentFull() else { saveFailed = true; return }
+        streak.save(frame)
+        lastSavedName = "Day \(streak.total) · streak \(streak.streak)"
+        library.refresh()
+    }
+
+    // MARK: - Loops (boomerang + caption GIF)
+
+    private func shootLoop(seconds: Double, boomerang: Bool) async {
+        await countIn(seconds: selfTimer)
+        busy = true
+        prompt = boomerang ? "Move!" : "Rolling…"
+        frames.startCollecting(maxFrames: Int(seconds * 15) + 4, stride: 2)
+        try? await Task.sleep(for: .seconds(seconds))
+        let collected = frames.finishCollecting()
+        prompt = nil
+        guard !collected.isEmpty else {
+            busy = false
+            saveFailed = true
             return
         }
-        guard session?.isRunning == true else { return }
-        saveFailed = false
+
+        let caption = boomerang ? "" : gifCaption
+        let url = CaptureExport.url(prefix: boomerang ? "EgoNotch Boomerang" : "EgoNotch GIF",
+                                    ext: "gif")
+        // Encoding 40-odd frames is heavy; do it off the main actor so the
+        // panel keeps animating.
+        let ok = await Task.detached(priority: .userInitiated) { () -> Bool in
+            let stamped = caption.isEmpty
+                ? collected
+                : collected.compactMap { CaptureExport.caption(caption, on: $0) }
+            return CaptureExport.writeGIF(stamped, to: url,
+                                          frameDuration: boomerang ? 0.06 : 0.08,
+                                          loopBackwards: boomerang)
+        }.value
+
+        if ok { CaptureExport.copyToPasteboard(fileAt: url) }
+        busy = false
+        finish(ok: ok, name: ok ? "\(url.lastPathComponent) · copied" : nil)
+    }
+
+    // MARK: - Photo booth
+
+    private func runBooth() async {
+        busy = true
+        var shots: [CGImage] = []
+        for index in 0..<4 {
+            prompt = Self.prompts[index]
+            await countIn(seconds: 3, showPrompt: true)
+            await flashNow()
+            if let frame = frames.currentFull() {
+                shots.append(CaptureExport.squareCrop(frame))
+            }
+            try? await Task.sleep(for: .milliseconds(450))
+        }
+        prompt = nil
+
+        let url = CaptureExport.url(prefix: "EgoNotch Booth", ext: "png")
+        let ok = await Task.detached(priority: .userInitiated) { () -> Bool in
+            guard let strip = CaptureExport.photoStrip(shots) else { return false }
+            return CaptureExport.writePNG(strip, to: url)
+        }.value
+        busy = false
+        finish(ok: ok, name: url.lastPathComponent)
+    }
+
+    // MARK: - Video
+
+    private func startVideo() {
         // Mic permission is requested ONLY here — first actual record.
         if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
             AVCaptureDevice.requestAccess(for: .audio) { _ in
@@ -185,7 +376,7 @@ final class RecorderCamera: NSObject {
         isRecording = true
         recordingStarted = Date()
         applyDesiredState()
-        let url = Self.desktopURL(prefix: "EgoNotch Recording", ext: "mov")
+        let url = CaptureExport.url(prefix: "EgoNotch Recording", ext: "mov")
         let micAuthorized = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         nonisolated(unsafe) let s = session
         nonisolated(unsafe) let movie = movieOutput
@@ -218,39 +409,31 @@ final class RecorderCamera: NSObject {
         }
     }
 
-    /// Collision-proof Desktop filename (Screenshot.app style " (2)" suffix).
-    nonisolated static func desktopURL(prefix: String, ext: String) -> URL {
-        let desktop = FileManager.default.urls(for: .desktopDirectory,
-                                               in: .userDomainMask)[0]
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let base = "\(prefix) \(formatter.string(from: Date()))"
-        var url = desktop.appendingPathComponent("\(base).\(ext)")
-        var n = 2
-        while FileManager.default.fileExists(atPath: url.path) {
-            url = desktop.appendingPathComponent("\(base) (\(n)).\(ext)")
-            n += 1
-        }
-        return url
-    }
-}
+    // MARK: - Shared bits
 
-extension RecorderCamera: AVCapturePhotoCaptureDelegate {
-    nonisolated func photoOutput(_ output: AVCapturePhotoOutput,
-                                 didFinishProcessingPhoto photo: AVCapturePhoto,
-                                 error: Error?) {
-        guard error == nil, let data = photo.fileDataRepresentation() else {
-            Task { @MainActor [weak self] in self?.saveFailed = true }
-            return
+    private func countIn(seconds: Int, showPrompt: Bool = false) async {
+        guard seconds > 0 else { return }
+        for remaining in stride(from: seconds, through: 1, by: -1) {
+            countdown = remaining
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { break }
         }
-        let url = Self.desktopURL(prefix: "EgoNotch Photo", ext: "jpg")
-        let wrote = (try? data.write(to: url)) != nil
-        Task { @MainActor [weak self] in
-            if wrote {
-                self?.lastSavedName = url.lastPathComponent
-            } else {
-                self?.saveFailed = true   // e.g. Desktop access denied
-            }
+        countdown = nil
+    }
+
+    private func flashNow() async {
+        flash = 1
+        try? await Task.sleep(for: .milliseconds(90))
+        flash = 0
+    }
+
+    private func finish(ok: Bool, name: String?) {
+        if ok {
+            lastSavedName = name
+            saveFailed = false
+            library.refresh()
+        } else {
+            saveFailed = true
         }
     }
 }
@@ -270,160 +453,9 @@ extension RecorderCamera: AVCaptureFileOutputRecordingDelegate {
             guard let self else { return }
             self.isRecording = false
             self.recordingStarted = nil
-            if ok {
-                self.lastSavedName = outputFileURL.lastPathComponent
-            } else {
-                self.saveFailed = true
-            }
+            self.finish(ok: ok, name: outputFileURL.lastPathComponent)
             self.detachMic()
             self.applyDesiredState()
         }
-    }
-}
-
-struct RecorderTileView: View {
-    var camera: RecorderCamera
-
-    var body: some View {
-        Group {
-            switch camera.access {
-            case .denied:
-                HStack(spacing: 10) {
-                    Chip(text: "No camera", variant: .loss)
-                    Text("Enable Camera for EgoNotch in System Settings")
-                        .font(Ego.font(11))
-                        .foregroundStyle(Ego.textMute)
-                    Spacer()
-                }
-            case .unknown:
-                Text("Requesting camera…")
-                    .font(Ego.font(11))
-                    .foregroundStyle(Ego.textMute)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .granted:
-                HStack(spacing: 24) {
-                    Spacer(minLength: 0)
-                    preview
-                    controls
-                    Spacer(minLength: 0)
-                }
-            }
-        }
-        .onAppear { camera.appear() }
-        .onDisappear { camera.disappear() }
-    }
-
-    private var preview: some View {
-        // Circular bubble: aspect-fill keeps the whole face in frame even in
-        // the short panel. Mirroring and the circular mask happen in the
-        // layer, so SwiftUI never transforms a live capture layer.
-        Group {
-            if camera.session != nil {
-                CameraPreview(previewLayer: camera.previewLayer)
-            } else {
-                Color.black.clipShape(Circle()).overlay(Circle().strokeBorder(Ego.border, lineWidth: 1))
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .frame(maxWidth: 148, maxHeight: 148)   // shrinks with the panel height
-        .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
-    }
-
-    private var controls: some View {
-        VStack(spacing: 10) {
-            RoundControlButton(symbol: "camera.fill", size: 13, diameter: 40) {
-                camera.capturePhoto()
-            }
-            Button {
-                camera.toggleRecording()
-            } label: {
-                ZStack {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 2)
-                        .frame(width: 40, height: 40)
-                    if camera.isRecording {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Ego.loss)
-                            .frame(width: 16, height: 16)
-                    } else {
-                        Circle()
-                            .fill(Ego.loss)
-                            .frame(width: 28, height: 28)
-                    }
-                }
-                .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help(camera.isRecording ? "Stop recording" : "Record video")
-
-            if camera.isRecording, let started = camera.recordingStarted {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(Self.duration(from: started, to: context.date))
-                        .font(Ego.font(10, .semibold))
-                        .egoDigits()
-                        .foregroundStyle(Ego.loss)
-                }
-            } else if camera.saveFailed {
-                Text("Save failed")
-                    .font(Ego.font(9))
-                    .foregroundStyle(Ego.loss)
-                    .help("Check Desktop folder access in System Settings > Privacy")
-            } else if let saved = camera.lastSavedName {
-                Text("Saved to Desktop")
-                    .font(Ego.font(9))
-                    .foregroundStyle(Ego.win)
-                    .help(saved)
-            }
-        }
-        .frame(width: 96)
-    }
-
-    private static func duration(from start: Date, to now: Date) -> String {
-        let s = max(Int(now.timeIntervalSince(start)), 0)
-        return String(format: "%02d:%02d", s / 60, s % 60)
-    }
-}
-
-/// Hosts the camera's persistent preview layer as a SUBLAYER, so appearing
-/// and disappearing never releases the layer (which would deadlock the main
-/// thread against the capture session's lock).
-struct CameraPreview: NSViewRepresentable {
-    let previewLayer: AVCaptureVideoPreviewLayer
-
-    func makeNSView(context: Context) -> LayerHostView {
-        let view = LayerHostView()
-        view.wantsLayer = true
-        view.layer?.masksToBounds = true
-        view.hostedLayer = previewLayer
-        previewLayer.removeFromSuperlayer()
-        view.layer?.addSublayer(previewLayer)
-        return view
-    }
-
-    func updateNSView(_ nsView: LayerHostView, context: Context) {
-        nsView.layoutHostedLayer()
-    }
-
-    /// Detach only — the layer itself stays alive, owned by the camera.
-    static func dismantleNSView(_ nsView: LayerHostView, coordinator: ()) {
-        nsView.hostedLayer?.removeFromSuperlayer()
-        nsView.hostedLayer = nil
-    }
-}
-
-final class LayerHostView: NSView {
-    var hostedLayer: CALayer?
-
-    override func layout() {
-        super.layout()
-        layoutHostedLayer()
-    }
-
-    func layoutHostedLayer() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        hostedLayer?.frame = bounds
-        layer?.cornerRadius = min(bounds.width, bounds.height) / 2
-        CATransaction.commit()
     }
 }
