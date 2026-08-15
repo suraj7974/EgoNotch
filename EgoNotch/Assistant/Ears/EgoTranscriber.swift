@@ -121,19 +121,6 @@ actor EgoTranscriber {
         try await analyzer.start(inputSequence: audio)
     }
 
-    /// Closes the current segment without stopping the microphone.
-    ///
-    /// The analyser keeps one segment alive and revises it, so after a command
-    /// has been carried out its words are still sitting in the transcript —
-    /// and a later revision handed them back, concatenated with newer speech,
-    /// as though they were a fresh instruction ("open google meet open open
-    /// pms", which opened PMS a second time). Closing the segment draws a line
-    /// under everything already acted on.
-    func finalizeSegment() async {
-        guard let analyzer else { return }
-        try? await analyzer.finalize(through: nil)
-    }
-
     func stop() async {
         results?.cancel(); results = nil
         if let analyzer {
