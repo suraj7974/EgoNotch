@@ -12,11 +12,10 @@ nonisolated enum WakePhrase {
         let command: String
     }
 
-    private static let greetings = ["hey", "hay", "hi", "he", "ok", "okay", "a", "ay"]
+    /// No "a" or "ay": they're one letter of noise away from ordinary speech,
+    /// and turn "I need a Jarvis reference" into a wake.
+    private static let greetings = ["hey", "hay", "hi", "he", "ok", "okay"]
 
-    /// Every one of these was observed coming out of the recogniser for a
-    /// clearly-spoken "ego". The name is rare, so the language model reaches
-    /// for a common word instead — "eagle" and "you go" are the usual two.
     /// The name Ego currently answers to, and every way the recogniser is
     /// known to write it. Set from Settings; read on the audio path, so it is
     /// a plain stored value rather than a lookup.
@@ -34,9 +33,17 @@ nonisolated enum WakePhrase {
         case "siri":
             return ["siri", "siree", "sirri", "syria", "series", "sorry", "sari", "cherry", "seri"]
         case "notch":
-            return ["notch", "nach", "knotch", "nacho", "not", "notche", "gnocchi"]
-        case "nova":
-            return ["nova", "nover", "novo", "no va", "nava"]
+            return ["notch", "nach", "knotch", "nacho", "notche", "gnocchi", "naach"]
+        case "jarvis":
+            return ["jarvis", "jervis", "javis", "jarvice", "jarvish", "charvis",
+                    "harvis", "starvis", "service", "jarvi", "chavez", "javez",
+                    "shavez", "charvez"]
+        case "edith":
+            return ["edith", "edit", "edits", "eadith", "adith", "aditi",
+                    "eddie", "edie", "ediths", "edif"]
+        case "friday":
+            return ["friday", "fryday", "freeday", "frida", "fridays",
+                    "friyay", "priday", "freeda"]
         case "ego":
             return ["ego", "eggo", "eco", "echo", "igo", "iago", "egos",
                     "aygo", "ago", "eagle", "igloo", "yugo", "ika", "hego",

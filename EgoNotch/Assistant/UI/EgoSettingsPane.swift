@@ -73,10 +73,12 @@ struct EgoSettingsPane: View {
                     Text("Hey Ego").tag("ego")
                     Text("Hey Siri").tag("siri")
                     Text("Hey Notch").tag("notch")
-                    Text("Hey Nova").tag("nova")
+                    Text("Hey Jarvis").tag("jarvis")
+                    Text("Hey Edith").tag("edith")
+                    Text("Hey Friday").tag("friday")
                 }
                 .labelsHidden()
-                .frame(width: 130)
+                .frame(width: 140)
             }
             SettingsDivider()
             SettingsRow(label: "Wake word",
@@ -190,8 +192,10 @@ struct EgoSettingsPane: View {
         switch settings.egoWakeName {
         case "siri":
             "Heard most reliably of all — but every nearby iPhone, Watch and HomePod answers to it too."
-        case "notch", "nova":
+        case "notch":
             "A common word, so it's heard reliably."
+        case "jarvis", "edith", "friday":
+            "A name the recogniser already knows, so it's heard reliably."
         default:
             "The name, but rare enough that it's sometimes misheard. Switch if it keeps missing."
         }
