@@ -124,6 +124,18 @@ final class EgoAssistant {
         }
     }
 
+    /// Teaching Ego a voice. Opens the microphone if it isn't already, since
+    /// enrolment is useless without it.
+    func beginVoiceEnrolment() {
+        VoicePrintStore.shared.beginEnrolment()
+        Task { await ears.beginVoiceEnrolment() }
+    }
+
+    func endVoiceEnrolment() {
+        VoicePrintStore.shared.cancelEnrolment()
+        ears.endVoiceEnrolment()
+    }
+
     /// The name in the wake phrase primes the recogniser when the microphone
     /// opens, so changing it has to reopen the ears — otherwise the new word
     /// is matched by the text matcher but never actually heard.

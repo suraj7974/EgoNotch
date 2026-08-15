@@ -71,7 +71,7 @@ final class VoicePrintStore {
     func addSample(_ print: VoicePrint?) -> Bool {
         guard isEnrolling else { return false }
         guard let print, print.isUsable else {
-            lastProblem = "That one was too quiet — try again, a little closer."
+            lastProblem = "Didn't catch that — say it a little louder."
             EgoLog.trace("voice enrolment: sample rejected")
             return false
         }
@@ -85,6 +85,7 @@ final class VoicePrintStore {
         enrolledCount = templates.count
         pending = []
         isEnrolling = false
+        EgoAssistant.shared.endVoiceEnrolment()
         save()
         EgoLog.trace(String(format: "voice enrolment: done, threshold %.2f", threshold))
         return true

@@ -15,6 +15,7 @@ struct EgoSettingsPane: View {
     @State private var typed = ""
     @State private var newName = ""
     @State private var logSize: String? = EgoLog.sizeText
+    @State private var authorising = false
 
     var body: some View {
         SettingsPane(title: "Ego",
@@ -142,22 +143,33 @@ struct EgoSettingsPane: View {
             }
             SettingsDivider()
             SettingsRow(label: "Only my voice", hint: voiceMatchHint, icon: "person.badge.shield.checkmark") {
-                Toggle("", isOn: $settings.egoVoiceMatch)
+                // Bound through authentication rather than straight to the
+                // setting: a switch anyone can flip is not a gate.
+                Toggle("", isOn: Binding(
+                    get: { settings.egoVoiceMatch },
+                    set: { wanted in
+                        authorised("change who Ego answers to") { settings.egoVoiceMatch = wanted }
+                    }))
                     .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
                     .labelsHidden()
+                    .disabled(authorising)
             }
             SettingsRow(label: "Voice ID", hint: enrolmentHint, icon: "waveform.and.person.filled") {
                 HStack(spacing: 8) {
                     if voice.isEnrolling {
                         SettingsBadge(text: "\(voice.progress) of \(VoicePrintStore.required)",
                                       tint: Ego.text)
-                        SettingsActionButton(title: "Cancel") { voice.cancelEnrolment() }
+                        SettingsActionButton(title: "Cancel") { assistant.endVoiceEnrolment() }
                     } else if voice.isEnrolled {
-                        SettingsActionButton(title: "Teach again") { voice.beginEnrolment() }
-                        SettingsActionButton(title: "Forget") { voice.forget() }
+                        SettingsActionButton(title: "Teach again") {
+                            authorised("teach Ego a new voice") { assistant.beginVoiceEnrolment() }
+                        }
+                        SettingsActionButton(title: "Forget") {
+                            authorised("forget the voice Ego answers to") { voice.forget() }
+                        }
                     } else {
                         SettingsActionButton(title: "Teach it your voice", prominent: true) {
-                            voice.beginEnrolment()
+                            authorised("teach Ego your voice") { assistant.beginVoiceEnrolment() }
                         }
                     }
                 }
@@ -261,6 +273,18 @@ struct EgoSettingsPane: View {
                         .foregroundStyle(Ego.text)
                 }
             }
+        }
+    }
+
+    /// Everything that changes who Ego obeys goes through the login password
+    /// or Touch ID first. Cancelling simply leaves the setting alone.
+    private func authorised(_ reason: String, then work: @escaping () -> Void) {
+        guard !authorising else { return }
+        authorising = true
+        Task {
+            let allowed = await EgoAuth.confirm(reason)
+            authorising = false
+            if allowed { work() }
         }
     }
 
