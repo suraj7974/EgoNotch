@@ -83,6 +83,7 @@ struct EgoSettingsPane: View {
         SettingsCard(title: "Listening") {
             SettingsRow(label: "Answers to", hint: nameHint, icon: "person.text.rectangle") {
                 Picker("", selection: $settings.egoWakeName) {
+                    Text("Hey Zoro").tag("zoro")
                     Text("Hey Ego").tag("ego")
                     Text("Hey Siri").tag("siri")
                     Text("Hey Notch").tag("notch")
@@ -237,6 +238,8 @@ struct EgoSettingsPane: View {
             "A common word, so it's heard reliably."
         case "jarvis", "edith", "friday":
             "A name the recogniser already knows, so it's heard reliably."
+        case "zoro":
+            "A hard Z and two syllables — about as clearly heard as a name gets."
         default:
             "The name, but rare enough that it's sometimes misheard. Switch if it keeps missing."
         }

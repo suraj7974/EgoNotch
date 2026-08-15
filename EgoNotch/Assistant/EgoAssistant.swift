@@ -296,7 +296,8 @@ final class EgoAssistant {
     /// Speaks a sample in the currently chosen voice, regardless of whether
     /// spoken replies are switched on — it's a preview, not a reply.
     func speakSample() {
-        voice.speak("Ego here. Volume thirty, terminal open.",
+        let name = SettingsStore.shared.egoWakeName
+        voice.speak("\(name.prefix(1).uppercased() + name.dropFirst()) here. Volume thirty, terminal open.",
                     voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
                     rate: SettingsStore.shared.egoSpeechRate)
     }

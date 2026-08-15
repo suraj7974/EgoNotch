@@ -30,6 +30,11 @@ nonisolated enum WakePhrase {
     /// "you go" for Ego, "series" and "sorry" for Siri.
     private static func variants(for name: String) -> [String] {
         switch name.lowercased() {
+        case "zoro":
+            // The recogniser knows "Zorro" far better than "Zoro", and turns a
+            // soft second syllable into "zero" constantly — both have to count.
+            return ["zoro", "zorro", "zero", "zora", "sora", "soro", "sorrow",
+                    "toro", "zaro", "zuro", "xoro", "zorow", "zorros", "tsoro"]
         case "siri":
             return ["siri", "siree", "sirri", "syria", "series", "sorry", "sari", "cherry", "seri"]
         case "notch":
