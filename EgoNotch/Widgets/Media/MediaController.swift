@@ -46,8 +46,9 @@ final class MediaController {
         guard !model.hasSession, !priming, active != nil else { return }
         priming = true
         Task { [weak self] in
+            let preferred = self?.model.appName
             let snapshot = await Task.detached(priority: .userInitiated) {
-                MediaPrimer.snapshot()
+                MediaPrimer.snapshot(preferring: preferred)
             }.value
             guard let self else { return }
             self.priming = false
@@ -90,8 +91,18 @@ final class MediaController {
         model.mode = .none
     }
 
+    /// Commands go to the app we're SHOWING, not to whatever macOS considers
+    /// the now-playing app — with Spotify and Music both open those differ,
+    /// and the buttons appeared dead because they drove the other player.
     func send(_ command: MediaCommand) {
-        active?.send(command)
+        if model.appName == "Spotify", let spotify {
+            spotify.send(command)
+            // Spotify's push notification confirms the real state moments
+            // later; this just keeps the button from feeling laggy.
+            if command == .togglePlayPause { model.isPlaying.toggle() }
+        } else {
+            active?.send(command)
+        }
     }
 
     /// Seek to an absolute position. Spotify gets its official channel

@@ -45,17 +45,28 @@ enum MediaPrimer {
         }
     }
 
-    nonisolated static func snapshot() -> Snapshot? {
-        trace("snapshot() spotify=\(isRunning("com.spotify.client")) music=\(isRunning("com.apple.Music"))")
+    /// Whatever is really playing wins.
+    ///
+    /// Both players are often open at once, and MediaRemote happily names an
+    /// idle one as "now playing" — a paused Music library while Spotify is
+    /// actually singing. So: ask every running player, and prefer the one
+    /// that says it's playing over the one that merely has a track loaded.
+    nonisolated static func snapshot(preferring preferred: String? = nil) -> Snapshot? {
+        trace("snapshot(preferring: \(preferred ?? "-")) spotify=\(isRunning("com.spotify.client")) music=\(isRunning("com.apple.Music"))")
+        var found: [Snapshot] = []
         if isRunning("com.spotify.client"),
            let s = query(app: "Spotify", durationInMilliseconds: true) {
-            return s
+            if s.isPlaying { return s }        // settled — don't wait on the other
+            found.append(s)
         }
         if isRunning("com.apple.Music"),
            let s = query(app: "Music", durationInMilliseconds: false) {
-            return s
+            if s.isPlaying { return s }
+            found.append(s)
         }
-        return nil
+        return found.first(where: \.isPlaying)
+            ?? found.first { $0.app == preferred }
+            ?? found.first
     }
 
     nonisolated private static func isRunning(_ bundleID: String) -> Bool {
@@ -97,7 +108,7 @@ enum MediaPrimer {
         process.standardError = err
         guard (try? process.run()) != nil else { return nil }
 
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(2.5)
         while process.isRunning, Date() < deadline { usleep(50_000) }
         if process.isRunning {
             process.terminate()

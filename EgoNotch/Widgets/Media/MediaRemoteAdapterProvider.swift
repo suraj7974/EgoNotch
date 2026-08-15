@@ -11,6 +11,17 @@ final class MediaRemoteAdapterProvider: MediaProvider {
     /// MediaRemote knows an app is playing but has no track info for it —
     /// the cold-start case, where only the player's own API can tell us.
     var onSessionWithoutTrack: (() -> Void)?
+    /// The app MediaRemote currently calls "now playing".
+    private var adapterApp: String?
+
+    /// With two players open, MediaRemote often names the idle one — a paused
+    /// Music library while Spotify is actually singing — and its stale info
+    /// would replace the live session and send transport commands to the wrong
+    /// app. While a DIFFERENT source is playing, its updates are ignored.
+    private var describesAnIdleOtherApp: Bool {
+        guard let adapterApp, let showing = model.appName, showing != adapterApp else { return false }
+        return model.isPlaying
+    }
 
     private var process: Process?
     private var readTask: Task<Void, Never>?
@@ -158,6 +169,7 @@ final class MediaRemoteAdapterProvider: MediaProvider {
             onHealthChange(true)
 
         case "now_playing":
+            if describesAnIdleOtherApp { return }
             let hasInfo = (msg["hasInfo"] as? Bool) ?? ((msg["hasInfo"] as? NSNumber)?.boolValue ?? false)
             guard hasInfo else {
                 model.clear()
@@ -194,6 +206,7 @@ final class MediaRemoteAdapterProvider: MediaProvider {
 
         case "playing":
             let playing = (msg["playing"] as? NSNumber)?.boolValue ?? false
+            if !playing, describesAnIdleOtherApp { return }
             if playing != model.isPlaying {
                 if playing && anchorTracksLivePlayback {
                     // Anchor means "elapsed was E at time T while playing" —
@@ -209,7 +222,9 @@ final class MediaRemoteAdapterProvider: MediaProvider {
 
         case "app":
             let app = msg["app"] as? String ?? ""
-            model.appName = app.isEmpty ? nil : app
+            adapterApp = app.isEmpty ? nil : app
+            if describesAnIdleOtherApp { return }
+            model.appName = adapterApp
             if !app.isEmpty, model.track == nil { onSessionWithoutTrack?() }
 
         case "error":

@@ -70,6 +70,32 @@ final class SpotifyDirectChannel: NSObject {
         }
     }
 
+    /// Transport through Spotify's own API. MediaRemote aims at whatever macOS
+    /// calls "now playing", which with two players open is regularly the wrong
+    /// one — this always hits Spotify.
+    func send(_ command: MediaCommand) {
+        let action: String
+        switch command {
+        case .play: action = "play"
+        case .pause: action = "pause"
+        case .togglePlayPause: action = "playpause"
+        case .nextTrack: action = "next track"
+        case .previousTrack: action = "previous track"
+        }
+        run("tell application \"Spotify\" to \(action)")
+    }
+
+    private func run(_ source: String) {
+        Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = ["-e", source]
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+        }
+    }
+
     /// Official seek: `set player position` (instant, authoritative).
     func seek(to seconds: TimeInterval) {
         let source = "tell application \"Spotify\" to set player position to \(Int(seconds))"
