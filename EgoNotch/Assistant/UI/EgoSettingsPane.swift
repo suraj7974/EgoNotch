@@ -13,6 +13,7 @@ struct EgoSettingsPane: View {
     @State private var requesting = false
     @State private var typed = ""
     @State private var newName = ""
+    @State private var logSize: String? = EgoLog.sizeText
 
     var body: some View {
         SettingsPane(title: "Ego",
@@ -56,6 +57,17 @@ struct EgoSettingsPane: View {
                     SettingsActionButton(title: requesting ? "Asking…" : "Grant", prominent: true) {
                         requestSpeech()
                     }
+                }
+            }
+            SettingsDivider()
+            SettingsRow(label: "What Ego keeps", hint: privacyHint, icon: "lock.shield") {
+                if let size = EgoLog.sizeText {
+                    SettingsActionButton(title: "Delete log (\(size))") {
+                        EgoLog.erase()
+                        logSize = nil
+                    }
+                } else {
+                    SettingsBadge(text: "Nothing stored", tint: Ego.textMute)
                 }
             }
             SettingsDivider()
@@ -227,6 +239,14 @@ struct EgoSettingsPane: View {
                 }
             }
         }
+    }
+
+    /// Said plainly, because "what does it keep" deserves a straight answer.
+    private var privacyHint: String {
+        EgoLog.isEnabled
+            ? "Audio is never saved. A diagnostic log is on — it records commands"
+                + (EgoLog.recordsTranscripts ? " and everything heard." : ", not the room.")
+            : "Audio is never saved, transcripts stay in memory, and nothing is written to disk."
     }
 
     private static let builtInNames = ["zoro", "ego", "siri", "notch", "jarvis", "edith", "friday"]

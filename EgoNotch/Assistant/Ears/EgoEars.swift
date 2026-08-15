@@ -229,7 +229,7 @@ final class EgoEars {
 
         switch status {
         case .listening:
-            EgoLog.trace("raw: \(update.text)")
+            if EgoLog.recordsTranscripts { EgoLog.trace("raw: \(update.text)") }
             guard Date() > wakeCooldown else { return }
 
             let command: String

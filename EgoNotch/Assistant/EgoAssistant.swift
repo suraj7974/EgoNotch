@@ -502,21 +502,66 @@ enum ConfirmWords {
     }
 }
 
-/// EGO_DEBUG=1 writes a trace beside the app's other data. The developer can't
-/// always test by talking to the machine, so the pipeline has to be readable
-/// after the fact.
+/// EGO_DEBUG=1 writes a trace beside the app's other data. The developer
+/// can't always test by talking to the machine, so the pipeline has to be
+/// readable after the fact.
+///
+/// Two rules, because this file records what was said in a room:
+///   • It is CAPPED. An uncapped log of everything a microphone heard is not
+///     a debug aid, it's a recording.
+///   • Raw transcripts — the only lines that contain speech that was never a
+///     command — need EGO_DEBUG_TRANSCRIPT as well, so the ordinary trace can
+///     be left on without keeping a record of the room.
 enum EgoLog {
-    nonisolated static func trace(_ message: String) {
-        guard ProcessInfo.processInfo.environment["EGO_DEBUG"] != nil else { return }
-        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    nonisolated private static let limit = 256 * 1024
+
+    nonisolated static var isEnabled: Bool {
+        ProcessInfo.processInfo.environment["EGO_DEBUG"] != nil
+    }
+
+    /// Everything heard, not just what was meant for Ego. Deliberately a
+    /// second switch.
+    nonisolated static var recordsTranscripts: Bool {
+        isEnabled && ProcessInfo.processInfo.environment["EGO_DEBUG_TRANSCRIPT"] != nil
+    }
+
+    nonisolated static var url: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("EgoNotch/ego.log")
+    }
+
+    nonisolated static func trace(_ message: String) {
+        guard isEnabled else { return }
         let line = "\(Date()) \(message)\n"
-        if let handle = try? FileHandle(forWritingTo: url) {
-            handle.seekToEndOfFile()
-            try? handle.write(contentsOf: Data(line.utf8))
-            try? handle.close()
-        } else {
+        guard let handle = try? FileHandle(forWritingTo: url) else {
             try? Data(line.utf8).write(to: url)
+            return
         }
+        handle.seekToEndOfFile()
+        try? handle.write(contentsOf: Data(line.utf8))
+        let size = handle.offsetInFile
+        try? handle.close()
+        if size > limit { truncate() }
+    }
+
+    /// Keeps the most recent half and throws the rest away — the old end of a
+    /// debug log is never the interesting part.
+    private nonisolated static func truncate() {
+        guard let data = try? Data(contentsOf: url), data.count > limit else { return }
+        let tail = data.suffix(limit / 2)
+        // Start at a line boundary so the file never opens mid-sentence.
+        let start = tail.firstIndex(of: UInt8(ascii: "\n")).map { tail.index(after: $0) } ?? tail.startIndex
+        try? Data(tail[start...]).write(to: url)
+    }
+
+    /// Settings offers this: the log is the one place Ego keeps anything.
+    nonisolated static func erase() {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    nonisolated static var sizeText: String? {
+        guard let size = try? FileManager.default
+            .attributesOfItem(atPath: url.path)[.size] as? Int, size > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
     }
 }
