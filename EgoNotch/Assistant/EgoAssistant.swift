@@ -66,7 +66,7 @@ final class EgoAssistant {
         "chup", "ruko", "kuch nahi", "nahi", "rehne do", "jao", "bas", "khatam",
     ]
 
-    private static func isDismissal(_ text: String) -> Bool {
+    static func isDismissal(_ text: String) -> Bool {
         dismissals.contains(WakePhrase.normalise(text))
     }
 

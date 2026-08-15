@@ -54,13 +54,17 @@ final class EgoEars {
     @ObservationIgnored private var lastDispatched = ""
     @ObservationIgnored private var lastDispatchedAt = Date.distantPast
     @ObservationIgnored private var wokeAt = Date.distantPast
+    @ObservationIgnored private var capTask: Task<Void, Never>?
 
     /// How long a pause means "they've finished talking". Every command waits
     /// this long before anything happens, so it is the single biggest
     /// contributor to Ego feeling slow — kept just long enough to survive the
     /// gap between two words.
     private let silenceWindow: Double = 0.85
-    private let hardCap: Double = 12
+    /// The longest an utterance may take before Ego acts on what it has. With
+    /// music in the room the transcript never stops changing, so this is what
+    /// actually ends most commands — twelve seconds felt broken.
+    private let hardCap: Double = 6
 
     // MARK: - Lifecycle
 
@@ -173,6 +177,9 @@ final class EgoEars {
         capturingWithoutWake = true
         transcriptFloor = latestTranscript
         status = .capturing
+        // Follow-ups have no wake of their own; without this the cap below
+        // would measure from the *previous* wake and cut them off instantly.
+        wokeAt = Date()
         EgoLog.trace("\(reason): listening without a wake word")
         armEndpoint(grace: grace)
     }
@@ -385,10 +392,23 @@ final class EgoEars {
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
             self.finishUtterance()
         }
+        // A cap measured from the wake, not from this re-arm. Every new word
+        // restarts the timer above, so with music playing — the recogniser
+        // endlessly revising lyrics — the utterance never settled at all, and
+        // commands took anywhere from four to thirty-six seconds to land.
+        capTask?.cancel()
+        let remaining = hardCap - Date().timeIntervalSince(wokeAt)
+        capTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(remaining, 0.5)))
+            guard !Task.isCancelled, let self, self.status == .capturing else { return }
+            EgoLog.trace("utterance capped — taking what there is")
+            self.finishUtterance()
+        }
     }
 
     private func finishUtterance() {
         endpoint?.cancel(); endpoint = nil
+        capTask?.cancel(); capTask = nil
         capturingWithoutWake = false
         var command = lastCommandText.trimmingCharacters(in: .whitespaces)
         // A stray wake phrase can still be sitting in front of the command
@@ -421,7 +441,11 @@ final class EgoEars {
         // The gate, judged on everything just said rather than on the wake
         // word alone. A second of "hey zoro" is too small a sample to tell two
         // people apart; wake word plus command is three times the evidence.
+        // "Dismiss" is never gated. Being unable to call Ego off — as happened
+        // here, where the gate turned away the word "dismiss" — is a worse
+        // failure than a stranger being able to shut it up.
         if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled,
+           !EgoAssistant.isDismissal(command),
            let heard = tap.recentAudio(seconds: VoicePrintStore.verifyWindow),
            !VoicePrintStore.shared.accepts(samples: heard.samples,
                                            sampleRate: heard.sampleRate) {

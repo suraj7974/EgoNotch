@@ -62,7 +62,12 @@ nonisolated struct VoiceProfile: Codable, Sendable {
         // The worst honest window, plus a margin. Every one of these came from
         // the user, so anything below the top of that range must be let in.
         let worst = distances[distances.count - 1]
-        return min(max(worst * 1.2, 0.6), 3.0)
+        // A wide margin, and not an arbitrary one: enrolment is read in a
+        // quiet room, while commands are given over whatever is playing. The
+        // speaker's own utterances were measured at up to twice their
+        // enrolment spread once music was in the room, so the gate has to
+        // clear that or it only works in silence.
+        return min(max(worst * 2.2, 0.9), 3.5)
     }
 
     private static func summarise(_ frames: [[Float]]) -> VoiceProfile {
