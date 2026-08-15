@@ -78,6 +78,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         onboarding.showIfNeeded()
 
+        // Debug: EGO_COMMAND="pause the music" drives Ego once at launch, and
+        // EGO_COMMANDS="a;;b;;c" drives a script — the assistant is testable
+        // end to end without ever speaking to the machine.
+        runEgoDebugScript()
+
         // Debug: EGO_DEBUG_EXPAND=1 auto-expands the panel (headless testing).
         if ProcessInfo.processInfo.environment["EGO_DEBUG_EXPAND"] == "1" {
             Task { [weak self] in
@@ -106,6 +111,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             ?? menuBarTexts["default"])
     }
     @objc private func showOnboarding() { onboarding.show() }
+
+    /// Feeds typed commands through the real pipeline (grammar → action →
+    /// HUD → reply), which is the only way to regression-test Ego on a
+    /// machine where talking out loud isn't practical.
+    private func runEgoDebugScript() {
+        let environment = ProcessInfo.processInfo.environment
+        let script = environment["EGO_COMMANDS"]?.components(separatedBy: ";;")
+            ?? environment["EGO_COMMAND"].map { [$0] }
+        guard let script, !script.isEmpty else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(2))   // let the widgets settle
+            for command in script {
+                EgoAssistant.shared.handle(command)
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
 
     // MARK: - Global shortcut
 

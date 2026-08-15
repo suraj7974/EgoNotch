@@ -4,6 +4,11 @@ import SwiftUI
 /// Owns the panel window, applies per-state frames, and wires mouse tracking,
 /// click-outside monitoring, and display changes into the state controller.
 final class NotchPanelController: NSObject {
+    /// The live panel, for code that isn't wired through AppDelegate (Ego).
+    /// Weak and nonisolated(unsafe) to match the shared-singleton shape the
+    /// rest of the app already uses (PanelUIState.shared, HotKeyStatus.shared).
+    nonisolated(unsafe) private(set) static weak var current: NotchPanelController?
+
     let stateController = NotchStateController()
 
     private let panel = NotchPanel()
@@ -21,6 +26,7 @@ final class NotchPanelController: NSObject {
 
     override init() {
         super.init()
+        Self.current = self
 
         hostingView = PanelHostingView(rootView: NotchRootView(controller: stateController))
         hostingView.onMouseEntered = { [weak self] in self?.stateController.mouseEntered() }

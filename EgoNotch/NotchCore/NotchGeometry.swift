@@ -52,6 +52,10 @@ struct NotchGeometry: Equatable {
             let closed = chromeSize(for: .closed, config: config)
             return CGSize(width: max(config.expandedSize.width, closed.width),
                           height: notchRect.height + config.expandedSize.height)
+        case .assistant:
+            let closed = chromeSize(for: .closed, config: config)
+            return CGSize(width: max(config.assistantWidth, closed.width),
+                          height: notchRect.height + config.assistantHeight)
         }
     }
 
@@ -66,11 +70,12 @@ struct NotchGeometry: Equatable {
         let margin: CGFloat = switch state {
         case .closed, .peek: 0
         case .hover: config.hoverGlowMargin
-        case .expanded: config.expandedShadowMargin
+        case .expanded, .assistant: config.expandedShadowMargin
         }
         let w = chrome.width + 2 * margin
         let h = chrome.height + margin        // margin on sides/bottom; top edge stays put
         let frame = CGRect(x: cx - w / 2, y: top - h, width: w, height: h)
-        return state == .expanded ? frame.intersection(screenFrame) : frame
+        return state == .expanded || state == .assistant
+            ? frame.intersection(screenFrame) : frame
     }
 }

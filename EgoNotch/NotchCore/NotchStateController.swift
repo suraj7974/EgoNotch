@@ -30,6 +30,10 @@ final class NotchStateController {
     private(set) var bannerText: String?
     private(set) var bannerSubtitle: String?
 
+    /// Where the panel was before Ego took it over, so it can be handed back.
+    @ObservationIgnored private var stateBeforeAssistant: NotchState?
+    @ObservationIgnored private var assistantWatchdog: Task<Void, Never>?
+
     @ObservationIgnored private var dwellTask: Task<Void, Never>?
     @ObservationIgnored private var collapseTask: Task<Void, Never>?
     @ObservationIgnored private var bannerTask: Task<Void, Never>?
@@ -120,8 +124,8 @@ final class NotchStateController {
             transition(to: .closed)
         case .expanded:
             scheduleCollapseIfPointerOutside()
-        case .closed, .peek:
-            break   // the peek retires on its own timer
+        case .closed, .peek, .assistant:
+            break   // the peek retires on its own timer; Ego is not pointer-driven
         }
     }
 
@@ -154,6 +158,41 @@ final class NotchStateController {
     }
 
     func collapse() { transition(to: .closed) }
+
+    // MARK: - Assistant
+
+    /// Ego takes the panel. The previous state is remembered rather than
+    /// assumed closed — asking a question with the panel open should not
+    /// close it afterwards.
+    func beginAssistant() {
+        guard state != .assistant else { return }
+        dwellTask?.cancel()
+        collapseTask?.cancel()
+        dismissBanner()
+        stateBeforeAssistant = state
+        transition(to: .assistant)
+        // The assistant retires its own HUD, so — unlike a peek — nothing here
+        // is on a timer. A watchdog guarantees a hung or crashed assistant can
+        // never strand the panel open.
+        assistantWatchdog?.cancel()
+        assistantWatchdog = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(60))
+            guard !Task.isCancelled, let self, self.state == .assistant else { return }
+            self.endAssistant()
+        }
+    }
+
+    /// Hand the panel back to whatever it was doing.
+    func endAssistant() {
+        assistantWatchdog?.cancel()
+        assistantWatchdog = nil
+        guard state == .assistant else { return }
+        let restore = stateBeforeAssistant ?? .closed
+        stateBeforeAssistant = nil
+        // Hover is not a resting state — if the pointer really is on the
+        // notch, the tracking area will say so again immediately.
+        transition(to: restore == .hover ? .closed : restore)
+    }
 
     /// Forced-closed policy on reconfiguration: rebuild from fresh geometry,
     /// no animation — this is what makes drift impossible.
