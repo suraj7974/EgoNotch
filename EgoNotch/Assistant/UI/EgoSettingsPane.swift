@@ -61,6 +61,19 @@ struct EgoSettingsPane: View {
             SettingsRow(label: "Listening state", hint: earsHint, icon: "dot.radiowaves.left.and.right") {
                 SettingsBadge(text: earsBadge, tint: earsTint)
             }
+            SettingsDivider()
+            SettingsRow(label: "Understanding", hint: brainHint, icon: "brain") {
+                if case .unavailable = EgoPlanner.readiness {
+                    SettingsActionButton(title: "Open Settings", prominent: true) {
+                        if let url = URL(string:
+                            "x-apple.systempreferences:com.apple.Siri-Settings.extension") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                } else {
+                    SettingsBadge(text: "On-device model", tint: Ego.text)
+                }
+            }
         }
     }
 
@@ -184,6 +197,18 @@ struct EgoSettingsPane: View {
 
     private func testVoice() {
         assistant.speakSample()
+    }
+
+    /// Ego works without Apple Intelligence — the command grammar is the fast
+    /// path either way — so this is phrased as what you gain, not as an error.
+    private var brainHint: String {
+        switch EgoPlanner.readiness {
+        case .ready:
+            "Phrasings the shortlist doesn't know go to Apple's on-device model. Nothing leaves this Mac."
+        case .unavailable(let why):
+            "\(why) Set commands still work; free phrasing like “make it quieter” won't. "
+                + "Apple Intelligence is separate from “Hey Siri” — you can leave that off."
+        }
     }
 
     /// The recogniser, not taste, decides which name works: a word it already

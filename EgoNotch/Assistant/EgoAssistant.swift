@@ -39,6 +39,14 @@ final class EgoAssistant {
     @ObservationIgnored private let voice = EgoVoice()
     @ObservationIgnored private var levelPump: Task<Void, Never>?
     @ObservationIgnored private var appliedWakeName = SettingsStore.shared.egoWakeName
+    @ObservationIgnored let planner = EgoPlanner()
+    @ObservationIgnored private var thinkTask: Task<Void, Never>?
+
+    /// Why the model isn't answering, shown on screen rather than spoken.
+    private static var plannerHint: String {
+        if case .unavailable(let why) = EgoPlanner.readiness { return why }
+        return "Nothing in the command grammar matched."
+    }
 
     private(set) var isActive = false
 
@@ -66,6 +74,8 @@ final class EgoAssistant {
     func deactivate() {
         guard isActive else { return }
         isActive = false
+        thinkTask?.cancel(); thinkTask = nil
+        planner.reset()
         levelPump?.cancel(); levelPump = nil
         voice.stop()
         Task { await ears.stop() }
@@ -168,10 +178,23 @@ final class EgoAssistant {
             return
         }
 
-        // P2 replaces this with the on-device model.
-        EgoLog.trace("no grammar match")
-        deliver(ActionResult("I don't know that one yet.",
-                             detail: "Nothing in the command grammar matched “\(command)”."))
+        // Nothing deterministic matched, so hand it to the model. The HUD is
+        // already open and showing the waveform, which is what makes the
+        // second or two of thinking read as listening rather than as a hang.
+        guard planner.isReady else {
+            EgoLog.trace("no grammar match, and no model")
+            deliver(ActionResult("I don't know that one yet.",
+                                 detail: Self.plannerHint))
+            return
+        }
+        EgoLog.trace("no grammar match → asking the model")
+        thinkTask?.cancel()
+        thinkTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await self.planner.think(command)
+            guard !Task.isCancelled else { return }
+            self.deliver(result)
+        }
     }
 
     // MARK: - Results
