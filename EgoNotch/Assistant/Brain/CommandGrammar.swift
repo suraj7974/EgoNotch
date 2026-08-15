@@ -109,7 +109,12 @@ enum CommandGrammar {
         if finished.contains(text) { return true }
         // "volume 40", "brightness 60" — a number ends the sentence.
         if text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$") { return true }
-        return false
+        // A short, verb-initial phrase that does NOT read as the middle of a
+        // sentence. The same rule without that second half fired on "play the"
+        // and "go to"; with it, "go to home" settles quickly and "go to" waits.
+        let words = text.split(separator: " ")
+        return words.count >= 2 && words.count <= 5
+            && looksLikeCommand(text) && !looksUnfinished(text)
     }
 
     /// Plainly the middle of a sentence. Ending here would act on half a

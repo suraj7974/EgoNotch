@@ -56,6 +56,9 @@ final class EgoEars {
     @ObservationIgnored private var capTask: Task<Void, Never>?
     /// When the microphone first heard speech, for measuring the lag.
     @ObservationIgnored private var speechHeardAt = Date.distantPast
+    /// When the newest word arrived — the delay a person actually feels is
+    /// measured from here, not from the wake.
+    @ObservationIgnored private var lastWordAt = Date.distantPast
     /// When the first word of this utterance arrived.
     @ObservationIgnored private var speechStartedAt = Date.distantPast
 
@@ -350,6 +353,7 @@ final class EgoEars {
 
             if command != lastCommandText {
                 if lastCommandText.isEmpty, !command.isEmpty { speechStartedAt = Date() }
+                lastWordAt = Date()
                 lastCommandText = command
                 partial = command
                 // A finished-sounding command waits only long enough to be
@@ -486,8 +490,10 @@ final class EgoEars {
         // The gate, judged on everything just said rather than on the wake
         // word alone. A second of "hey zoro" is too small a sample to tell two
         // people apart; wake word plus command is three times the evidence.
-        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking)",
-                            command, Date().timeIntervalSince(wokeAt) * 1000))
+        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking, "
+                            + "%.0f ms after your last word)",
+                            command, Date().timeIntervalSince(wokeAt) * 1000,
+                            Date().timeIntervalSince(lastWordAt) * 1000))
         onCommand?(command)
     }
 
