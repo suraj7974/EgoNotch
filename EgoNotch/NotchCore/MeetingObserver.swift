@@ -140,9 +140,72 @@ final class MeetingObserver {
         // notch the recorder lives in.
         let ours = (WidgetRegistry.widget(id: "recorder") as? RecorderWidget)?
             .camera.session?.isRunning ?? false
-        let active = !ours && (microphoneIsLive || cameraIsLive)
+
+        // `kAudioDevicePropertyDeviceIsRunningSomewhere` is DEVICE-global, so
+        // once Ego opens the microphone it reads true forever — simply
+        // excluding ourselves the way the recorder does would make the app
+        // permanently blind to real calls. Ask per process instead, and keep
+        // the device flag only as the cheap trigger that something changed.
+        let micBusy = Self.otherProcessUsingInput() ?? (!egoIsListening && microphoneIsLive)
+
+        let active = !ours && (micBusy || cameraIsLive)
         guard active != isActive else { return }
         isActive = active
         onChange?(active)
+    }
+
+    private var egoIsListening: Bool {
+        (WidgetRegistry.widget(id: "ego") as? EgoWidget)?.assistant.ears.isMicLive ?? false
+    }
+
+    /// True when some process OTHER than us is running audio input; nil when
+    /// the process list can't be read, so the caller can fall back.
+    private static func otherProcessUsingInput() -> Bool? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyProcessObjectList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size) == noErr,
+            size > 0 else { return nil }
+
+        let count = Int(size) / MemoryLayout<AudioObjectID>.size
+        var processes = [AudioObjectID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &processes) == noErr
+        else { return nil }
+
+        let ourPID = ProcessInfo.processInfo.processIdentifier
+        for process in processes {
+            var runningAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioProcessPropertyIsRunningInput,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain)
+            var running: UInt32 = 0
+            var runningSize = UInt32(MemoryLayout<UInt32>.size)
+            guard AudioObjectGetPropertyData(process, &runningAddress, 0, nil,
+                                             &runningSize, &running) == noErr,
+                  running != 0 else { continue }
+
+            var pidAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioProcessPropertyPID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain)
+            var pid: pid_t = -1
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            guard AudioObjectGetPropertyData(process, &pidAddress, 0, nil,
+                                             &pidSize, &pid) == noErr, pid != ourPID
+            else { continue }
+
+            // Only *launched apps* count. macOS keeps daemons like
+            // `historicalaudiod` on the input device permanently, and counting
+            // those would mean "you are always in a meeting" — which is
+            // exactly the false positive this whole check exists to avoid.
+            guard NSRunningApplication(processIdentifier: pid) != nil else { continue }
+            return true
+        }
+        return false
     }
 }

@@ -9,6 +9,7 @@ final class HotKeyStatus {
     static let shared = HotKeyStatus()
     var terminalTaken = false
     var homeTaken = false
+    var egoTaken = false
 }
 
 /// A system-wide keyboard shortcut, via Carbon's `RegisterEventHotKey`.
@@ -32,6 +33,11 @@ final class GlobalHotKey {
         /// ⌘⌥H — the Home tab.
         static let homeDefault = Combination(
             keyCode: UInt32(kVK_ANSI_H),
+            modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue)
+
+        /// ⌘⌥E — hold a conversation with Ego without the wake phrase.
+        static let egoDefault = Combination(
+            keyCode: UInt32(kVK_ANSI_E),
             modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue)
 
         /// A shortcut without modifiers would swallow that key system-wide.

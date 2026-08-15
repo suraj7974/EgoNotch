@@ -25,6 +25,7 @@ struct NotchRootView: View {
         // the deep bezel blend belongs to the open panel.
         let bottomRadius: CGFloat = switch state {
         case .expanded: config.expandedBottomRadius
+        case .assistant: 28         // Ego's strip sits between peek and open
         case .peek: 20              // the taller pill wants more curve
         default: config.closedBottomRadius
         }
@@ -41,6 +42,9 @@ struct NotchRootView: View {
 
             if state == .expanded {
                 expandedContent(geometry: geometry, config: config, size: size)
+                    .transition(.opacity)
+            } else if state == .assistant {
+                assistantContent(geometry: geometry, config: config, size: size)
                     .transition(.opacity)
             } else {
                 VStack(spacing: 0) {
@@ -139,6 +143,20 @@ struct NotchRootView: View {
         }
         .frame(width: size.width, height: size.height, alignment: .top)
     }
+
+    /// Ego's strip: the collapsed notch with a waveform grown out of the
+    /// bottom, the same gesture the song-change peek uses.
+    private func assistantContent(geometry: NotchGeometry, config: NotchConfiguration,
+                                  size: CGSize) -> some View {
+        VStack(spacing: 0) {
+            ClosedAccessoryStrip(notchWidth: geometry.notchRect.width)
+                .frame(height: geometry.chromeSize(for: .closed, config: config).height)
+                .padding(.horizontal, 8)
+            EgoOverlay(assistant: EgoAssistant.shared)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: size.width, height: size.height, alignment: .top)
+    }
 }
 
 /// NotchNest-style top bar: icon-only tab circles on the left; widget
@@ -154,6 +172,12 @@ struct PanelTopBar: View {
     }
 
     private var compact: Bool { notchGap != nil }
+
+    /// Ego is doing something worth showing — mid-command, or holding the
+    /// floor in a conversation.
+    private var egoIsUp: Bool {
+        EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle
+    }
     private var circle: CGFloat { compact ? 26 : 30 }
 
     var body: some View {
@@ -177,6 +201,11 @@ struct PanelTopBar: View {
                     .buttonStyle(.plain)
                     .help(tab.title)
                 }
+                if egoIsUp {
+                    EgoBarWave(assistant: EgoAssistant.shared)
+                        .padding(.leading, compact ? 8 : 12)
+                        .transition(.opacity)
+                }
                 if !compact { Spacer(minLength: 0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,6 +216,11 @@ struct PanelTopBar: View {
 
             HStack(spacing: compact ? 4 : 6) {
                 if !compact { Spacer(minLength: 0) }
+                if egoIsUp {
+                    EgoBarCaption(assistant: EgoAssistant.shared)
+                        .padding(.trailing, 4)
+                        .transition(.opacity)
+                }
                 ForEach(topBarAccessories, id: \.id) { accessory in
                     accessory.view
                 }

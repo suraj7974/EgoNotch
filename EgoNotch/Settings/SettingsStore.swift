@@ -15,6 +15,8 @@ final class SettingsStore {
     static let visibilityRulesDidChange = Notification.Name("EgoNotch.visibilityRulesDidChange")
     /// Posted when a global shortcut is enabled, disabled or re-recorded.
     static let hotKeysDidChange = Notification.Name("EgoNotch.hotKeysDidChange")
+    /// Posted when an Ego listening rule changes.
+    static let assistantDidChange = Notification.Name("EgoNotch.assistantDidChange")
 
     @ObservationIgnored private let defaults = UserDefaults.standard
 
@@ -38,6 +40,15 @@ final class SettingsStore {
         static let homeHotKeyOn   = "hotkey.home.enabled"      // Bool, default true
         static let homeHotKeyCode = "hotkey.home.keyCode"
         static let homeHotKeyMods = "hotkey.home.modifiers"
+        static let egoWakeWord    = "ego.wakeWord"         // Bool, default true
+        static let egoBareWake    = "ego.bareWakeWord"     // Bool, default false
+        static let egoSpeak       = "ego.speakReplies"     // Bool, default true
+        static let egoVoice       = "ego.voice"            // AVSpeechSynthesisVoice id
+        static let egoWakeName    = "ego.wakeName"         // the name in the wake phrase
+        static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
+        static let egoConverse    = "ego.conversation"     // Bool, default true
+        static let egoRate        = "ego.speechRate"       // 0.3…0.7, default 0.52
+        static let egoPauseInCall = "ego.pauseInMeetings"  // Bool, default true
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -118,6 +129,62 @@ final class SettingsStore {
         }
     }
 
+    /// Listen for "Hey Ego" continuously. Off means push-to-talk only, which
+    /// keeps the app's "never hold the mic uninvited" policy intact.
+    var egoWakeWord: Bool {
+        didSet {
+            defaults.set(egoWakeWord, forKey: Key.egoWakeWord)
+            NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
+        }
+    }
+    /// Accept a bare "Ego" with no greeting. Off by default: it is an ordinary
+    /// English word, and the app is called EgoNotch.
+    var egoBareWakeWord: Bool {
+        didSet { defaults.set(egoBareWakeWord, forKey: Key.egoBareWake) }
+    }
+    var egoSpeakReplies: Bool {
+        didSet { defaults.set(egoSpeakReplies, forKey: Key.egoSpeak) }
+    }
+    /// Keep the floor after a reply, so the next command needs no wake word.
+    /// On by default: saying the wake word before every single command is the
+    /// thing that makes an assistant tiring to use. Ego holds the floor until
+    /// you dismiss it, and "dismiss" hands the microphone straight back.
+    var egoConversation: Bool {
+        didSet { defaults.set(egoConversation, forKey: Key.egoConverse) }
+    }
+
+    /// Whether Ego may type into the shell at all. On by default, but a
+    /// single switch to take the terminal away from it entirely — the one
+    /// place where a misheard word is unrecoverable.
+    var egoTerminalControl: Bool {
+        didSet { defaults.set(egoTerminalControl, forKey: Key.egoTerminal) }
+    }
+
+    /// The name Ego answers to. A setting because the speech recogniser, not
+    /// taste, decides which words survive: a name it already knows is heard
+    /// every time, and a rare one is misheard half the time.
+    var egoWakeName: String {
+        didSet {
+            defaults.set(egoWakeName, forKey: Key.egoWakeName)
+            NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
+        }
+    }
+
+    var egoVoiceIdentifier: String {
+        didSet { defaults.set(egoVoiceIdentifier, forKey: Key.egoVoice) }
+    }
+    var egoSpeechRate: Double {
+        didSet { defaults.set(egoSpeechRate, forKey: Key.egoRate) }
+    }
+    /// Stand down while another app holds the microphone — it stops Ego
+    /// transcribing your meetings, and stops other people's voices waking it.
+    var egoPauseInMeetings: Bool {
+        didSet {
+            defaults.set(egoPauseInMeetings, forKey: Key.egoPauseInCall)
+            NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
+        }
+    }
+
     /// Disappear while you're on a call or sharing your screen.
     var hideInMeetings: Bool {
         didSet {
@@ -152,7 +219,9 @@ final class SettingsStore {
                     Key.panelHeight, Key.focusMinutes, Key.breakMinutes,
                     Key.deepMinutes, Key.terminalFont, Key.hideFullScreen, Key.hideMeetings,
                     Key.termHotKeyOn, Key.termHotKeyCode, Key.termHotKeyMods,
-                    Key.homeHotKeyOn, Key.homeHotKeyCode, Key.homeHotKeyMods]
+                    Key.homeHotKeyOn, Key.homeHotKeyCode, Key.homeHotKeyMods,
+                    Key.egoWakeWord, Key.egoBareWake, Key.egoSpeak,
+                    Key.egoVoice, Key.egoRate, Key.egoPauseInCall]
             + WidgetRegistry.all.map { Key.widgetEnabled($0.id) }
         for key in keys { defaults.removeObject(forKey: key) }
 
@@ -170,6 +239,15 @@ final class SettingsStore {
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
         hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
+        egoWakeWord = defaults.bool(forKey: Key.egoWakeWord)
+        egoBareWakeWord = defaults.bool(forKey: Key.egoBareWake)
+        egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
+        egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
+        egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
+        egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
+        egoSpeechRate = defaults.double(forKey: Key.egoRate)
+        egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
         terminalHotKey = GlobalHotKey.Combination(
             keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),
@@ -208,6 +286,12 @@ final class SettingsStore {
             Key.termHotKeyOn: true,
             Key.termHotKeyCode: Int(GlobalHotKey.Combination.terminalDefault.keyCode),
             Key.termHotKeyMods: Int(GlobalHotKey.Combination.terminalDefault.modifiers),
+            Key.egoWakeWord: true,
+            Key.egoBareWake: false,
+            Key.egoSpeak: true,
+            Key.egoVoice: "",
+            Key.egoRate: 0.52,
+            Key.egoPauseInCall: true,
             Key.homeHotKeyOn: true,
             Key.homeHotKeyCode: Int(GlobalHotKey.Combination.homeDefault.keyCode),
             Key.homeHotKeyMods: Int(GlobalHotKey.Combination.homeDefault.modifiers),
@@ -225,6 +309,15 @@ final class SettingsStore {
         terminalFontSize = defaults.double(forKey: Key.terminalFont)
         hideInFullScreen = defaults.bool(forKey: Key.hideFullScreen)
         hideInMeetings = defaults.bool(forKey: Key.hideMeetings)
+        egoWakeWord = defaults.bool(forKey: Key.egoWakeWord)
+        egoBareWakeWord = defaults.bool(forKey: Key.egoBareWake)
+        egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
+        egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
+        egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
+        egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
+        egoSpeechRate = defaults.double(forKey: Key.egoRate)
+        egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
         terminalHotKey = GlobalHotKey.Combination(
             keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),

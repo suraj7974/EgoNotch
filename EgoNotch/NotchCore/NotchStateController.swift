@@ -30,6 +30,13 @@ final class NotchStateController {
     private(set) var bannerText: String?
     private(set) var bannerSubtitle: String?
 
+    /// Where the panel was before Ego took it over, so it can be handed back.
+    @ObservationIgnored private var stateBeforeAssistant: NotchState?
+    /// Called when the user reclaims the panel mid-HUD. Injected, so nothing in
+    /// NotchCore has to know the assistant exists.
+    @ObservationIgnored var assistantWillYield: (() -> Void)?
+    @ObservationIgnored private var assistantWatchdog: Task<Void, Never>?
+
     @ObservationIgnored private var dwellTask: Task<Void, Never>?
     @ObservationIgnored private var collapseTask: Task<Void, Never>?
     @ObservationIgnored private var bannerTask: Task<Void, Never>?
@@ -92,6 +99,12 @@ final class NotchStateController {
             scheduleDwellIfNeeded()
             return
         }
+        // So does Ego. Its HUD is transient, and reaching for the notch must
+        // never be blocked by it — being unable to open the panel while the
+        // assistant is talking reads as the notch being stuck.
+        if state == .assistant {
+            yieldAssistant()
+        }
         guard state == .closed, let geometry else { return }
         // During a deferred shrink the tracking rect is still the old, larger
         // frame — accept the enter only if the pointer is really on the
@@ -120,14 +133,15 @@ final class NotchStateController {
             transition(to: .closed)
         case .expanded:
             scheduleCollapseIfPointerOutside()
-        case .closed, .peek:
-            break   // the peek retires on its own timer
+        case .closed, .peek, .assistant:
+            break   // the peek retires on its own timer; Ego is not pointer-driven
         }
     }
 
     /// Click on the notch chrome (any mode expands immediately).
     func clicked() {
         guard state != .expanded else { return }
+        if state == .assistant { yieldAssistant() }
         dismissBanner()
         expandedInteractively = true
         transition(to: .expanded)
@@ -154,6 +168,57 @@ final class NotchStateController {
     }
 
     func collapse() { transition(to: .closed) }
+
+    // MARK: - Assistant
+
+    /// Ego takes the panel. The previous state is remembered rather than
+    /// assumed closed — asking a question with the panel open should not
+    /// close it afterwards.
+    func beginAssistant() {
+        // Already up: refresh the watchdog rather than doing nothing, so a
+        // conversation that is still going never trips it.
+        guard state != .assistant else { armAssistantWatchdog(); return }
+        dwellTask?.cancel()
+        collapseTask?.cancel()
+        dismissBanner()
+        stateBeforeAssistant = state
+        transition(to: .assistant)
+        // The assistant retires its own HUD, so — unlike a peek — nothing here
+        // is on a timer. A watchdog guarantees a hung or crashed assistant can
+        // never strand the panel open.
+        armAssistantWatchdog()
+    }
+
+    private func armAssistantWatchdog() {
+        assistantWatchdog?.cancel()
+        assistantWatchdog = Task { [weak self] in
+            // Long, because a conversation legitimately stays open for as long
+            // as the user wants one. This only catches an assistant that has
+            // crashed or hung with the panel still down.
+            try? await Task.sleep(for: .seconds(900))
+            guard !Task.isCancelled, let self, self.state == .assistant else { return }
+            self.endAssistant()
+        }
+    }
+
+    /// The user took the panel back by hand. Ego is told so it can drop a held
+    /// confirmation — reaching for the mouse is not an answer to a question.
+    private func yieldAssistant() {
+        assistantWillYield?()
+        endAssistant()
+    }
+
+    /// Hand the panel back to whatever it was doing.
+    func endAssistant() {
+        assistantWatchdog?.cancel()
+        assistantWatchdog = nil
+        guard state == .assistant else { return }
+        let restore = stateBeforeAssistant ?? .closed
+        stateBeforeAssistant = nil
+        // Hover is not a resting state — if the pointer really is on the
+        // notch, the tracking area will say so again immediately.
+        transition(to: restore == .hover ? .closed : restore)
+    }
 
     /// Forced-closed policy on reconfiguration: rebuild from fresh geometry,
     /// no animation — this is what makes drift impossible.

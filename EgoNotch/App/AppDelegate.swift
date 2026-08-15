@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notchPanel: NotchPanelController?
     private let terminalHotKey = GlobalHotKey(identifier: 1)
     private let homeHotKey = GlobalHotKey(identifier: 2)
+    private let egoHotKey = GlobalHotKey(identifier: 3)
     private let settingsWindow = SettingsWindowController()
     private let onboarding = OnboardingWindowController()
 
@@ -71,12 +72,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                        name: .egoShowOnboarding, object: nil)
         nc.addObserver(self, selector: #selector(refreshHotKeys),
                        name: SettingsStore.hotKeysDidChange, object: nil)
+        nc.addObserver(self, selector: #selector(assistantSettingsChanged),
+                       name: SettingsStore.assistantDidChange, object: nil)
 
         terminalHotKey.action = { [weak self] in self?.toggleTab(.terminal) }
         homeHotKey.action = { [weak self] in self?.toggleTab(.home) }
+        egoHotKey.action = { EgoAssistant.shared.pushToTalk() }
         refreshHotKeys()
 
         onboarding.showIfNeeded()
+
+        // Debug: EGO_COMMAND="pause the music" drives Ego once at launch, and
+        // EGO_COMMANDS="a;;b;;c" drives a script — the assistant is testable
+        // end to end without ever speaking to the machine.
+        runEgoDebugScript()
 
         // Debug: EGO_DEBUG_EXPAND=1 auto-expands the panel (headless testing).
         if ProcessInfo.processInfo.environment["EGO_DEBUG_EXPAND"] == "1" {
@@ -107,6 +116,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func showOnboarding() { onboarding.show() }
 
+    /// Wake-word and stand-down rules changed — re-apply them live.
+    @objc private func assistantSettingsChanged() {
+        let assistant = EgoAssistant.shared
+        assistant.wakeNameChanged()
+        guard assistant.isActive else { return }
+        if SettingsStore.shared.egoWakeWord {
+            assistant.startListeningIfWanted()
+        } else {
+            assistant.stopListening()
+        }
+        refreshHotKeys()
+    }
+
+    /// Feeds typed commands through the real pipeline (grammar → action →
+    /// HUD → reply), which is the only way to regression-test Ego on a
+    /// machine where talking out loud isn't practical.
+    private func runEgoDebugScript() {
+        let environment = ProcessInfo.processInfo.environment
+        let script = environment["EGO_COMMANDS"]?.components(separatedBy: ";;")
+            ?? environment["EGO_COMMAND"].map { [$0] }
+        guard let script, !script.isEmpty else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(2))   // let the widgets settle
+            for command in script {
+                EgoAssistant.shared.handle(command)
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
     // MARK: - Global shortcut
 
     @objc private func refreshHotKeys() {
@@ -117,6 +156,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             terminalHotKey.unregister()
             HotKeyStatus.shared.terminalTaken = false
+        }
+
+        // Push-to-talk only registers while Ego is switched on — an assistant
+        // that is off should not be holding a system-wide key.
+        if EgoAssistant.shared.isActive {
+            HotKeyStatus.shared.egoTaken = !egoHotKey.register(.egoDefault)
+        } else {
+            egoHotKey.unregister()
+            HotKeyStatus.shared.egoTaken = false
         }
 
         if settings.homeHotKeyEnabled {

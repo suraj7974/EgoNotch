@@ -8,6 +8,10 @@ enum NotchState: Equatable {
     case peek
     case hover
     case expanded
+    /// Ego is listening or answering: a wide, short HUD strip. Distinct from
+    /// `.expanded` because it must appear over whatever you were doing and
+    /// then hand the panel back to its previous state.
+    case assistant
 }
 
 /// How the panel goes from closed to expanded.
