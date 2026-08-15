@@ -118,6 +118,14 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
+            SettingsRow(label: "Keep talking",
+                        hint: "After a reply, keep listening so the next command needs no wake word. Say “stop” to end it.",
+                        icon: "bubble.left.and.bubble.right") {
+                Toggle("", isOn: $settings.egoConversation)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsDivider()
             SettingsRow(label: "Let Ego use the terminal",
                         hint: "Every command is read back and waits for your yes. Dangerous ones are refused outright.",
                         icon: "terminal") {

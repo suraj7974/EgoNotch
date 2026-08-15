@@ -42,6 +42,16 @@ final class EgoAssistant {
     @ObservationIgnored let planner = EgoPlanner()
     @ObservationIgnored private var thinkTask: Task<Void, Never>?
     @ObservationIgnored private var thinkCount = 0
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+
+    /// True from the first wake until dismissed. While it holds, Ego keeps
+    /// the floor: no wake word is needed for the next command or answer.
+    private(set) var isConversing = false
+
+    /// How long Ego waits, hearing nothing, before letting the conversation
+    /// go. Long enough to think about your answer, short enough that a false
+    /// wake doesn't leave the microphone open all afternoon.
+    private static let conversationIdle: Double = 30
 
     /// Ways of saying "I didn't mean to summon you". Matched only as the WHOLE
     /// utterance: "stop" dismisses Ego, while "stop the music" is a command,
@@ -80,7 +90,7 @@ final class EgoAssistant {
         ears.onWake = { [weak self] in self?.beganCapturing() }
         ears.onIdle = { [weak self] in self?.captureEndedEmpty() }
         voice.onFinish = { [weak self] in
-            Task { @MainActor in self?.ears.resumeAfterSpeaking() }
+            Task { @MainActor in self?.finishedSpeaking() }
         }
         startListeningIfWanted()
         startLevelPump()
@@ -146,9 +156,8 @@ final class EgoAssistant {
         heard = ""
         reply = "Listening…"
         show()
-        // Without this the HUD stays open forever when no command follows —
-        // the listening state has no natural end of its own.
-        scheduleDismiss(after: 15)
+        openConversation()
+        if !isConversing { scheduleDismiss(after: 15) }
         Task { await ears.beginPushToTalk() }
     }
 
@@ -181,8 +190,17 @@ final class EgoAssistant {
 
         // A pending confirmation swallows the next utterance: "yes" means the
         // held action, never a fresh command.
-        if pending != nil, let decision = ConfirmWords.decide(command) {
-            decision ? confirmPending() : cancelPending()
+        if pending != nil {
+            if let decision = ConfirmWords.decide(command) {
+                decision ? confirmPending() : cancelPending()
+                return
+            }
+            // A question is outstanding, and the microphone is open to hear
+            // the answer — so everything else arriving now is the room talking,
+            // not an instruction. Keep waiting rather than running it.
+            EgoLog.trace("waiting for an answer, ignoring: \(command)")
+            heard = ""
+            Task { [weak self] in await self?.ears.beginFollowUp() }
             return
         }
 
@@ -205,6 +223,10 @@ final class EgoAssistant {
             EgoLog.trace("ignoring “\(command)” — nothing to answer yet")
             return
         }
+
+        // Any command opens the floor, typed or spoken, so the two paths
+        // behave identically. A no-op unless the setting is on.
+        openConversation()
 
         phase = .thinking
         if let result = CommandGrammar.match(command) {
@@ -250,12 +272,22 @@ final class EgoAssistant {
             detail = pending.detail
             armConfirmTimeout()
             say(pending.question)
+            if !SettingsStore.shared.egoSpeakReplies { finishedSpeaking() }
             return
         }
 
         phase = .speaking
         say(result.spoken)
-        scheduleDismiss(after: 2.6)
+        if isConversing {
+            // Stay up: the conversation closes when you say so, or when it
+            // has heard nothing for a while.
+            openConversation()
+            // With spoken replies off there is no "finished speaking" moment
+            // to reopen the ears from, so do it here instead.
+            if !SettingsStore.shared.egoSpeakReplies { finishedSpeaking() }
+        } else {
+            scheduleDismiss(after: 2.6)
+        }
     }
 
     /// Speaks a sample in the currently chosen voice, regardless of whether
@@ -264,6 +296,45 @@ final class EgoAssistant {
         voice.speak("Ego here. Volume thirty, terminal open.",
                     voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
                     rate: SettingsStore.shared.egoSpeechRate)
+    }
+
+    /// Ego has stopped talking. The microphone reopens — and if the
+    /// conversation is still open, so does the floor: the next thing said is
+    /// taken as a command or an answer, with no wake word in front of it.
+    ///
+    /// This is what makes a held confirmation answerable at all. Before it,
+    /// the ears went straight back to waiting for "hey ego", so "confirm" was
+    /// never heard and every question timed out unanswered.
+    private func finishedSpeaking() {
+        ears.resumeAfterSpeaking()
+        guard isActive, holdsFloor else { return }
+        Task { [weak self] in
+            // After the tap unmutes, or the follow-up captures the tail of
+            // Ego's own reply still in the analyser.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let self, self.holdsFloor, self.isActive else { return }
+            await self.ears.beginFollowUp()
+        }
+    }
+
+    /// A question Ego has asked must be answerable without saying its name
+    /// again — that is not a mode, it's the difference between a working
+    /// confirmation and one that always times out.
+    private var holdsFloor: Bool { pending != nil || isConversing }
+
+    /// Ego stays up until you dismiss it, rather than closing after every
+    /// reply. Opt-in: one "hey ego" starting a whole conversation is lovely
+    /// when you want it and an open microphone when you don't.
+    private func openConversation() {
+        guard SettingsStore.shared.egoConversation else { return }
+        isConversing = true
+        idleTask?.cancel()
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.conversationIdle))
+            guard !Task.isCancelled, let self, self.pending == nil else { return }
+            EgoLog.trace("conversation went quiet")
+            self.dismiss()
+        }
     }
 
     private func say(_ text: String) {
@@ -297,7 +368,7 @@ final class EgoAssistant {
     private func armConfirmTimeout() {
         confirmTask?.cancel()
         confirmTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(12))
+            try? await Task.sleep(for: .seconds(25))
             guard !Task.isCancelled, let self, self.pending != nil else { return }
             self.pending = nil
             self.deliver(ActionResult("Cancelled."))
@@ -308,6 +379,14 @@ final class EgoAssistant {
 
     private func show() {
         dismissTask?.cancel()
+        // With the panel already open you can see everything; replacing it
+        // with Ego's strip would take away what you were looking at. The
+        // waveform along the panel's top edge is enough, and the answer comes
+        // by voice.
+        guard NotchPanelController.current?.stateController.state != .expanded else {
+            EgoLog.trace("panel is open — showing the inline wave instead")
+            return
+        }
         EgoLog.trace("hud: open")
         NotchPanelController.current?.stateController.beginAssistant()
     }
@@ -319,7 +398,10 @@ final class EgoAssistant {
         phase = .listening
         reply = ""
         show()
-        scheduleDismiss(after: 15)
+        openConversation()
+        // Single-command mode has no natural end while nothing is said, so it
+        // keeps the old safety net.
+        if !isConversing { scheduleDismiss(after: 15) }
     }
 
     private func scheduleDismiss(after seconds: Double) {
@@ -341,6 +423,8 @@ final class EgoAssistant {
     func userReclaimedPanel() {
         dismissTask?.cancel(); dismissTask = nil
         confirmTask?.cancel(); confirmTask = nil
+        idleTask?.cancel(); idleTask = nil
+        isConversing = false
         pending = nil
         phase = .idle
         heard = ""
@@ -351,7 +435,14 @@ final class EgoAssistant {
     /// on the 15-second safety net — a half-heard "hey ego" shouldn't park a
     /// panel over the user's screen.
     private func captureEndedEmpty() {
-        guard phase == .listening, pending == nil else { return }
+        guard phase == .listening || pending != nil else { return }
+        // Inside an open conversation, silence is just silence: hold the floor
+        // and let the idle timer decide when it's over.
+        if holdsFloor, isActive {
+            Task { [weak self] in await self?.ears.beginFollowUp() }
+            return
+        }
+        guard pending == nil else { return }
         scheduleDismiss(after: 0.5)
     }
 
@@ -359,6 +450,8 @@ final class EgoAssistant {
     func dismiss() {
         dismissTask?.cancel()
         confirmTask?.cancel()
+        idleTask?.cancel(); idleTask = nil
+        isConversing = false
         pending = nil
         phase = .idle
         heard = ""

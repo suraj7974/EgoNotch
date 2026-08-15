@@ -50,7 +50,7 @@ final class EgoEars {
     @ObservationIgnored private var transcriptFloor = ""
 
     /// How long a pause means "they've finished talking".
-    private let silenceWindow: Double = 1.0
+    private let silenceWindow: Double = 1.3
     private let hardCap: Double = 12
 
     // MARK: - Lifecycle
@@ -143,6 +143,20 @@ final class EgoEars {
     /// "mic only while I'm actually talking to it" a usable mode.
     func beginPushToTalk() async {
         if case .off = status { await start() }
+        await captureWithoutWake(reason: "push-to-talk", grace: 6)
+    }
+
+    /// Take the next thing said with no wake phrase in front of it — the
+    /// answer to a question Ego just asked, or the next command in a
+    /// conversation that is already open. Without this, "confirm" is simply
+    /// never heard: the ears fall back to waiting for "hey ego" the moment a
+    /// reply ends, and the confirmation times out unanswered.
+    func beginFollowUp() async {
+        if case .off = status { await start() }
+        await captureWithoutWake(reason: "follow-up", grace: 9)
+    }
+
+    private func captureWithoutWake(reason: String, grace: Double) async {
         guard status == .listening || status == .capturing else { return }
         wakeCooldown = .distantPast
         lastCommandText = ""
@@ -150,8 +164,8 @@ final class EgoEars {
         capturingWithoutWake = true
         transcriptFloor = latestTranscript
         status = .capturing
-        EgoLog.trace("push-to-talk armed")
-        armEndpoint()
+        EgoLog.trace("\(reason): listening without a wake word")
+        armEndpoint(grace: grace)
     }
 
     // MARK: - Speaking without hearing yourself
@@ -246,19 +260,25 @@ final class EgoEars {
     }
 
     /// Restarted on every new word; whichever fires first wins.
-    private func armEndpoint() {
+    ///
+    /// `grace` is how long to wait for the user to START talking. Without it,
+    /// a capture armed into a silent room ends about a second later with
+    /// nothing — which is exactly what happens when Ego asks a question and
+    /// waits for an answer a person needs a moment to give.
+    /// End-of-speech is measured on the TRANSCRIPT, not the microphone level.
+    ///
+    /// `ingest` re-arms this on every new word, so a timer that simply expires
+    /// *is* the silence detector. The level meter was the obvious choice and
+    /// the wrong one: with music playing out of the speakers the level never
+    /// drops, so every command sat until the hard cap — twelve seconds to
+    /// answer "pause".
+    private func armEndpoint(grace: Double = 2.5) {
         endpoint?.cancel()
-        let deadline = Date().addingTimeInterval(hardCap)
+        // Nothing said yet means waiting for you to start; a command in
+        // progress means waiting for you to finish.
+        let wait = lastCommandText.isEmpty ? grace : silenceWindow
         endpoint = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(120))
-                guard let self, self.status == .capturing else { return }
-                if Date() > deadline { self.finishUtterance(); return }
-                // Silence is measured from the last *change* in the command.
-                if self.tap.level() < 0.06 { break }
-            }
-            guard !Task.isCancelled else { return }
-            try? await Task.sleep(for: .seconds(self?.silenceWindow ?? 1))
+            try? await Task.sleep(for: .seconds(wait))
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
             self.finishUtterance()
         }

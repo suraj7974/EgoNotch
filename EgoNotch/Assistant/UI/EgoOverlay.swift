@@ -11,7 +11,7 @@ struct EgoOverlay: View {
     var body: some View {
         VStack(spacing: 3) {
             EgoWaveform(level: assistant.level, mode: mode)
-                .frame(height: assistant.pending == nil ? 22 : 14)
+                .frame(width: 210, height: assistant.pending == nil ? 20 : 13)
             Text(caption)
                 .font(Ego.font(10.5, assistant.phase == .confirming ? .semibold : .regular))
                 .foregroundStyle(assistant.phase == .confirming ? Ego.text : Ego.textMute)
@@ -30,9 +30,11 @@ struct EgoOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
+    private var mode: EgoWaveform.Mode { Self.mode(for: assistant.phase) }
+
     /// What the waveform is doing right now.
-    private var mode: EgoWaveform.Mode {
-        switch assistant.phase {
+    static func mode(for phase: EgoAssistant.Phase) -> EgoWaveform.Mode {
+        switch phase {
         case .listening: .listening
         case .speaking, .thinking: .speaking
         case .confirming: .waiting
@@ -48,6 +50,22 @@ struct EgoOverlay: View {
         return "Listening…"
     }
 
+}
+
+/// Ego inside an already-open panel.
+///
+/// No takeover and no caption: with the panel open you can already see
+/// everything, and replacing it with a strip would take away what you were
+/// looking at. A small wave at the top edge is enough to show it is listening;
+/// the answer comes by voice.
+struct EgoInlineWave: View {
+    var assistant: EgoAssistant
+
+    var body: some View {
+        EgoWaveform(level: assistant.level, mode: EgoOverlay.mode(for: assistant.phase))
+            .frame(width: 190, height: 13)
+            .allowsHitTesting(false)
+    }
 }
 
 /// The wavy line. Driven by a clock rather than by animations started on
