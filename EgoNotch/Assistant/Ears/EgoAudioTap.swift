@@ -152,24 +152,39 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         lock.lock()
         meter = loudness
         let sink = continuation
-        appendToRing(converted)
-        if capture != nil, let channel = converted.floatChannelData?[0] {
-            capture?.append(contentsOf: UnsafeBufferPointer(start: channel,
-                                                            count: Int(converted.frameLength)))
-        }
+        let mono = Self.samples(from: converted)
+        appendToRing(mono)
+        if capture != nil { capture?.append(contentsOf: mono) }
         lock.unlock()
         sink?.yield(AnalyzerInput(buffer: converted))
     }
 
     /// Called with the lock held, from the audio thread.
-    private func appendToRing(_ buffer: AVAudioPCMBuffer) {
-        guard !ring.isEmpty, let channel = buffer.floatChannelData?[0] else { return }
-        let count = Int(buffer.frameLength)
-        for index in 0..<count {
-            ring[ringWrite] = channel[index]
+    private func appendToRing(_ samples: [Float]) {
+        guard !ring.isEmpty else { return }
+        for sample in samples {
+            ring[ringWrite] = sample
             ringWrite = (ringWrite + 1) % ring.count
         }
-        ringFilled = min(ringFilled + count, ring.count)
+        ringFilled = min(ringFilled + samples.count, ring.count)
+    }
+
+    /// The analyser asks for **Int16**, not Float32 — so `floatChannelData` on
+    /// a converted buffer is nil, and reading it silently produced nothing at
+    /// all. Everything downstream (the ring, enrolment, voice matching) was
+    /// quietly being fed zero samples.
+    private static func samples(from buffer: AVAudioPCMBuffer) -> [Float] {
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return [] }
+        if let channel = buffer.floatChannelData?[0] {
+            return Array(UnsafeBufferPointer(start: channel, count: count))
+        }
+        guard let channel = buffer.int16ChannelData?[0] else { return [] }
+        var out = [Float](repeating: 0, count: count)
+        vDSP_vflt16(channel, 1, &out, 1, vDSP_Length(count))
+        var scale = Float(1.0 / 32768.0)
+        vDSP_vsmul(out, 1, &scale, &out, 1, vDSP_Length(count))
+        return out
     }
 
     // MARK: - Enrolment capture

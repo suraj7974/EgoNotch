@@ -53,9 +53,13 @@ final class EgoEars {
     /// recognised as a repeat rather than obeyed twice.
     @ObservationIgnored private var lastDispatched = ""
     @ObservationIgnored private var lastDispatchedAt = Date.distantPast
+    @ObservationIgnored private var wokeAt = Date.distantPast
 
-    /// How long a pause means "they've finished talking".
-    private let silenceWindow: Double = 1.3
+    /// How long a pause means "they've finished talking". Every command waits
+    /// this long before anything happens, so it is the single biggest
+    /// contributor to Ego feeling slow — kept just long enough to survive the
+    /// gap between two words.
+    private let silenceWindow: Double = 0.85
     private let hardCap: Double = 12
 
     // MARK: - Lifecycle
@@ -236,7 +240,10 @@ final class EgoEars {
         // Everything heard so far is history now, so the next capture doesn't
         // sweep it up.
         transcriptFloor = latestTranscript
-        wakeCooldown = Date().addingTimeInterval(1)
+        // Short: this only exists to stop the tail of the last utterance
+        // re-triggering, and a full second of deafness right after "dismiss"
+        // reads as Ego being slow to come back.
+        wakeCooldown = Date().addingTimeInterval(0.4)
         status = .listening
         EgoLog.trace("done — back to waiting for the wake word")
     }
@@ -315,6 +322,7 @@ final class EgoEars {
 
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
+            wokeAt = Date()
             lastCommandText = command
             partial = command
             EgoLog.trace("wake heard, command so far: \(command)")
@@ -422,7 +430,8 @@ final class EgoEars {
         }
         lastDispatched = command
         lastDispatchedAt = Date()
-        EgoLog.trace("utterance: \(command)")
+        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking)",
+                            command, Date().timeIntervalSince(wokeAt) * 1000))
         onCommand?(command)
     }
 

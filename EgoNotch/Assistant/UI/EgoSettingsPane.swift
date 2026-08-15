@@ -162,6 +162,7 @@ struct EgoSettingsPane: View {
                         SettingsActionButton(title: "Done") { assistant.finishVoiceEnrolment() }
                         SettingsActionButton(title: "Cancel") { assistant.cancelVoiceEnrolment() }
                     } else if voice.isEnrolled {
+                        SettingsBadge(text: "Taught", tint: Ego.text)
                         SettingsActionButton(title: "Teach again") {
                             authorised("teach Ego a new voice") { assistant.beginVoiceEnrolment() }
                         }
@@ -169,6 +170,7 @@ struct EgoSettingsPane: View {
                             authorised("forget the voice Ego answers to") { voice.forget() }
                         }
                     } else {
+                        SettingsBadge(text: "Not taught", tint: Ego.textMute)
                         SettingsActionButton(title: "Teach it your voice", prominent: true) {
                             authorised("teach Ego your voice") { assistant.beginVoiceEnrolment() }
                         }
