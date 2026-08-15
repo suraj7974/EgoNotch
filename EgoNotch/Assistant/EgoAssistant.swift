@@ -131,14 +131,10 @@ final class EgoAssistant {
         Task { await ears.beginVoiceEnrolment() }
     }
 
-    /// Enough read already — build the profile from what there is. Ego says
-    /// whether it worked, because a silent success and a silent failure look
+    /// Said out loud, because a silent success and a silent failure look
     /// exactly the same from the outside.
-    @discardableResult
-    func finishVoiceEnrolment() -> Bool {
-        let worked = ears.finishVoiceEnrolment()
-        say(worked ? "I know your voice now." : "I didn't hear enough. Try again.")
-        return worked
+    func voiceEnrolmentFinished() {
+        say("I know your voice now.")
     }
 
     func cancelVoiceEnrolment() { ears.cancelVoiceEnrolment() }

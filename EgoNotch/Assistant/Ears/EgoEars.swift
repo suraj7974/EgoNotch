@@ -38,7 +38,6 @@ final class EgoEars {
     @ObservationIgnored private let tap = EgoAudioTap()
     @ObservationIgnored private let transcriber = EgoTranscriber()
     @ObservationIgnored private var meterPump: Task<Void, Never>?
-    @ObservationIgnored private var enrolPump: Task<Void, Never>?
     @ObservationIgnored private var endpoint: Task<Void, Never>?
     @ObservationIgnored private var lastCommandText = ""
     @ObservationIgnored private var acceptedGeneration: UInt64 = 0
@@ -194,42 +193,12 @@ final class EgoEars {
     /// way; the silences are dropped later, when the frames are measured.
     func beginVoiceEnrolment() async {
         if case .off = status { await start() }
-        tap.beginCapture()
-        enrolPump?.cancel()
-        EgoLog.trace("enrolment: recording, status \(status)")
-        enrolPump = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(200))
-                guard let self, VoicePrintStore.shared.isEnrolling else { return }
-                let seconds = self.tap.capturedSeconds
-                VoicePrintStore.shared.noteProgress(seconds)
-                if seconds >= VoicePrintStore.secondsWanted {
-                    self.finishVoiceEnrolment()
-                    return
-                }
-            }
-        }
-    }
-
-    /// Stops recording and builds the profile. Also the "Done" button, for a
-    /// slow reader who has already said plenty.
-    @discardableResult
-    func finishVoiceEnrolment() -> Bool {
-        enrolPump?.cancel()
-        enrolPump = nil
-        guard let recording = tap.endCapture() else {
-            VoicePrintStore.shared.cancelEnrolment()
-            return false
-        }
-        return VoicePrintStore.shared.finishEnrolment(samples: recording.samples,
-                                                      sampleRate: recording.sampleRate)
+        await captureWithoutWake(reason: "enrolment", grace: 12)
     }
 
     func cancelVoiceEnrolment() {
-        enrolPump?.cancel()
-        enrolPump = nil
-        _ = tap.endCapture()
         VoicePrintStore.shared.cancelEnrolment()
+        endCapture()
     }
 
     /// Stop taking commands and go back to waiting for the wake word.
@@ -315,6 +284,18 @@ final class EgoEars {
             // rather than waiting for the recogniser to spell the name right.
             if VoicePrintStore.shared.isEnrolling { return }
 
+            // The gate, on the wake phrase itself — the one thing said the
+            // same way every time, which is what makes comparing it possible
+            // at all. "Dismiss" is never gated: being unable to call Ego off
+            // is worse than a stranger being able to shut it up.
+            if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled,
+               let heard = tap.recentAudio(seconds: VoicePrintStore.verifyWindow),
+               !VoicePrintStore.shared.accepts(samples: heard.samples,
+                                               sampleRate: heard.sampleRate) {
+                wakeCooldown = Date().addingTimeInterval(1.0)
+                return
+            }
+
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
             wokeAt = Date()
@@ -358,6 +339,14 @@ final class EgoEars {
             if command != lastCommandText {
                 lastCommandText = command
                 partial = command
+                // A command with nothing that could follow it doesn't need the
+                // silence check at all — waiting would only add delay to the
+                // commands used most.
+                if !VoicePrintStore.shared.isEnrolling, CommandGrammar.isComplete(command) {
+                    EgoLog.trace("complete command — acting immediately")
+                    finishUtterance()
+                    return
+                }
                 armEndpoint()          // still talking — restart the silence clock
             }
             if update.isFinal, !command.isEmpty {
@@ -409,6 +398,27 @@ final class EgoEars {
     private func finishUtterance() {
         endpoint?.cancel(); endpoint = nil
         capTask?.cancel(); capTask = nil
+
+        // Teaching: the utterance that just ended is one repetition of the
+        // phrase. Taken here rather than from the wake matcher, because this
+        // is the path that reliably fires — the transcript can say anything.
+        if VoicePrintStore.shared.isEnrolling {
+            capturingWithoutWake = false
+            let audio = tap.recentAudio(seconds: VoicePrintStore.verifyWindow)
+            let done = audio.map {
+                VoicePrintStore.shared.addSample(samples: $0.samples, sampleRate: $0.sampleRate)
+            } ?? false
+            partial = ""
+            lastCommandText = ""
+            status = .listening
+            if done {
+                EgoAssistant.shared.voiceEnrolmentFinished()
+            } else {
+                // Straight back to listening for the next repetition.
+                Task { [weak self] in await self?.beginVoiceEnrolment() }
+            }
+            return
+        }
         capturingWithoutWake = false
         var command = lastCommandText.trimmingCharacters(in: .whitespaces)
         // A stray wake phrase can still be sitting in front of the command
@@ -441,19 +451,6 @@ final class EgoEars {
         // The gate, judged on everything just said rather than on the wake
         // word alone. A second of "hey zoro" is too small a sample to tell two
         // people apart; wake word plus command is three times the evidence.
-        // "Dismiss" is never gated. Being unable to call Ego off — as happened
-        // here, where the gate turned away the word "dismiss" — is a worse
-        // failure than a stranger being able to shut it up.
-        if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled,
-           !EgoAssistant.isDismissal(command),
-           let heard = tap.recentAudio(seconds: VoicePrintStore.verifyWindow),
-           !VoicePrintStore.shared.accepts(samples: heard.samples,
-                                           sampleRate: heard.sampleRate) {
-            EgoLog.trace("ignored — not your voice: \(command)")
-            onIdle?()
-            return
-        }
-
         EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking)",
                             command, Date().timeIntervalSince(wokeAt) * 1000))
         onCommand?(command)

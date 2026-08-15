@@ -98,6 +98,30 @@ enum CommandGrammar {
                             + "|can|could|do|does|did|should|shall|will|would|tell me)\\b")
     }
 
+    /// A command that is unmistakably finished, so Ego can act on it the
+    /// instant it is heard rather than waiting to see whether more is coming.
+    ///
+    /// That wait — long enough to be sure you had stopped talking — was most
+    /// of what made Ego feel slow. These phrasings have nothing that can
+    /// sensibly follow them, so there is nothing to wait for.
+    static func isComplete(_ raw: String) -> Bool {
+        let text = normalise(raw)
+        if finished.contains(text) { return true }
+        // "volume 40", "brightness 60" — a number ends the sentence.
+        return text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$")
+    }
+
+    private static let finished: Set<String> = [
+        "pause", "play", "resume", "stop the music", "stop music", "next", "next song",
+        "next track", "skip", "skip this", "previous", "previous song", "previous track",
+        "back a track", "mute", "unmute", "louder", "quieter", "turn it up", "turn it down",
+        "volume up", "volume down", "brighter", "dimmer", "whats playing", "what is playing",
+        "whats the volume", "close the notch", "close notch", "open the notch",
+        "hows my battery", "whats next", "take a photo", "take a selfie", "boomerang",
+        "start the stopwatch", "start a pomodoro", "take a break", "read my notes",
+        "whats on my list", "gaana roko", "gaana chalu karo",
+    ]
+
     /// Does this read like an order, without carrying it out? The wake matcher
     /// asks: when the recogniser mangles the name past recognition ("Hey, Pen,
     /// next song"), a greeting followed by an unmistakable command is still
