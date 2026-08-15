@@ -45,6 +45,7 @@ final class SettingsStore {
         static let egoSpeak       = "ego.speakReplies"     // Bool, default true
         static let egoVoice       = "ego.voice"            // AVSpeechSynthesisVoice id
         static let egoWakeName    = "ego.wakeName"         // the name in the wake phrase
+        static let egoExtraNames  = "ego.extraNames"       // [String], added from Settings
         static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
         static let egoConverse    = "ego.conversation"     // Bool, default true
         static let egoRate        = "ego.speechRate"       // 0.3…0.7, default 0.52
@@ -162,6 +163,20 @@ final class SettingsStore {
 
     /// The name Ego answers to. A setting because the speech recogniser, not
     /// taste, decides which words survive: a name it already knows is heard
+    /// Extra words Ego also answers to, added from Settings without a build.
+    /// The list exists because no variant table I write will ever cover how
+    /// *your* voice comes out of the recogniser — when you see it mishear the
+    /// name the same way twice, you add that spelling and it just works.
+    var egoExtraNames: [String] {
+        didSet {
+            defaults.set(egoExtraNames, forKey: Key.egoExtraNames)
+            NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
+        }
+    }
+
+    /// Everything Ego answers to: the chosen name first, then the extras.
+    var allWakeNames: [String] { [egoWakeName] + egoExtraNames }
+
     /// every time, and a rare one is misheard half the time.
     var egoWakeName: String {
         didSet {
@@ -244,6 +259,7 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
@@ -314,6 +330,7 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)

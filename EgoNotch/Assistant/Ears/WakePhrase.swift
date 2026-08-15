@@ -20,9 +20,21 @@ nonisolated enum WakePhrase {
     /// known to write it. Set from Settings; read on the audio path, so it is
     /// a plain stored value rather than a lookup.
     nonisolated(unsafe) private static var names = variants(for: "ego")
+    /// The names exactly as chosen, for bare-name mode — the generated
+    /// variants are far too loose to fire without a greeting in front.
+    nonisolated(unsafe) private static var chosen: Set<String> = ["ego"]
 
-    static func setName(_ name: String) {
-        names = variants(for: name)
+    /// Every word Ego answers to: the one picked in Settings plus any the user
+    /// has added themselves. All of them are live at once, so when the
+    /// recogniser keeps writing your name a particular way you add that
+    /// spelling and it works — no build, no new variant table from me.
+    static func setNames(_ requested: [String]) {
+        let cleaned = requested
+            .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let primary = cleaned.isEmpty ? ["ego"] : cleaned
+        chosen = Set(primary)
+        names = primary.flatMap { variants(for: $0) }
     }
 
     /// The observed misrecognitions, per name. Everything here was seen coming
@@ -54,10 +66,26 @@ nonisolated enum WakePhrase {
                     "aygo", "ago", "eagle", "igloo", "yugo", "ika", "hego",
                     "ele", "elo", "you", "ergo", "igor"]
         default:
-            // A name nobody planned for: the word itself, and the fuzzy
-            // matcher below still allows a one-character slip.
-            return [name.lowercased()]
+            return generated(for: name.lowercased())
         }
+    }
+
+    /// A name nobody wrote a table for. The recogniser's mistakes are not
+    /// random — it swaps letters that sound alike and adds or drops a trailing
+    /// one — so these cover the common slips, and `close` below still allows a
+    /// character of drift on top.
+    private static func generated(for name: String) -> [String] {
+        var out: Set<String> = [name, name + "s", name + "e"]
+        if name.count > 3 { out.insert(String(name.dropLast())) }
+
+        // Letters the recogniser trades for one another.
+        let swaps = [("c", "k"), ("k", "c"), ("s", "z"), ("z", "s"), ("ph", "f"),
+                     ("f", "ph"), ("qu", "kw"), ("kw", "qu"), ("i", "y"), ("y", "i"),
+                     ("ee", "i"), ("oo", "u")]
+        for (from, to) in swaps where name.contains(from) {
+            out.insert(name.replacingOccurrences(of: from, with: to))
+        }
+        return Array(out)
     }
 
     /// Whether a bare "ego" (no greeting) counts. Off by default: "ego" is an
@@ -125,7 +153,7 @@ nonisolated enum WakePhrase {
     /// "you go" and "eagle" turn ordinary conversation into a wake. Bare-name
     /// mode accepts only the name itself, which is always the first variant.
     private static func isStrictName(_ word: String) -> Bool {
-        word == names.first
+        chosen.contains(word)
     }
 
     /// Exact, deliberately: greetings are everyday words the recogniser never
@@ -142,11 +170,16 @@ nonisolated enum WakePhrase {
             .split(separator: " ").joined(separator: " ")
     }
 
-    /// Exact, or one edit away — "eho", "ega", "heyy" all still count.
+    /// Exact, or a slip away — "eho", "ega", "heyy" all still count.
+    ///
+    /// Long names get two characters of tolerance rather than one: there is
+    /// more of them to get wrong, and less chance that a two-edit neighbour is
+    /// a real English word someone might say.
     private static func close(_ candidate: String, _ word: String) -> Bool {
         if candidate == word { return true }
-        guard abs(candidate.count - word.count) <= 1 else { return false }
-        return editDistance(candidate, word) <= 1
+        let allowed = candidate.count >= 6 ? 2 : 1
+        guard abs(candidate.count - word.count) <= allowed else { return false }
+        return editDistance(candidate, word) <= allowed
     }
 
     private static func editDistance(_ lhs: String, _ rhs: String) -> Int {

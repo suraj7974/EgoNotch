@@ -12,6 +12,7 @@ struct EgoSettingsPane: View {
     @State private var speechAuthorised = SFSpeechRecognizer.authorizationStatus() == .authorized
     @State private var requesting = false
     @State private var typed = ""
+    @State private var newName = ""
 
     var body: some View {
         SettingsPane(title: "Ego",
@@ -93,6 +94,28 @@ struct EgoSettingsPane: View {
                 }
                 .labelsHidden()
                 .frame(width: 140)
+            }
+            SettingsDivider()
+            SettingsRow(label: "Also answers to",
+                        hint: "Add any word you like — “quant”, “iris”. Useful when you notice the recogniser writing your name a particular way: add that spelling and it starts working.",
+                        icon: "plus.bubble") {
+                HStack(spacing: 8) {
+                    EgoTextField(placeholder: "another name",
+                                 text: $newName,
+                                 onSubmit: addName,
+                                 placeholderColor: Ego.textMute)
+                        .frame(width: 150)
+                    SettingsActionButton(title: "Add") { addName() }
+                }
+            }
+            if !settings.egoExtraNames.isEmpty {
+                SettingsRow(label: "", hint: nil) {
+                    HStack(spacing: 6) {
+                        ForEach(settings.egoExtraNames, id: \.self) { name in
+                            nameChip(name)
+                        }
+                    }
+                }
             }
             SettingsDivider()
             SettingsRow(label: "Wake word",
@@ -210,6 +233,38 @@ struct EgoSettingsPane: View {
                 }
             }
         }
+    }
+
+    /// One extra trigger word. Kept lowercase and single-word: the matcher
+    /// works word by word, so a phrase here would simply never fire.
+    private func addName() {
+        let cleaned = newName.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ").first.map(String.init) ?? ""
+        newName = ""
+        guard cleaned.count >= 2,
+              !settings.egoExtraNames.contains(cleaned),
+              cleaned != settings.egoWakeName else { return }
+        settings.egoExtraNames.append(cleaned)
+    }
+
+    private func nameChip(_ name: String) -> some View {
+        HStack(spacing: 4) {
+            Text(name)
+                .font(Ego.font(10.5, .medium))
+                .foregroundStyle(Ego.text)
+            Button {
+                settings.egoExtraNames.removeAll { $0 == name }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(Ego.textMute)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .overlay(Capsule().stroke(Ego.border, lineWidth: 1))
     }
 
     private func testVoice() {

@@ -37,11 +37,15 @@ actor EgoTranscriber {
     /// commands themselves — "boomerang" and "pomodoro" are misheard for the
     /// same reason a rare name is. The name is injected at `start`, since the
     /// user can change it.
-    private static func vocabulary(name: String) -> [String] {
-        let capitalised = name.prefix(1).uppercased() + name.dropFirst()
-        return ["\(capitalised)", "Hey \(capitalised)", "hey \(capitalised)",
-                "\(capitalised) pause", "\(capitalised) play",
-                "notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"]
+    private static func vocabulary(names: [String]) -> [String] {
+        // Every name is weighted up, not just the primary one: a name the
+        // recogniser has never been told about is the whole reason the wake
+        // phrase gets misheard in the first place.
+        let spelled = names.flatMap { name -> [String] in
+            let capitalised = name.prefix(1).uppercased() + name.dropFirst()
+            return ["\(capitalised)", "Hey \(capitalised)", "hey \(capitalised)"]
+        }
+        return spelled + ["notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"]
     }
 
     init(locale: Locale = Locale(identifier: "en-US")) {
@@ -78,7 +82,7 @@ actor EgoTranscriber {
     }
 
     func start(audio: AsyncStream<AnalyzerInput>,
-               wakeName: String,
+               wakeNames: [String],
                generation: @escaping @Sendable () -> UInt64,
                onUpdate: @escaping @Sendable (Update) -> Void) async throws {
         await stop()
@@ -94,7 +98,7 @@ actor EgoTranscriber {
         // name is rare enough that the language model always prefers a common
         // word, and the wake phrase then never matches.
         let context = AnalysisContext()
-        context.contextualStrings[.general] = Self.vocabulary(name: wakeName)
+        context.contextualStrings[.general] = Self.vocabulary(names: wakeNames)
 
         let analyzer = SpeechAnalyzer(modules: [module])
         try? await analyzer.setContext(context)
