@@ -29,17 +29,17 @@ install: build          ## put it in /Applications and run it from there
 	killall Dock
 	open /Applications/$(APP).app
 
-icons:                  ## regenerate the icon set from new-icon.png
-	sips -Z 16   new-icon.png --out $(ICONSET)/icon_16.png
-	sips -Z 32   new-icon.png --out $(ICONSET)/icon_16@2x.png
-	sips -Z 32   new-icon.png --out $(ICONSET)/icon_32.png
-	sips -Z 64   new-icon.png --out $(ICONSET)/icon_32@2x.png
-	sips -Z 128  new-icon.png --out $(ICONSET)/icon_128.png
-	sips -Z 256  new-icon.png --out $(ICONSET)/icon_128@2x.png
-	sips -Z 256  new-icon.png --out $(ICONSET)/icon_256.png
-	sips -Z 512  new-icon.png --out $(ICONSET)/icon_256@2x.png
-	sips -Z 512  new-icon.png --out $(ICONSET)/icon_512.png
-	sips -Z 1024 new-icon.png --out $(ICONSET)/icon_512@2x.png
+icons:                  ## regenerate the icon set from Design/app-icon.png (the master artwork)
+	sips -Z 16   Design/app-icon.png --out $(ICONSET)/icon_16.png
+	sips -Z 32   Design/app-icon.png --out $(ICONSET)/icon_16@2x.png
+	sips -Z 32   Design/app-icon.png --out $(ICONSET)/icon_32.png
+	sips -Z 64   Design/app-icon.png --out $(ICONSET)/icon_32@2x.png
+	sips -Z 128  Design/app-icon.png --out $(ICONSET)/icon_128.png
+	sips -Z 256  Design/app-icon.png --out $(ICONSET)/icon_128@2x.png
+	sips -Z 256  Design/app-icon.png --out $(ICONSET)/icon_256.png
+	sips -Z 512  Design/app-icon.png --out $(ICONSET)/icon_256@2x.png
+	sips -Z 512  Design/app-icon.png --out $(ICONSET)/icon_512.png
+	sips -Z 1024 Design/app-icon.png --out $(ICONSET)/icon_512@2x.png
 
 stop:
 	-pkill -x $(APP)

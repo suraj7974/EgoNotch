@@ -10,6 +10,21 @@ struct ShortcutsPane: View {
         SettingsPane(title: "Shortcuts",
                      subtitle: "Keys that reach the notch from anywhere, and keys that work inside it.") {
             SettingsCard(title: "System-wide") {
+                SettingsRow(label: "Open the Home tab",
+                            hint: HotKeyStatus.shared.homeTaken
+                                ? "Another app already owns that combination — pick a different one."
+                                : "Works from any app. Press it again to put the notch away.",
+                            icon: "house") {
+                    HStack(spacing: 8) {
+                        if settings.homeHotKeyEnabled {
+                            HotKeyRecorder(combination: $settings.homeHotKey)
+                        }
+                        Toggle("", isOn: $settings.homeHotKeyEnabled)
+                            .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                            .labelsHidden()
+                    }
+                }
+                SettingsDivider()
                 SettingsRow(label: "Open the Terminal tab",
                             hint: HotKeyStatus.shared.terminalTaken
                                 ? "Another app already owns that combination — pick a different one."

@@ -8,6 +8,9 @@ final class MediaRemoteAdapterProvider: MediaProvider {
     private let model: NowPlayingModel
     /// Reports provider health; MediaController switches to the fallback on false.
     private let onHealthChange: (Bool) -> Void
+    /// MediaRemote knows an app is playing but has no track info for it —
+    /// the cold-start case, where only the player's own API can tell us.
+    var onSessionWithoutTrack: (() -> Void)?
 
     private var process: Process?
     private var readTask: Task<Void, Never>?
@@ -202,10 +205,12 @@ final class MediaRemoteAdapterProvider: MediaProvider {
                 model.isPlaying = playing
                 anchorTracksLivePlayback = false
             }
+            if playing, model.track == nil { onSessionWithoutTrack?() }
 
         case "app":
             let app = msg["app"] as? String ?? ""
             model.appName = app.isEmpty ? nil : app
+            if !app.isEmpty, model.track == nil { onSessionWithoutTrack?() }
 
         case "error":
             NSLog("EgoNotch: media adapter error: \(msg["message"] as? String ?? "?")")

@@ -8,6 +8,7 @@ import Observation
 final class HotKeyStatus {
     static let shared = HotKeyStatus()
     var terminalTaken = false
+    var homeTaken = false
 }
 
 /// A system-wide keyboard shortcut, via Carbon's `RegisterEventHotKey`.
@@ -26,6 +27,11 @@ final class GlobalHotKey {
         /// app's own menu shortcut.
         static let terminalDefault = Combination(
             keyCode: UInt32(kVK_ANSI_T),
+            modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue)
+
+        /// ⌘⌥H — the Home tab.
+        static let homeDefault = Combination(
+            keyCode: UInt32(kVK_ANSI_H),
             modifiers: NSEvent.ModifierFlags([.command, .option]).rawValue)
 
         /// A shortcut without modifiers would swallow that key system-wide.
@@ -119,21 +125,32 @@ final class GlobalHotKey {
         }
     }
 
+    /// ONE handler for the whole app, dispatching by hot key id.
+    ///
+    /// Per-instance handlers looked fine and broke everything: Carbon calls
+    /// them newest-first, and a handler returning `noErr` means "handled", so
+    /// the second shortcut registered silently swallowed the first one's key
+    /// presses.
+    nonisolated(unsafe) private static var actions: [UInt32: () -> Void] = [:]
+    nonisolated(unsafe) private static var sharedHandler: EventHandlerRef?
+
     private func installHandlerIfNeeded() {
-        guard handler == nil else { return }
+        Self.actions[identifier] = { [weak self] in self?.action?() }
+        guard Self.sharedHandler == nil else { return }
+
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                  eventKind: UInt32(kEventHotKeyPressed))
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        InstallEventHandler(GetEventDispatcherTarget(), { _, event, context in
-            guard let context, let event else { return noErr }
+        InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
+            guard let event else { return OSStatus(eventNotHandledErr) }
             var firedID = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject),
                               EventParamType(typeEventHotKeyID), nil,
                               MemoryLayout<EventHotKeyID>.size, nil, &firedID)
-            let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(context).takeUnretainedValue()
-            guard firedID.id == hotKey.identifier else { return noErr }
-            DispatchQueue.main.async { hotKey.action?() }
+            guard let action = GlobalHotKey.actions[firedID.id] else {
+                return OSStatus(eventNotHandledErr)     // let others have it
+            }
+            DispatchQueue.main.async { action() }
             return noErr
-        }, 1, &spec, context, &handler)
+        }, 1, &spec, nil, &Self.sharedHandler)
     }
 }

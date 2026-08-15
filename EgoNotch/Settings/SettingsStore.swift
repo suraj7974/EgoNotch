@@ -35,6 +35,9 @@ final class SettingsStore {
         static let termHotKeyOn   = "hotkey.terminal.enabled"  // Bool, default true
         static let termHotKeyCode = "hotkey.terminal.keyCode"
         static let termHotKeyMods = "hotkey.terminal.modifiers"
+        static let homeHotKeyOn   = "hotkey.home.enabled"      // Bool, default true
+        static let homeHotKeyCode = "hotkey.home.keyCode"
+        static let homeHotKeyMods = "hotkey.home.modifiers"
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
     }
 
@@ -101,6 +104,20 @@ final class SettingsStore {
         }
     }
 
+    var homeHotKeyEnabled: Bool {
+        didSet {
+            defaults.set(homeHotKeyEnabled, forKey: Key.homeHotKeyOn)
+            NotificationCenter.default.post(name: Self.hotKeysDidChange, object: nil)
+        }
+    }
+    var homeHotKey: GlobalHotKey.Combination {
+        didSet {
+            defaults.set(Int(homeHotKey.keyCode), forKey: Key.homeHotKeyCode)
+            defaults.set(Int(homeHotKey.modifiers), forKey: Key.homeHotKeyMods)
+            NotificationCenter.default.post(name: Self.hotKeysDidChange, object: nil)
+        }
+    }
+
     /// Disappear while you're on a call or sharing your screen.
     var hideInMeetings: Bool {
         didSet {
@@ -134,7 +151,8 @@ final class SettingsStore {
                     Key.virtualNotchW, Key.virtualNotchH, Key.panelWidth,
                     Key.panelHeight, Key.focusMinutes, Key.breakMinutes,
                     Key.deepMinutes, Key.terminalFont, Key.hideFullScreen, Key.hideMeetings,
-                    Key.termHotKeyOn, Key.termHotKeyCode, Key.termHotKeyMods]
+                    Key.termHotKeyOn, Key.termHotKeyCode, Key.termHotKeyMods,
+                    Key.homeHotKeyOn, Key.homeHotKeyCode, Key.homeHotKeyMods]
             + WidgetRegistry.all.map { Key.widgetEnabled($0.id) }
         for key in keys { defaults.removeObject(forKey: key) }
 
@@ -156,6 +174,10 @@ final class SettingsStore {
         terminalHotKey = GlobalHotKey.Combination(
             keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),
             modifiers: UInt(defaults.integer(forKey: Key.termHotKeyMods)))
+        homeHotKeyEnabled = defaults.bool(forKey: Key.homeHotKeyOn)
+        homeHotKey = GlobalHotKey.Combination(
+            keyCode: UInt32(defaults.integer(forKey: Key.homeHotKeyCode)),
+            modifiers: UInt(defaults.integer(forKey: Key.homeHotKeyMods)))
 
         WidgetRegistry.syncActivation()
         NotificationCenter.default.post(name: Self.geometryDidChange, object: nil)
@@ -186,6 +208,9 @@ final class SettingsStore {
             Key.termHotKeyOn: true,
             Key.termHotKeyCode: Int(GlobalHotKey.Combination.terminalDefault.keyCode),
             Key.termHotKeyMods: Int(GlobalHotKey.Combination.terminalDefault.modifiers),
+            Key.homeHotKeyOn: true,
+            Key.homeHotKeyCode: Int(GlobalHotKey.Combination.homeDefault.keyCode),
+            Key.homeHotKeyMods: Int(GlobalHotKey.Combination.homeDefault.modifiers),
         ])
         expandOnHover = defaults.bool(forKey: Key.expandOnHover)
         hoverDwell = defaults.double(forKey: Key.hoverDwell)
@@ -204,5 +229,9 @@ final class SettingsStore {
         terminalHotKey = GlobalHotKey.Combination(
             keyCode: UInt32(defaults.integer(forKey: Key.termHotKeyCode)),
             modifiers: UInt(defaults.integer(forKey: Key.termHotKeyMods)))
+        homeHotKeyEnabled = defaults.bool(forKey: Key.homeHotKeyOn)
+        homeHotKey = GlobalHotKey.Combination(
+            keyCode: UInt32(defaults.integer(forKey: Key.homeHotKeyCode)),
+            modifiers: UInt(defaults.integer(forKey: Key.homeHotKeyMods)))
     }
 }

@@ -46,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: StatusItemController?
     private var notchPanel: NotchPanelController?
-    private let terminalHotKey = GlobalHotKey()
+    private let terminalHotKey = GlobalHotKey(identifier: 1)
+    private let homeHotKey = GlobalHotKey(identifier: 2)
     private let settingsWindow = SettingsWindowController()
     private let onboarding = OnboardingWindowController()
 
@@ -71,7 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nc.addObserver(self, selector: #selector(refreshHotKeys),
                        name: SettingsStore.hotKeysDidChange, object: nil)
 
-        terminalHotKey.action = { [weak self] in self?.toggleTerminalTab() }
+        terminalHotKey.action = { [weak self] in self?.toggleTab(.terminal) }
+        homeHotKey.action = { [weak self] in self?.toggleTab(.home) }
         refreshHotKeys()
 
         onboarding.showIfNeeded()
@@ -109,23 +111,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refreshHotKeys() {
         let settings = SettingsStore.shared
-        guard settings.terminalHotKeyEnabled else {
+        // Independent: turning one off must never skip registering the other.
+        if settings.terminalHotKeyEnabled {
+            HotKeyStatus.shared.terminalTaken = !terminalHotKey.register(settings.terminalHotKey)
+        } else {
             terminalHotKey.unregister()
             HotKeyStatus.shared.terminalTaken = false
-            return
         }
-        HotKeyStatus.shared.terminalTaken = !terminalHotKey.register(settings.terminalHotKey)
+
+        if settings.homeHotKeyEnabled {
+            HotKeyStatus.shared.homeTaken = !homeHotKey.register(settings.homeHotKey)
+        } else {
+            homeHotKey.unregister()
+            HotKeyStatus.shared.homeTaken = false
+        }
     }
 
-    /// Press once to land in the terminal; press again to put it away.
-    private func toggleTerminalTab() {
+    /// Press once to land on that tab; press again to put the notch away.
+    private func toggleTab(_ tab: NotchTab) {
         guard let notchPanel else { return }
         let ui = PanelUIState.shared
-        if notchPanel.stateController.state == .expanded, ui.selectedTab == .terminal {
+        if notchPanel.stateController.state == .expanded, ui.selectedTab == tab {
             notchPanel.stateController.collapse()
             return
         }
-        ui.selectedTab = .terminal
+        ui.selectedTab = tab
         notchPanel.expand()
     }
 }

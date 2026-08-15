@@ -18,6 +18,8 @@ final class MediaController {
         let a = MediaRemoteAdapterProvider(model: model) { [weak self] healthy in
             if !healthy { self?.switchToFallback() }
         }
+        // "Something is playing but I don't know what" → ask the player.
+        a.onSessionWithoutTrack = { [weak self] in self?.primeIfNeeded() }
         adapter = a
         active = a
         model.mode = .mediaRemote
@@ -31,9 +33,16 @@ final class MediaController {
     }
 
     /// Ask the running player directly when we have no session yet — called
-    /// at launch and whenever the panel opens. No polling: one AppleScript
-    /// round-trip, and only while nothing is known to be playing.
-    func primeIfNeeded() {
+    /// at launch, whenever the panel opens, and whenever MediaRemote tells us
+    /// something is playing but won't say what.
+    ///
+    /// MediaRemote is notification-only: for a song that started before we
+    /// launched it reports the app and the play state, but its info dictionary
+    /// stays empty until the next track change. The player's own AppleScript
+    /// is the only way to recover the title, so a failed attempt is retried
+    /// rather than left as "Nothing playing".
+    func primeIfNeeded(retries: Int = 3) {
+        MediaPrimer.trace("primeIfNeeded(retries:\(retries)) hasSession=\(model.hasSession) priming=\(priming) active=\(active != nil)")
         guard !model.hasSession, !priming, active != nil else { return }
         priming = true
         Task { [weak self] in
@@ -42,7 +51,15 @@ final class MediaController {
             }.value
             guard let self else { return }
             self.priming = false
-            guard let snapshot, !self.model.hasSession else { return }
+            guard let snapshot, !self.model.hasSession else {
+                // Spotify can be slow to answer right after launch; try again
+                // before giving up on a session we know exists.
+                if snapshot == nil, retries > 0, !self.model.hasSession {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    self.primeIfNeeded(retries: retries - 1)
+                }
+                return
+            }
 
             var track = NowPlayingTrack()
             track.title = snapshot.title

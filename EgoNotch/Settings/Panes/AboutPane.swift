@@ -17,9 +17,14 @@ struct AboutPane: View {
                         .font(Ego.font(11))
                         .egoDigits()
                         .foregroundStyle(Ego.textMute)
-                    Text("by \(AppInfo.owner)")
-                        .font(Ego.font(11))
-                        .foregroundStyle(Ego.textMute)
+                    HStack(spacing: 5) {
+                        Text("by \(AppInfo.owner)")
+                            .font(Ego.font(11))
+                            .foregroundStyle(Ego.textMute)
+                        Link(AppInfo.portfolio, destination: AppInfo.portfolioURL)
+                            .font(Ego.font(11, .medium))
+                            .foregroundStyle(Ego.accent)
+                    }
                 }
                 Spacer(minLength: 0)
             }
