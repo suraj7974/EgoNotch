@@ -31,20 +31,20 @@ final class GamesState {
     @ObservationIgnored let dino = DinoGame()
     @ObservationIgnored let snake = SnakeGame()
     @ObservationIgnored let pong = PongGame()
-    @ObservationIgnored let flappy = FlappyGame()
+    @ObservationIgnored let shooter = ShooterGame()
 
     func score(for choice: GameChoice) -> Int {
         switch choice {
         case .dino: dino.score
         case .snake: snake.score
         case .pong: pong.score
-        case .flappy: flappy.score
+        case .shooter: shooter.score
         }
     }
 }
 
 enum GameChoice: String, CaseIterable, Identifiable {
-    case dino, snake, pong, flappy
+    case dino, snake, pong, shooter
 
     var id: String { rawValue }
 
@@ -53,7 +53,7 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "Runner"
         case .snake: "Snake"
         case .pong: "Pong"
-        case .flappy: "Flappy"
+        case .shooter: "Shooter"
         }
     }
 
@@ -62,17 +62,17 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "hare.fill"
         case .snake: "point.topleft.down.to.point.bottomright.curvepath.fill"
         case .pong: "circle.circle"
-        case .flappy: "bird.fill"
+        case .shooter: "scope"
         }
     }
 
     /// How you play it, shown beside the score.
     var controls: String {
         switch self {
-        case .dino: "Space to jump · ↓ to duck"
+        case .dino: "Space to jump · birds fly high"
         case .snake: "Arrows to steer"
         case .pong: "↑ ↓ to move"
-        case .flappy: "Space to flap"
+        case .shooter: "↑ ↓ lane · Space to fire"
         }
     }
 }
@@ -121,7 +121,7 @@ struct GamesTileView: View {
         case .dino:     GameSurface(model: state.dino, gameID: "dino")
         case .snake:    GameSurface(model: state.snake, gameID: "snake")
         case .pong:     GameSurface(model: state.pong, gameID: "pong")
-        case .flappy:   GameSurface(model: state.flappy, gameID: "flappy")
+        case .shooter:  GameSurface(model: state.shooter, gameID: "shooter")
         }
     }
 }

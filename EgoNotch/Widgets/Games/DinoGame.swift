@@ -109,11 +109,13 @@ final class DinoGame: GameModel {
         let ground = groundY(size)
         // Birds arrive once you're moving, and get more common with speed.
         let birdChance = speed > 360 ? min(0.42, (speed - 360) / 1000) : 0
-        if Double.random(in: 0...1) < birdChance {
-            // Low birds must be jumped; high ones must be ducked under.
-            let high = Bool.random()
-            obstacles.append(Obstacle(x: size.width + 20, width: 24, height: 12,
-                                      offGround: high ? min(16, ground * 0.2) : 4))
+        if Double.random(in: 0...1) < birdChance, canSpawnBird(size: size) {
+            // Birds fly THROUGH the jump arc: stay on the ground and they sail
+            // over you, jump into one and you're done. That inverts the reflex
+            // the cacti train, which is what makes them dangerous.
+            let clearance = standingSize.height + 3
+            obstacles.append(Obstacle(x: size.width + 20, width: 26, height: 13,
+                                      offGround: Double.random(in: clearance...(clearance + 14))))
             return
         }
 
@@ -127,6 +129,13 @@ final class DinoGame: GameModel {
             obstacles.append(Obstacle(x: x, width: width, height: height, offGround: 0))
             x += width + Double.random(in: 3...7)
         }
+    }
+
+    /// Never put a bird over a cactus: that combination demands a jump and
+    /// punishes it at the same time, which is unwinnable rather than hard.
+    private func canSpawnBird(size: CGSize) -> Bool {
+        let safeGap = 240.0
+        return !obstacles.contains { !$0.isBird && $0.x > size.width - safeGap }
     }
 
     private func collides(size: CGSize) -> Bool {
@@ -297,20 +306,42 @@ final class DinoGame: GameModel {
         context.fill(cactus, with: .color(Ego.win))
     }
 
+    /// A pterodactyl in profile, flying left: beak, swept body, forked tail and
+    /// a wing that beats above and below. Boxes read as debris; this reads as
+    /// something coming at you.
     private func drawBird(_ context: inout GraphicsContext, obstacle: Obstacle, ground: Double) {
-        let y = ground - obstacle.height - obstacle.offGround
-        let flap = sin(distance / 9) > 0
-        var bird = Path()
-        bird.addRoundedRect(in: CGRect(x: obstacle.x, y: y + 3,
-                                       width: obstacle.width, height: obstacle.height - 3),
-                            cornerSize: CGSize(width: 3, height: 3))
-        // Wing swaps above/below the body, which is the whole animation.
-        bird.addRoundedRect(in: CGRect(x: obstacle.x + 4, y: flap ? y - 4 : y + 8,
-                                       width: obstacle.width - 6, height: 5),
-                            cornerSize: CGSize(width: 2, height: 2))
-        context.fill(bird, with: .color(Ego.accentSoft))
-        context.fill(Path(ellipseIn: CGRect(x: obstacle.x + obstacle.width - 5,
-                                            y: y + 5, width: 2, height: 2)),
+        let width = obstacle.width
+        let midY = ground - obstacle.offGround - obstacle.height / 2
+        let x = obstacle.x
+        let up = sin(distance / 7) > 0
+
+        var body = Path()
+        body.move(to: CGPoint(x: x, y: midY + 1))                     // beak tip
+        body.addLine(to: CGPoint(x: x + width * 0.26, y: midY - 5))   // brow
+        body.addLine(to: CGPoint(x: x + width * 0.62, y: midY - 4))
+        body.addLine(to: CGPoint(x: x + width, y: midY - 6))          // tail top
+        body.addLine(to: CGPoint(x: x + width * 0.78, y: midY + 1))
+        body.addLine(to: CGPoint(x: x + width, y: midY + 6))          // tail bottom
+        body.addLine(to: CGPoint(x: x + width * 0.5, y: midY + 5))
+        body.addLine(to: CGPoint(x: x + width * 0.2, y: midY + 3))
+        body.closeSubpath()
+        context.fill(body, with: .color(Ego.accentSoft))
+
+        var wing = Path()
+        if up {
+            wing.move(to: CGPoint(x: x + width * 0.34, y: midY - 3))
+            wing.addLine(to: CGPoint(x: x + width * 0.60, y: midY - 15))
+            wing.addLine(to: CGPoint(x: x + width * 0.86, y: midY - 3))
+        } else {
+            wing.move(to: CGPoint(x: x + width * 0.34, y: midY + 2))
+            wing.addLine(to: CGPoint(x: x + width * 0.60, y: midY + 13))
+            wing.addLine(to: CGPoint(x: x + width * 0.86, y: midY + 2))
+        }
+        wing.closeSubpath()
+        context.fill(wing, with: .color(Ego.accentSoft.opacity(0.9)))
+
+        context.fill(Path(ellipseIn: CGRect(x: x + width * 0.26, y: midY - 3.4,
+                                            width: 2.4, height: 2.4)),
                      with: .color(.black))
     }
 }
