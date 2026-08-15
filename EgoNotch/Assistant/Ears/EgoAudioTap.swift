@@ -21,6 +21,15 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var running = false
 
+    /// The last few seconds of audio, kept so the wake phrase can be
+    /// fingerprinted *after* the recogniser has identified it. The transcript
+    /// always arrives behind the sound, so without this there is nothing left
+    /// to measure by the time we know it was the wake word.
+    private var ring: [Float] = []
+    private var ringWrite = 0
+    private var ringFilled = 0
+    private var ringRate: Double = 0
+
     /// Yields `AnalyzerInput` rather than raw buffers: `AVAudioPCMBuffer` is
     /// not `Sendable`, so a stream of them cannot cross into the transcriber's
     /// actor. The stream keeps only the newest few — the audio thread must
@@ -39,6 +48,12 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         self.targetFormat = targetFormat
         converter = AVAudioConverter(from: inputFormat, to: targetFormat)
         generation &+= 1
+        // Four seconds is comfortably more than a wake phrase, and costs a
+        // quarter of a megabyte.
+        ringRate = targetFormat.sampleRate
+        ring = [Float](repeating: 0, count: Int(targetFormat.sampleRate * 4))
+        ringWrite = 0
+        ringFilled = 0
         lock.unlock()
 
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream(
@@ -133,8 +148,36 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         lock.lock()
         meter = loudness
         let sink = continuation
+        appendToRing(converted)
         lock.unlock()
         sink?.yield(AnalyzerInput(buffer: converted))
+    }
+
+    /// Called with the lock held, from the audio thread.
+    private func appendToRing(_ buffer: AVAudioPCMBuffer) {
+        guard !ring.isEmpty, let channel = buffer.floatChannelData?[0] else { return }
+        let count = Int(buffer.frameLength)
+        for index in 0..<count {
+            ring[ringWrite] = channel[index]
+            ringWrite = (ringWrite + 1) % ring.count
+        }
+        ringFilled = min(ringFilled + count, ring.count)
+    }
+
+    /// The most recent `seconds` of audio, oldest first.
+    func recentAudio(seconds: Double) -> (samples: [Float], sampleRate: Double)? {
+        lock.lock(); defer { lock.unlock() }
+        guard !ring.isEmpty, ringRate > 0 else { return nil }
+        let wanted = min(Int(ringRate * seconds), ringFilled)
+        guard wanted > Int(ringRate * 0.2) else { return nil }
+
+        var out = [Float](repeating: 0, count: wanted)
+        var read = (ringWrite - wanted + ring.count) % ring.count
+        for index in 0..<wanted {
+            out[index] = ring[read]
+            read = (read + 1) % ring.count
+        }
+        return (out, ringRate)
     }
 
     /// Root-mean-square, mapped onto a rough 0…1 loudness for the HUD.

@@ -8,6 +8,7 @@ import Speech
 struct EgoSettingsPane: View {
     @Bindable private var settings = SettingsStore.shared
     private var assistant = EgoAssistant.shared
+    private var voice = VoicePrintStore.shared
 
     @State private var speechAuthorised = SFSpeechRecognizer.authorizationStatus() == .authorized
     @State private var requesting = false
@@ -140,6 +141,28 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
+            SettingsRow(label: "Only my voice", hint: voiceMatchHint, icon: "person.badge.shield.checkmark") {
+                Toggle("", isOn: $settings.egoVoiceMatch)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsRow(label: "Voice ID", hint: enrolmentHint, icon: "waveform.and.person.filled") {
+                HStack(spacing: 8) {
+                    if voice.isEnrolling {
+                        SettingsBadge(text: "\(voice.progress) of \(VoicePrintStore.required)",
+                                      tint: Ego.text)
+                        SettingsActionButton(title: "Cancel") { voice.cancelEnrolment() }
+                    } else if voice.isEnrolled {
+                        SettingsActionButton(title: "Teach again") { voice.beginEnrolment() }
+                        SettingsActionButton(title: "Forget") { voice.forget() }
+                    } else {
+                        SettingsActionButton(title: "Teach it your voice", prominent: true) {
+                            voice.beginEnrolment()
+                        }
+                    }
+                }
+            }
+            SettingsDivider()
             SettingsRow(label: "Stand down during calls",
                         hint: "While another app holds the mic, Ego stops listening entirely.",
                         icon: "video.badge.waveform") {
@@ -239,6 +262,30 @@ struct EgoSettingsPane: View {
                 }
             }
         }
+    }
+
+    /// The honest version: it is a filter, not a lock, and it is switched on
+    /// but doing nothing until a voice is taught.
+    private var voiceMatchHint: String {
+        guard settings.egoVoiceMatch else {
+            return "Off — any voice can wake Ego, including one on a video or across the room."
+        }
+        return voice.isEnrolled
+            ? "Only the voice you taught wakes Ego. It turns away a clearly different voice, "
+                + "but won't stop a recording of you."
+            : "On, but doing nothing yet — teach Ego your voice below and it starts filtering."
+    }
+
+    private var enrolmentHint: String? {
+        if let problem = voice.lastProblem { return problem }
+        if voice.isEnrolling {
+            let name = settings.egoWakeName
+            return "Say “Hey \(name.prefix(1).uppercased() + name.dropFirst())”, "
+                + "in your normal voice, until the count fills."
+        }
+        return voice.isEnrolled
+            ? "Taught from \(voice.enrolledCount) samples. Redo it if you keep being turned away."
+            : "Five short recordings of the wake phrase. Nothing but the fingerprint is kept — no audio."
     }
 
     /// Said plainly, because "what does it keep" deserves a straight answer.

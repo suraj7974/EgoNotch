@@ -172,6 +172,14 @@ final class EgoEars {
         armEndpoint(grace: grace)
     }
 
+    /// The wake phrase, as a fingerprint. Takes a window ending now, because
+    /// the transcript that told us it was the wake word always lags the sound
+    /// that produced it.
+    private func fingerprintOfWake() -> VoicePrint? {
+        guard let recent = tap.recentAudio(seconds: 2.0) else { return nil }
+        return VoicePrint.make(samples: recent.samples, sampleRate: recent.sampleRate)
+    }
+
     /// Stop taking commands and go back to waiting for the wake word.
     ///
     /// The microphone stays open, because "call me again" has to work — but
@@ -245,6 +253,24 @@ final class EgoEars {
                 command = tail
             } else {
                 return
+            }
+
+            // Enrolment borrows the wake phrase: every "Hey Zoro" said while
+            // teaching becomes a sample instead of waking Ego.
+            if VoicePrintStore.shared.isEnrolling {
+                wakeCooldown = Date().addingTimeInterval(1.2)
+                VoicePrintStore.shared.addSample(fingerprintOfWake())
+                return
+            }
+            // The gate. Only ever applied to the wake phrase: it is the one
+            // thing said the same way every time, which is what makes the
+            // comparison meaningful. Everything after it inherits the trust.
+            if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled {
+                guard let print = fingerprintOfWake(),
+                      VoicePrintStore.shared.accepts(print) else {
+                    wakeCooldown = Date().addingTimeInterval(1.2)
+                    return
+                }
             }
 
             wakeCooldown = Date().addingTimeInterval(1.5)
