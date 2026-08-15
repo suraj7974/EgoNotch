@@ -19,6 +19,7 @@ enum WidgetRegistry {
         TodoWidget(),
         TerminalWidget(),
         RecorderWidget(),
+        GamesWidget(),
         DemoWidget(),
     ]
 

@@ -11,6 +11,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case notes
     case terminal
     case recorder
+    case games
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .notes: "Notes"
         case .terminal: "Terminal"
         case .recorder: "Recorder"
+        case .games: "Games"
         }
     }
 
@@ -33,6 +35,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .notes: "note.text"
         case .terminal: "terminal.fill"
         case .recorder: "video.fill"
+        case .games: "gamecontroller.fill"
         }
     }
 }
