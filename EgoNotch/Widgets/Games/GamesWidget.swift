@@ -31,20 +31,20 @@ final class GamesState {
     @ObservationIgnored let dino = DinoGame()
     @ObservationIgnored let snake = SnakeGame()
     @ObservationIgnored let pong = PongGame()
-    @ObservationIgnored let whack = WhackGame()
+    @ObservationIgnored let flappy = FlappyGame()
 
     func score(for choice: GameChoice) -> Int {
         switch choice {
         case .dino: dino.score
         case .snake: snake.score
         case .pong: pong.score
-        case .whack: whack.score
+        case .flappy: flappy.score
         }
     }
 }
 
 enum GameChoice: String, CaseIterable, Identifiable {
-    case dino, snake, pong, whack
+    case dino, snake, pong, flappy
 
     var id: String { rawValue }
 
@@ -53,7 +53,7 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "Runner"
         case .snake: "Snake"
         case .pong: "Pong"
-        case .whack: "Whack"
+        case .flappy: "Flappy"
         }
     }
 
@@ -62,17 +62,17 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "hare.fill"
         case .snake: "point.topleft.down.to.point.bottomright.curvepath.fill"
         case .pong: "circle.circle"
-        case .whack: "hand.tap.fill"
+        case .flappy: "bird.fill"
         }
     }
 
     /// How you play it, shown beside the score.
     var controls: String {
         switch self {
-        case .dino: "Space to jump"
+        case .dino: "Space to jump · ↓ to duck"
         case .snake: "Arrows to steer"
         case .pong: "↑ ↓ to move"
-        case .whack: "Click the moles"
+        case .flappy: "Space to flap"
         }
     }
 }
@@ -121,7 +121,7 @@ struct GamesTileView: View {
         case .dino:     GameSurface(model: state.dino, gameID: "dino")
         case .snake:    GameSurface(model: state.snake, gameID: "snake")
         case .pong:     GameSurface(model: state.pong, gameID: "pong")
-        case .whack:    GameSurface(model: state.whack, gameID: "whack")
+        case .flappy:   GameSurface(model: state.flappy, gameID: "flappy")
         }
     }
 }

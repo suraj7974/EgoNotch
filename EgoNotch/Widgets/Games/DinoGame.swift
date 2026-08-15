@@ -3,6 +3,10 @@ import Observation
 
 /// The Chrome offline runner, which is what a notch-shaped screen was born
 /// for: one line of ground, one jump button, obstacles that come faster.
+///
+/// Difficulty is the whole design here — speed climbs the entire run, cacti
+/// start arriving in clusters, and birds join in at two heights: low ones you
+/// jump, high ones you duck under (↓).
 @MainActor
 @Observable
 final class DinoGame: GameModel {
@@ -12,8 +16,9 @@ final class DinoGame: GameModel {
 
     private var runnerY: Double = 0          // height above the ground
     private var velocity: Double = 0
+    private var duckTimer: Double = 0
     private var obstacles: [Obstacle] = []
-    private var speed: Double = 260
+    private var speed: Double = 280
     private var distance: Double = 0
     private var nextSpawn: Double = 1.2
 
@@ -21,13 +26,18 @@ final class DinoGame: GameModel {
         var x: Double
         var width: Double
         var height: Double
-        /// Birds fly; cacti sit on the ground.
+        /// Cacti sit on the ground; birds fly this far above it.
         var offGround: Double
+        var isBird: Bool { offGround > 0 }
     }
 
     private let gravity: Double = 2200
-    private let jumpVelocity: Double = 620
-    private let runnerSize = CGSize(width: 18, height: 22)
+    private let jumpVelocity: Double = 640
+    private let standingSize = CGSize(width: 18, height: 24)
+    private let duckingSize = CGSize(width: 24, height: 13)
+
+    private var isDucking: Bool { duckTimer > 0 && runnerY <= 0.01 }
+    private var runnerSize: CGSize { isDucking ? duckingSize : standingSize }
 
     func reset() {
         score = 0
@@ -35,8 +45,9 @@ final class DinoGame: GameModel {
         hasStarted = false
         runnerY = 0
         velocity = 0
+        duckTimer = 0
         obstacles = []
-        speed = 260
+        speed = 280
         distance = 0
         nextSpawn = 1.2
     }
@@ -45,13 +56,21 @@ final class DinoGame: GameModel {
         switch key {
         case .action, .up:
             if isOver || !hasStarted {
-                let restarting = isOver
                 reset()
                 hasStarted = true
-                if restarting { return }        // don't jump straight into a cactus
                 return
             }
-            if runnerY <= 0.01 { velocity = jumpVelocity }
+            if runnerY <= 0.01 {
+                duckTimer = 0
+                velocity = jumpVelocity
+            }
+        case .down:
+            guard hasStarted, !isOver else { return }
+            if runnerY > 0.01 {
+                velocity = min(velocity, -520)   // slam back down out of a jump
+            } else {
+                duckTimer = 0.65                 // stays down while you keep pressing
+            }
         default:
             break
         }
@@ -60,10 +79,12 @@ final class DinoGame: GameModel {
     func step(dt: Double, size: CGSize) {
         guard hasStarted, !isOver else { return }
 
-        // Speed climbs with distance — the whole difficulty curve.
+        // The difficulty curve: speed climbs the whole run instead of settling.
         distance += speed * dt
-        speed = min(260 + distance / 90, 620)
+        speed = min(280 + distance / 55, 900)
         score = Int(distance / 10)
+
+        duckTimer = max(0, duckTimer - dt)
 
         velocity -= gravity * dt
         runnerY = max(runnerY + velocity * dt, 0)
@@ -72,32 +93,49 @@ final class DinoGame: GameModel {
         nextSpawn -= dt
         if nextSpawn <= 0 {
             spawn(size: size)
-            // Gap shrinks as it speeds up, but never below what's jumpable.
-            nextSpawn = Double.random(in: 0.75...1.5) * (300 / speed) + 0.35
+            // Gaps shrink with speed, but never below what's clearable: the
+            // jump arc takes ~0.58s, so leave that plus a margin.
+            let travel = Double.random(in: 0.85...1.7) * (320 / speed)
+            nextSpawn = max(0.62, travel)
         }
 
         for index in obstacles.indices { obstacles[index].x -= speed * dt }
-        obstacles.removeAll { $0.x + $0.width < 0 }
+        obstacles.removeAll { $0.x + $0.width < -30 }
 
         if collides(size: size) { isOver = true }
     }
 
     private func spawn(size: CGSize) {
         let ground = groundY(size)
-        let flying = Bool.random() && speed > 380
-        obstacles.append(Obstacle(
-            x: size.width + 20,
-            width: flying ? 22 : Double.random(in: 10...18),
-            height: flying ? 12 : Double.random(in: 18...30),
-            offGround: flying ? min(34, ground * 0.45) : 0))
+        // Birds arrive once you're moving, and get more common with speed.
+        let birdChance = speed > 360 ? min(0.42, (speed - 360) / 1000) : 0
+        if Double.random(in: 0...1) < birdChance {
+            // Low birds must be jumped; high ones must be ducked under.
+            let high = Bool.random()
+            obstacles.append(Obstacle(x: size.width + 20, width: 24, height: 12,
+                                      offGround: high ? min(16, ground * 0.2) : 4))
+            return
+        }
+
+        // Cacti come in clusters more often the faster it gets.
+        let clusterChance = min(0.5, max(0, (speed - 330) / 900))
+        let count = Double.random(in: 0...1) < clusterChance ? Int.random(in: 2...3) : 1
+        var x = size.width + 20
+        for _ in 0..<count {
+            let width = Double.random(in: 9...15)
+            let height = Double.random(in: 20...32)
+            obstacles.append(Obstacle(x: x, width: width, height: height, offGround: 0))
+            x += width + Double.random(in: 3...7)
+        }
     }
 
     private func collides(size: CGSize) -> Bool {
-        let runner = CGRect(x: 42, y: runnerY, width: runnerSize.width, height: runnerSize.height)
+        let runner = CGRect(x: 42, y: runnerY,
+                            width: runnerSize.width, height: runnerSize.height)
+            .insetBy(dx: 3, dy: 2)
         return obstacles.contains { obstacle in
-            let box = CGRect(x: obstacle.x, y: obstacle.offGround,
-                             width: obstacle.width, height: obstacle.height)
-            return runner.insetBy(dx: 2, dy: 2).intersects(box)
+            runner.intersects(CGRect(x: obstacle.x, y: obstacle.offGround,
+                                     width: obstacle.width, height: obstacle.height))
         }
     }
 
@@ -111,7 +149,7 @@ final class DinoGame: GameModel {
         drawRunner(&context, ground: ground)
 
         for obstacle in obstacles {
-            if obstacle.offGround > 0 {
+            if obstacle.isBird {
                 drawBird(&context, obstacle: obstacle, ground: ground)
             } else {
                 drawCactus(&context, obstacle: obstacle, ground: ground)
@@ -153,7 +191,8 @@ final class DinoGame: GameModel {
             let spacing = size.width / 14
             let x = (Double(index) * spacing - distance.truncatingRemainder(dividingBy: spacing))
             let y = ground + 5 + Double((index * 7) % 3) * 2.5
-            context.fill(Path(roundedRect: CGRect(x: x, y: y, width: Double(3 + index % 3), height: 1.5),
+            context.fill(Path(roundedRect: CGRect(x: x, y: y,
+                                                  width: Double(3 + index % 3), height: 1.5),
                               cornerRadius: 0.75),
                          with: .color(Ego.textMute.opacity(0.45)))
         }
@@ -162,7 +201,35 @@ final class DinoGame: GameModel {
     private func drawRunner(_ context: inout GraphicsContext, ground: Double) {
         let x: Double = 42
         let feet = ground - runnerY
-        let scale = runnerSize.height / 22
+        let scale = standingSize.height / 24
+
+        if isDucking {
+            // Crouched: long and low, head forward.
+            var crouch = Path()
+            crouch.addRoundedRect(in: CGRect(x: x - 6 * scale, y: feet - 11 * scale,
+                                             width: 20 * scale, height: 8 * scale),
+                                  cornerSize: CGSize(width: 3, height: 3))
+            crouch.addRoundedRect(in: CGRect(x: x + 11 * scale, y: feet - 13 * scale,
+                                             width: 10 * scale, height: 8 * scale),
+                                  cornerSize: CGSize(width: 3, height: 3))
+            crouch.addRoundedRect(in: CGRect(x: x - 12 * scale, y: feet - 10 * scale,
+                                             width: 8 * scale, height: 4 * scale),
+                                  cornerSize: CGSize(width: 2, height: 2))
+            context.fill(crouch, with: .color(Ego.text))
+            context.fill(Path(ellipseIn: CGRect(x: x + 16 * scale, y: feet - 11 * scale,
+                                                width: 2.2, height: 2.2)),
+                         with: .color(.black))
+            let stride = sin(distance / 12) > 0
+            var legs = Path()
+            legs.addRoundedRect(in: CGRect(x: x + (stride ? 0 : 5) * scale, y: feet - 4 * scale,
+                                           width: 3.5 * scale, height: 4 * scale),
+                                cornerSize: CGSize(width: 1.5, height: 1.5))
+            legs.addRoundedRect(in: CGRect(x: x + (stride ? 8 : 12) * scale, y: feet - 4 * scale,
+                                           width: 3.5 * scale, height: 4 * scale),
+                                cornerSize: CGSize(width: 1.5, height: 1.5))
+            context.fill(legs, with: .color(Ego.text))
+            return
+        }
 
         var dino = Path()
         // Tail, body, neck and head as one silhouette.
@@ -180,7 +247,6 @@ final class DinoGame: GameModel {
                             cornerSize: CGSize(width: 1.5, height: 1.5))
         context.fill(dino, with: .color(Ego.text))
 
-        // Eye.
         context.fill(Path(ellipseIn: CGRect(x: x + 12 * scale, y: feet - 22 * scale,
                                             width: 2.2, height: 2.2)),
                      with: .color(.black))
@@ -199,7 +265,6 @@ final class DinoGame: GameModel {
                             cornerSize: CGSize(width: 1.5, height: 1.5))
         context.fill(legs, with: .color(Ego.text))
 
-        // Little arm, so the profile isn't just a blob.
         context.fill(Path(roundedRect: CGRect(x: x + 8 * scale, y: feet - 14 * scale,
                                               width: 4 * scale, height: 2.4 * scale),
                           cornerRadius: 1),
@@ -213,7 +278,6 @@ final class DinoGame: GameModel {
         var cactus = Path()
         cactus.addRoundedRect(in: CGRect(x: x, y: ground - height, width: width, height: height),
                               cornerSize: CGSize(width: width / 2.4, height: width / 2.4))
-        // Arms, scaled so small cacti stay bare and tall ones sprout.
         if height > 22 {
             cactus.addRoundedRect(in: CGRect(x: x - width * 0.55, y: ground - height * 0.72,
                                              width: width * 0.5, height: height * 0.34),
