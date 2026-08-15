@@ -40,7 +40,12 @@ final class BatteryWidget: NotchWidget {
 @Observable
 final class BatteryMonitor {
     private(set) var percent: Int?
+    /// Actively pushing charge in. macOS stops charging at 100%, so this goes
+    /// FALSE while the charger is still connected — never use it to answer
+    /// "is it plugged in".
     private(set) var isCharging = false
+    /// Running on the adapter, charging or already full.
+    private(set) var isPluggedIn = false
     private(set) var timeRemaining: String?
     /// True briefly after the charger connects — drives the live pill.
     private(set) var showChargePulse = false
@@ -79,7 +84,7 @@ final class BatteryMonitor {
     }
 
     private func refresh(pulseOnChargeBegin: Bool) {
-        let wasCharging = isCharging
+        let wasPluggedIn = isPluggedIn
         guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let sources = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue()
                 as? [CFTypeRef] else { return }
@@ -91,12 +96,15 @@ final class BatteryMonitor {
             else { continue }
             percent = capacity * 100 / max
             isCharging = (info[kIOPSIsChargingKey] as? Bool) ?? false
+            // The adapter is what "plugged in" means — a full battery reports
+            // IsCharging = false while still sitting on AC power.
+            isPluggedIn = (info[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
             let minutes = (info[isCharging ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey]
                 as? NSNumber)?.intValue ?? -1
             timeRemaining = minutes > 0 ? String(format: "%d:%02d", minutes / 60, minutes % 60) : nil
             break
         }
-        if pulseOnChargeBegin, isCharging, !wasCharging {
+        if pulseOnChargeBegin, isPluggedIn, !wasPluggedIn {
             pulse()
         }
     }
@@ -112,26 +120,32 @@ final class BatteryMonitor {
     }
 }
 
-/// NotchNest-style top-bar battery: accurate fill + bolt while charging.
+/// NotchNest-style top-bar battery: accurate fill, green + bolt on power.
 struct BatteryTopBarPill: View {
     var monitor: BatteryMonitor
 
     var body: some View {
         if let percent = monitor.percent {
             HStack(spacing: 5) {
-                BatteryGlyph(percent: percent, charging: monitor.isCharging)
+                BatteryGlyph(percent: percent, pluggedIn: monitor.isPluggedIn)
                 Text("\(percent)%")
                     .font(Ego.font(11, .semibold))
                     .egoDigits()
-                    .foregroundStyle(monitor.isCharging ? Ego.win : Ego.text)
+                    .foregroundStyle(monitor.isPluggedIn ? Ego.win : Ego.text)
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .background(Color.white.opacity(0.07), in: Capsule())
-            .help(monitor.isCharging
-                  ? (monitor.timeRemaining.map { "\($0) to full" } ?? "Charging")
-                  : (monitor.timeRemaining.map { "\($0) left" } ?? "On battery"))
+            .help(helpText)
         }
+    }
+
+    private var helpText: String {
+        if monitor.isCharging {
+            return monitor.timeRemaining.map { "\($0) to full" } ?? "Charging"
+        }
+        if monitor.isPluggedIn { return "Charged — running on power adapter" }
+        return monitor.timeRemaining.map { "\($0) left" } ?? "On battery"
     }
 }
 
@@ -139,11 +153,11 @@ struct BatteryTopBarPill: View {
 /// (100% renders completely full — no SF-symbol approximation).
 struct BatteryGlyph: View {
     let percent: Int
-    let charging: Bool
+    var pluggedIn: Bool = false
 
     private var fillColor: Color {
-        if charging { return Ego.win }
-        return percent <= 20 ? Ego.loss : Ego.text
+        if pluggedIn { return Ego.win }        // green while on the adapter,
+        return percent <= 20 ? Ego.loss : Ego.text   // charging or already full
     }
 
     var body: some View {
@@ -156,7 +170,9 @@ struct BatteryGlyph: View {
                     .fill(fillColor)
                     .frame(width: max(CGFloat(percent) / 100 * 18, 1.5), height: 7)
                     .padding(.leading, 2)
-                if charging {
+                if pluggedIn {
+                    // The bolt stays for the whole time it's on the adapter —
+                    // a full battery on power is still "plugged in".
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(.black)
