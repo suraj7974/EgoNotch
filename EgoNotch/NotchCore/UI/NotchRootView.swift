@@ -122,13 +122,6 @@ struct NotchRootView: View {
             }
             ZStack(alignment: .top) {
                 Color.black
-                // Centred under the bar: the bar's own middle is the camera
-                // housing, so nothing drawn there would be visible at all.
-                if EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle {
-                    EgoPanelStatus(assistant: EgoAssistant.shared)
-                        .padding(.top, geometry.isPhysicalNotch ? 1 : 5)
-                        .transition(.opacity)
-                }
                 VStack(spacing: 10) {
                     if !geometry.isPhysicalNotch {
                         PanelTopBar(notchGap: nil)
@@ -179,6 +172,12 @@ struct PanelTopBar: View {
     }
 
     private var compact: Bool { notchGap != nil }
+
+    /// Ego is doing something worth showing — mid-command, or holding the
+    /// floor in a conversation.
+    private var egoIsUp: Bool {
+        EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle
+    }
     private var circle: CGFloat { compact ? 26 : 30 }
 
     var body: some View {
@@ -202,6 +201,11 @@ struct PanelTopBar: View {
                     .buttonStyle(.plain)
                     .help(tab.title)
                 }
+                if egoIsUp {
+                    EgoBarWave(assistant: EgoAssistant.shared)
+                        .padding(.leading, compact ? 8 : 12)
+                        .transition(.opacity)
+                }
                 if !compact { Spacer(minLength: 0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -212,6 +216,11 @@ struct PanelTopBar: View {
 
             HStack(spacing: compact ? 4 : 6) {
                 if !compact { Spacer(minLength: 0) }
+                if egoIsUp {
+                    EgoBarCaption(assistant: EgoAssistant.shared)
+                        .padding(.trailing, 4)
+                        .transition(.opacity)
+                }
                 ForEach(topBarAccessories, id: \.id) { accessory in
                     accessory.view
                 }

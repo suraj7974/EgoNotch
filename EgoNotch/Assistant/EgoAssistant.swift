@@ -59,9 +59,11 @@ final class EgoAssistant {
     /// and telling them apart is the difference between a good assistant and
     /// one you stop talking to.
     private static let dismissals: Set<String> = [
-        "stop", "cancel", "nothing", "no", "never mind", "nevermind", "forget it",
-        "sorry", "shut up", "be quiet", "quiet", "go away", "leave it", "not you",
-        "chup", "ruko", "kuch nahi", "nahi", "rehne do", "jao",
+        "dismiss", "dismissed", "stop", "cancel", "nothing", "no", "never mind",
+        "nevermind", "forget it", "sorry", "shut up", "be quiet", "quiet",
+        "go away", "leave it", "not you", "thats all", "that is all", "done",
+        "thank you", "thanks", "goodbye", "bye",
+        "chup", "ruko", "kuch nahi", "nahi", "rehne do", "jao", "bas", "khatam",
     ]
 
     private static func isDismissal(_ text: String) -> Bool {
@@ -329,13 +331,8 @@ final class EgoAssistant {
     private func openConversation() {
         guard SettingsStore.shared.egoConversation else { return }
         isConversing = true
-        idleTask?.cancel()
-        idleTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.conversationIdle))
-            guard !Task.isCancelled, let self, self.pending == nil else { return }
-            EgoLog.trace("conversation went quiet")
-            self.dismiss()
-        }
+        // No idle timer: in this mode Ego stays until dismissed, by design.
+        idleTask?.cancel(); idleTask = nil
     }
 
     private func say(_ text: String) {
@@ -440,6 +437,7 @@ final class EgoAssistant {
         // Inside an open conversation, silence is just silence: hold the floor
         // and let the idle timer decide when it's over.
         if holdsFloor, isActive {
+            show()          // also refreshes the panel's watchdog
             Task { [weak self] in await self?.ears.beginFollowUp() }
             return
         }
@@ -453,6 +451,10 @@ final class EgoAssistant {
         confirmTask?.cancel()
         idleTask?.cancel(); idleTask = nil
         isConversing = false
+        // The HUD closing is not the same as Ego letting go: an armed
+        // follow-up would carry on taking everything said in the room as a
+        // command. This is what "dismiss" has to mean.
+        ears.endCapture()
         pending = nil
         phase = .idle
         heard = ""

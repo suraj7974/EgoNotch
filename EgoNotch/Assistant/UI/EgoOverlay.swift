@@ -52,30 +52,34 @@ struct EgoOverlay: View {
 
 }
 
-/// Ego inside an already-open panel.
+/// Ego inside an already-open panel, split in two.
 ///
-/// No takeover: with the panel open you can already see everything, and
-/// replacing it with a strip would take away what you were looking at. A small
-/// wave and one line of text, centred under the top bar — the reply is spoken
-/// as well, this is so you can read it.
-struct EgoPanelStatus: View {
+/// The middle of the top bar is the camera housing — anything drawn there is
+/// behind the physical notch and simply cannot be seen. So the wave sits with
+/// the tabs on the left, and what Ego said sits with the accessories on the
+/// right, and the notch keeps the space it was always going to keep.
+struct EgoBarWave: View {
     var assistant: EgoAssistant
 
     var body: some View {
-        HStack(spacing: 9) {
-            EgoWaveform(level: assistant.level,
-                        mode: EgoOverlay.mode(for: assistant.phase))
-                .frame(width: 84, height: 13)
-            if !caption.isEmpty {
-                Text(caption)
-                    .font(Ego.font(10.5, assistant.pending == nil ? .medium : .semibold))
-                    .foregroundStyle(assistant.pending == nil ? Ego.textMute : Ego.text)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .frame(maxWidth: 520)
-        .allowsHitTesting(false)
+        EgoWaveform(level: assistant.level,
+                    mode: EgoOverlay.mode(for: assistant.phase))
+            .frame(width: 116, height: 18)
+            .allowsHitTesting(false)
+    }
+}
+
+struct EgoBarCaption: View {
+    var assistant: EgoAssistant
+
+    var body: some View {
+        Text(caption)
+            .font(Ego.font(12, assistant.pending == nil ? .medium : .semibold))
+            .foregroundStyle(assistant.pending == nil ? Ego.text : Ego.text)
+            .lineLimit(1)
+            .truncationMode(.head)
+            .frame(maxWidth: 320, alignment: .trailing)
+            .allowsHitTesting(false)
     }
 
     /// What Ego said, or — while you are still talking — what it is hearing.

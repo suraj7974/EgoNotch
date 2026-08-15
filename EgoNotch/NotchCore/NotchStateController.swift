@@ -175,7 +175,9 @@ final class NotchStateController {
     /// assumed closed — asking a question with the panel open should not
     /// close it afterwards.
     func beginAssistant() {
-        guard state != .assistant else { return }
+        // Already up: refresh the watchdog rather than doing nothing, so a
+        // conversation that is still going never trips it.
+        guard state != .assistant else { armAssistantWatchdog(); return }
         dwellTask?.cancel()
         collapseTask?.cancel()
         dismissBanner()
@@ -184,6 +186,10 @@ final class NotchStateController {
         // The assistant retires its own HUD, so — unlike a peek — nothing here
         // is on a timer. A watchdog guarantees a hung or crashed assistant can
         // never strand the panel open.
+        armAssistantWatchdog()
+    }
+
+    private func armAssistantWatchdog() {
         assistantWatchdog?.cancel()
         assistantWatchdog = Task { [weak self] in
             // Long, because a conversation legitimately stays open for as long

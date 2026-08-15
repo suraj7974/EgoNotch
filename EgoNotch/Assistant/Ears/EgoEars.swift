@@ -172,6 +172,26 @@ final class EgoEars {
         armEndpoint(grace: grace)
     }
 
+    /// Stop taking commands and go back to waiting for the wake word.
+    ///
+    /// The microphone stays open, because "call me again" has to work — but
+    /// nothing said counts as an instruction until the wake phrase lands.
+    /// Without this, dismissing Ego closed the HUD while an armed follow-up
+    /// carried on listening to the room.
+    func endCapture() {
+        endpoint?.cancel(); endpoint = nil
+        guard status == .capturing else { return }
+        capturingWithoutWake = false
+        lastCommandText = ""
+        partial = ""
+        // Everything heard so far is history now, so the next capture doesn't
+        // sweep it up.
+        transcriptFloor = latestTranscript
+        wakeCooldown = Date().addingTimeInterval(1)
+        status = .listening
+        EgoLog.trace("done — back to waiting for the wake word")
+    }
+
     // MARK: - Speaking without hearing yourself
 
     /// Mutes at the tap, upstream of the analyser, so Ego's own voice never
@@ -308,7 +328,15 @@ final class EgoEars {
     private func finishUtterance() {
         endpoint?.cancel(); endpoint = nil
         capturingWithoutWake = false
-        let command = lastCommandText.trimmingCharacters(in: .whitespaces)
+        var command = lastCommandText.trimmingCharacters(in: .whitespaces)
+        // A stray wake phrase can still be sitting in front of the command
+        // when the recogniser revises a segment it had already finished.
+        // Stripping it here means "heygo pause" and "hey ego pause" — the same
+        // words, transcribed twice — both reduce to "pause", so the repeat
+        // guard below recognises the second one for what it is.
+        if let hit = WakePhrase.match(in: command), !hit.command.isEmpty {
+            command = hit.command
+        }
         lastCommandText = ""
         partial = ""
         status = .listening
