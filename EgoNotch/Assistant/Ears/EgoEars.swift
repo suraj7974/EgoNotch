@@ -487,6 +487,11 @@ final class EgoEars {
         }
         lastDispatched = command
         lastDispatchedAt = Date()
+        // Draw a line under it: everything said up to here has been acted on,
+        // and must never come back as part of a later sentence.
+        latestTranscript = ""
+        transcriptFloor = ""
+        Task { [transcriber] in await transcriber.finalizeSegment() }
         // The gate, judged on everything just said rather than on the wake
         // word alone. A second of "hey zoro" is too small a sample to tell two
         // people apart; wake word plus command is three times the evidence.
