@@ -25,6 +25,12 @@ final class VoicePrintStore {
     /// Frames of real speech below which a profile is noise rather than a voice.
     private static let minimumFrames = 400
 
+    /// How much audio the gate judges. Longer than the wake phrase on purpose:
+    /// a single second of speech is too little to tell two people apart, so
+    /// the check waits for the whole utterance — wake word and command — and
+    /// runs just before the command is carried out.
+    static let verifyWindow: Double = 3.0
+
     private(set) var isEnrolling = false
     /// Seconds gathered so far, for the progress the user watches.
     private(set) var captured: Double = 0
@@ -98,12 +104,16 @@ final class VoicePrintStore {
             EgoLog.trace(String(format: "voice enrolment: only %.1fs of speech", heard))
             return false
         }
-        profile = built
+        var calibrated = built
+        calibrated.threshold = VoiceProfile.calibrate(from: samples, sampleRate: sampleRate,
+                                                      against: built,
+                                                      window: Self.verifyWindow)
+        profile = calibrated
         isEnrolled = true
         lastProblem = nil
         save()
-        EgoLog.trace(String(format: "voice enrolment: done — %d frames, threshold %.3f",
-                            built.frameCount, built.threshold))
+        EgoLog.trace(String(format: "voice enrolment: done — %d frames, gate %.3f",
+                            calibrated.frameCount, calibrated.threshold))
         return true
     }
 

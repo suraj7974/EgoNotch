@@ -33,6 +33,38 @@ nonisolated struct VoiceProfile: Codable, Sendable {
         return profile
     }
 
+    /// Sets the gate by replaying the verification path against the enrolment
+    /// audio: slice it into windows the length of a real command, build a
+    /// profile from each exactly as a live utterance would be, and see how far
+    /// they land.
+    ///
+    /// The first attempt calibrated on silence-stripped chunks of the whole
+    /// reading, which is a different shape of input entirely — it produced a
+    /// gate of 0.67 while the speaker's own commands measured 0.71 and 1.07,
+    /// and locked them out of their own assistant.
+    static func calibrate(from samples: [Float], sampleRate: Double,
+                          against profile: VoiceProfile, window: Double) -> Float {
+        let size = Int(sampleRate * window)
+        let hop = max(Int(sampleRate * window * 0.5), 1)
+        guard samples.count > size else { return profile.threshold }
+
+        var distances: [Float] = []
+        var start = 0
+        while start + size <= samples.count {
+            let slice = Array(samples[start..<(start + size)])
+            if let piece = VoiceProfile.make(samples: slice, sampleRate: sampleRate) {
+                distances.append(profile.distance(to: piece))
+            }
+            start += hop
+        }
+        guard !distances.isEmpty else { return profile.threshold }
+        distances.sort()
+        // The worst honest window, plus a margin. Every one of these came from
+        // the user, so anything below the top of that range must be let in.
+        let worst = distances[distances.count - 1]
+        return min(max(worst * 1.2, 0.6), 3.0)
+    }
+
     private static func summarise(_ frames: [[Float]]) -> VoiceProfile {
         let width = frames[0].count
         var means = [Float](repeating: 0, count: width)

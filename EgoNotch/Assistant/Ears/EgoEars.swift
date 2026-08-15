@@ -307,18 +307,6 @@ final class EgoEars {
             // are taken by the enrolment pump, which listens for *speech*
             // rather than waiting for the recogniser to spell the name right.
             if VoicePrintStore.shared.isEnrolling { return }
-            // The gate. Applied to the wake phrase only — everything said
-            // after it inherits the trust, because re-checking each follow-up
-            // would mean judging half-second fragments, which is where this
-            // kind of matching is weakest.
-            if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled {
-                guard let heard = tap.recentAudio(seconds: 2.0),
-                      VoicePrintStore.shared.accepts(samples: heard.samples,
-                                                     sampleRate: heard.sampleRate) else {
-                    wakeCooldown = Date().addingTimeInterval(1.2)
-                    return
-                }
-            }
 
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
@@ -430,6 +418,18 @@ final class EgoEars {
         }
         lastDispatched = command
         lastDispatchedAt = Date()
+        // The gate, judged on everything just said rather than on the wake
+        // word alone. A second of "hey zoro" is too small a sample to tell two
+        // people apart; wake word plus command is three times the evidence.
+        if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled,
+           let heard = tap.recentAudio(seconds: VoicePrintStore.verifyWindow),
+           !VoicePrintStore.shared.accepts(samples: heard.samples,
+                                           sampleRate: heard.sampleRate) {
+            EgoLog.trace("ignored — not your voice: \(command)")
+            onIdle?()
+            return
+        }
+
         EgoLog.trace(String(format: "utterance: %@  (%.0f ms after waking)",
                             command, Date().timeIntervalSince(wokeAt) * 1000))
         onCommand?(command)
