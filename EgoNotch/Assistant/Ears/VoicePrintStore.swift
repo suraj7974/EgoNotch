@@ -3,132 +3,117 @@ import Observation
 
 /// Who Ego answers to.
 ///
-/// Holds the enrolled fingerprints of the wake phrase and decides whether a
-/// given utterance came from the same person. The threshold is not a number I
-/// picked: it is derived from how much the user's *own* samples differ from
-/// each other, so a consistent speaker gets a tight gate and a variable one
-/// gets a loose one, automatically.
+/// Enrolment is a passage read aloud, not a phrase repeated five times. Two
+/// reasons, both learned the hard way: waiting for the recogniser to spell the
+/// wake word correctly made the *fix* depend on the bug it fixes, and a burst
+/// detector tuned to catch one short phrase never fired at all. Reading gives
+/// ten times the data and needs nothing to be recognised.
 ///
-/// This is a filter, not a lock. It reliably turns away a clearly different
-/// voice — someone else in the room, a podcast, the television — and it will
-/// not stop a recording of you, or reliably separate you from a similar voice.
+/// This is a filter, not a lock. It turns away a clearly different voice —
+/// someone else in the room, a podcast, the television — and it will not stop
+/// a recording of you.
 @MainActor
 @Observable
 final class VoicePrintStore {
     static let shared = VoicePrintStore()
 
-    /// How many samples enrolment asks for. Five is enough to measure the
-    /// user's own variation, which is what sets the threshold.
-    static let required = 5
+    /// Enough speech to describe a voice. Around three sentences read aloud.
+    static let secondsWanted: Double = 12
 
-    private(set) var enrolledCount = 0
     private(set) var isEnrolling = false
-    /// Samples taken so far in this enrolment run.
-    private(set) var progress = 0
-    /// Set when an enrolment sample was unusable, so Settings can say why.
+    /// Seconds gathered so far, for the progress the user watches.
+    private(set) var captured: Double = 0
     private(set) var lastProblem: String?
+    private(set) var isEnrolled = false
 
-    var isEnrolled: Bool { enrolledCount >= 2 }
+    /// What to read. Chosen for phonetic spread rather than meaning — the more
+    /// different sounds a voice makes, the better it is described.
+    static let passage = """
+        The quick brown fox jumps over the lazy dog while five wizards make \
+        toxic brew. She sells sea shells by the shore, and the rain in Spain \
+        stays mainly on the plain.
+        """
 
-    @ObservationIgnored private var templates: [VoicePrint] = []
-    @ObservationIgnored private var threshold: Float = 0
-    @ObservationIgnored private var pending: [VoicePrint] = []
+    @ObservationIgnored private var profile: VoiceProfile?
 
     private init() { load() }
 
     // MARK: - The gate
 
-    /// True when this utterance is close enough to the enrolled voice. Open
-    /// when nothing is enrolled: a gate with no key in it would lock the user
-    /// out of their own assistant with no way back in by voice.
-    func accepts(_ print: VoicePrint) -> Bool {
-        guard isEnrolled else { return true }
-        let best = templates.map { VoicePrint.distance($0, print) }.min() ?? .greatestFiniteMagnitude
-        let verdict = best <= threshold
-        EgoLog.trace(String(format: "voice match: %.2f vs %.2f — %@",
-                            best, threshold, verdict ? "you" : "someone else"))
+    /// True when this utterance came from the enrolled voice. Open when
+    /// nothing is enrolled: a gate with no key would lock the user out of
+    /// their own assistant, with no way back in by voice.
+    func accepts(samples: [Float], sampleRate: Double) -> Bool {
+        guard let profile else { return true }
+        guard let heard = VoiceProfile.make(samples: samples, sampleRate: sampleRate) else {
+            // Unmeasurable audio is not evidence of an impostor.
+            EgoLog.trace("voice match: nothing to measure — allowing")
+            return true
+        }
+        let distance = profile.distance(to: heard)
+        let verdict = distance <= profile.threshold
+        EgoLog.trace(String(format: "voice match: %.3f vs %.3f — %@",
+                            distance, profile.threshold, verdict ? "you" : "someone else"))
         return verdict
     }
 
     // MARK: - Enrolment
 
     func beginEnrolment() {
-        pending = []
-        progress = 0
+        captured = 0
         lastProblem = nil
         isEnrolling = true
-        EgoLog.trace("voice enrolment: started")
+        EgoLog.trace("voice enrolment: reading started")
+    }
+
+    func noteProgress(_ seconds: Double) {
+        guard isEnrolling else { return }
+        captured = min(seconds, Self.secondsWanted)
     }
 
     func cancelEnrolment() {
-        pending = []
-        progress = 0
         isEnrolling = false
+        captured = 0
     }
 
-    /// One spoken sample. Returns true when enrolment is complete.
+    /// Turns the recording into a profile. Returns false when there wasn't
+    /// enough actual speech in it, which is the one failure worth reporting.
     @discardableResult
-    func addSample(_ print: VoicePrint?) -> Bool {
-        guard isEnrolling else { return false }
-        guard let print, print.isUsable else {
-            lastProblem = "Didn't catch that — say it a little louder."
-            EgoLog.trace("voice enrolment: sample rejected")
+    func finishEnrolment(samples: [Float], sampleRate: Double) -> Bool {
+        isEnrolling = false
+        captured = 0
+        guard let built = VoiceProfile.make(samples: samples, sampleRate: sampleRate),
+              built.frameCount >= 200 else {
+            lastProblem = "I didn't hear enough — read it again, a bit closer to the Mac."
+            EgoLog.trace("voice enrolment: too little speech")
             return false
         }
-        pending.append(print)
-        progress = pending.count
+        profile = built
+        isEnrolled = true
         lastProblem = nil
-        guard pending.count >= Self.required else { return false }
-
-        templates = pending
-        threshold = Self.calibrate(templates)
-        enrolledCount = templates.count
-        pending = []
-        isEnrolling = false
-        EgoAssistant.shared.endVoiceEnrolment()
         save()
-        EgoLog.trace(String(format: "voice enrolment: done, threshold %.2f", threshold))
+        EgoLog.trace(String(format: "voice enrolment: done — %d frames, threshold %.3f",
+                            built.frameCount, built.threshold))
         return true
     }
 
     func forget() {
-        templates = []
-        threshold = 0
-        enrolledCount = 0
-        pending = []
+        profile = nil
+        isEnrolled = false
         isEnrolling = false
+        captured = 0
         try? FileManager.default.removeItem(at: Self.url)
         EgoLog.trace("voice enrolment: forgotten")
     }
 
-    /// The threshold comes from the user's own consistency: how far apart their
-    /// five samples are from each other, plus room to spare. Someone who says
-    /// it the same way every time gets a strict gate; someone who doesn't gets
-    /// a forgiving one — without either of them having to tune a slider.
-    private static func calibrate(_ templates: [VoicePrint]) -> Float {
-        var distances: [Float] = []
-        for i in 0..<templates.count {
-            for j in (i + 1)..<templates.count {
-                distances.append(VoicePrint.distance(templates[i], templates[j]))
-            }
-        }
-        guard !distances.isEmpty else { return 8 }
-        let mean = distances.reduce(0, +) / Float(distances.count)
-        let spread = (distances.max() ?? mean) - mean
-        // Deliberately generous. Measured against synthesised voices, a
-        // different vocal tract sits five or six times further away than the
-        // user's own day-to-day variation — so there is room to be forgiving
-        // and still turn strangers away. Being turned away from your own
-        // assistant is a far worse failure than a rare false accept.
-        return min(max(max(mean * 2.2, mean + spread * 1.5), 4), 30)
+    /// For Settings, so it can say how well it knows the voice.
+    var summary: String? {
+        guard let profile else { return nil }
+        return String(format: "about %.0f seconds of speech, gate at %.2f",
+                      Double(profile.frameCount) / 100, profile.threshold)
     }
 
     // MARK: - Storage
-
-    private struct Saved: Codable {
-        let templates: [VoicePrint]
-        let threshold: Float
-    }
 
     private static var url: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -136,8 +121,7 @@ final class VoicePrintStore {
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(Saved(templates: templates, threshold: threshold))
-        else { return }
+        guard let profile, let data = try? JSONEncoder().encode(profile) else { return }
         try? FileManager.default.createDirectory(at: Self.url.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
         try? data.write(to: Self.url)
@@ -145,9 +129,8 @@ final class VoicePrintStore {
 
     private func load() {
         guard let data = try? Data(contentsOf: Self.url),
-              let saved = try? JSONDecoder().decode(Saved.self, from: data) else { return }
-        templates = saved.templates
-        threshold = saved.threshold
-        enrolledCount = saved.templates.count
+              let saved = try? JSONDecoder().decode(VoiceProfile.self, from: data) else { return }
+        profile = saved
+        isEnrolled = true
     }
 }

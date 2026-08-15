@@ -1,3 +1,4 @@
+import AppKit
 import LocalAuthentication
 
 /// Proving it's you, before changing who Ego listens to.
@@ -19,6 +20,17 @@ enum EgoAuth {
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &problem) else {
             EgoLog.trace("auth unavailable: \(problem?.localizedDescription ?? "unknown")")
             return false
+        }
+        // Whichever window asked, so it can be handed back afterwards: macOS
+        // returns focus to the app that was frontmost *before* the panel
+        // appeared, which is how a click in Settings ends up leaving the
+        // terminal in front.
+        let asker = NSApp.keyWindow
+        defer {
+            Task { @MainActor in
+                NSApp.activate(ignoringOtherApps: true)
+                asker?.makeKeyAndOrderFront(nil)
+            }
         }
         do {
             return try await context.evaluatePolicy(.deviceOwnerAuthentication,

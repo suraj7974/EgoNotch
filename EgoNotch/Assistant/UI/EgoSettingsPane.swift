@@ -157,9 +157,10 @@ struct EgoSettingsPane: View {
             SettingsRow(label: "Voice ID", hint: enrolmentHint, icon: "waveform.and.person.filled") {
                 HStack(spacing: 8) {
                     if voice.isEnrolling {
-                        SettingsBadge(text: "\(voice.progress) of \(VoicePrintStore.required)",
+                        SettingsBadge(text: "\(Int(voice.captured))s of \(Int(VoicePrintStore.secondsWanted))s",
                                       tint: Ego.text)
-                        SettingsActionButton(title: "Cancel") { assistant.endVoiceEnrolment() }
+                        SettingsActionButton(title: "Done") { assistant.finishVoiceEnrolment() }
+                        SettingsActionButton(title: "Cancel") { assistant.cancelVoiceEnrolment() }
                     } else if voice.isEnrolled {
                         SettingsActionButton(title: "Teach again") {
                             authorised("teach Ego a new voice") { assistant.beginVoiceEnrolment() }
@@ -303,13 +304,11 @@ struct EgoSettingsPane: View {
     private var enrolmentHint: String? {
         if let problem = voice.lastProblem { return problem }
         if voice.isEnrolling {
-            let name = settings.egoWakeName
-            return "Say “Hey \(name.prefix(1).uppercased() + name.dropFirst())”, "
-                + "in your normal voice, until the count fills."
+            return "Read this aloud, in your normal voice:  “\(VoicePrintStore.passage)”"
         }
         return voice.isEnrolled
-            ? "Taught from \(voice.enrolledCount) samples. Redo it if you keep being turned away."
-            : "Five short recordings of the wake phrase. Nothing but the fingerprint is kept — no audio."
+            ? "Taught from \(voice.summary ?? "your voice"). Redo it if you keep being turned away."
+            : "Read a short passage aloud. Only the measurements are kept — never the audio."
     }
 
     /// Said plainly, because "what does it keep" deserves a straight answer.

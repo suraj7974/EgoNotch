@@ -173,56 +173,52 @@ final class EgoEars {
         armEndpoint(grace: grace)
     }
 
-    /// Teaching the voice.
+    /// Teaching the voice: record continuously while the passage is read.
     ///
-    /// Deliberately independent of transcription: enrolment triggers on a
-    /// burst of speech followed by a pause, not on the wake matcher firing.
-    /// Making it wait for the recogniser to spell the name correctly would
-    /// mean the exact problem this feature exists to work around — a misheard
-    /// name — also blocks you from fixing it.
+    /// Nothing here depends on transcription or on detecting where one
+    /// utterance ends. Both of those were tried and both failed — the first
+    /// because it needed the wake word recognised, which is the very thing
+    /// being worked around, and the second because a burst detector tuned by
+    /// guesswork never fired at all. Recording plain audio cannot fail that
+    /// way; the silences are dropped later, when the frames are measured.
     func beginVoiceEnrolment() async {
         if case .off = status { await start() }
+        tap.beginCapture()
         enrolPump?.cancel()
-        EgoLog.trace("enrolment: listening for speech, status \(status)")
+        EgoLog.trace("enrolment: recording, status \(status)")
         enrolPump = Task { [weak self] in
-            var loudFrames = 0
-            var quietFrames = 0
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(200))
                 guard let self, VoicePrintStore.shared.isEnrolling else { return }
-
-                if self.tap.level() > 0.2 {
-                    loudFrames += 1
-                    quietFrames = 0
-                    continue
+                let seconds = self.tap.capturedSeconds
+                VoicePrintStore.shared.noteProgress(seconds)
+                if seconds >= VoicePrintStore.secondsWanted {
+                    self.finishVoiceEnrolment()
+                    return
                 }
-                guard loudFrames >= 4 else { loudFrames = 0; continue }   // ≥0.3s of speech
-                quietFrames += 1
-                guard quietFrames >= 7 else { continue }                  // then ~0.6s of quiet
-
-                loudFrames = 0
-                quietFrames = 0
-                let print = self.fingerprintOfWake()
-                EgoLog.trace("enrolment: heard an utterance, fingerprint "
-                             + (print == nil ? "FAILED" : "ok (\(print!.frames.count) frames)"))
-                VoicePrintStore.shared.addSample(print)
-                // Long enough that the tail of one sample can't start the next.
-                try? await Task.sleep(for: .milliseconds(700))
             }
         }
     }
 
-    func endVoiceEnrolment() {
+    /// Stops recording and builds the profile. Also the "Done" button, for a
+    /// slow reader who has already said plenty.
+    @discardableResult
+    func finishVoiceEnrolment() -> Bool {
         enrolPump?.cancel()
         enrolPump = nil
+        guard let recording = tap.endCapture() else {
+            VoicePrintStore.shared.cancelEnrolment()
+            return false
+        }
+        return VoicePrintStore.shared.finishEnrolment(samples: recording.samples,
+                                                      sampleRate: recording.sampleRate)
     }
 
-    /// The wake phrase, as a fingerprint. Takes a window ending now, because
-    /// the transcript that told us it was the wake word always lags the sound
-    /// that produced it.
-    private func fingerprintOfWake() -> VoicePrint? {
-        guard let recent = tap.recentAudio(seconds: 2.0) else { return nil }
-        return VoicePrint.make(samples: recent.samples, sampleRate: recent.sampleRate)
+    func cancelVoiceEnrolment() {
+        enrolPump?.cancel()
+        enrolPump = nil
+        _ = tap.endCapture()
+        VoicePrintStore.shared.cancelEnrolment()
     }
 
     /// Stop taking commands and go back to waiting for the wake word.
@@ -304,12 +300,14 @@ final class EgoEars {
             // are taken by the enrolment pump, which listens for *speech*
             // rather than waiting for the recogniser to spell the name right.
             if VoicePrintStore.shared.isEnrolling { return }
-            // The gate. Only ever applied to the wake phrase: it is the one
-            // thing said the same way every time, which is what makes the
-            // comparison meaningful. Everything after it inherits the trust.
+            // The gate. Applied to the wake phrase only — everything said
+            // after it inherits the trust, because re-checking each follow-up
+            // would mean judging half-second fragments, which is where this
+            // kind of matching is weakest.
             if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled {
-                guard let print = fingerprintOfWake(),
-                      VoicePrintStore.shared.accepts(print) else {
+                guard let heard = tap.recentAudio(seconds: 2.0),
+                      VoicePrintStore.shared.accepts(samples: heard.samples,
+                                                     sampleRate: heard.sampleRate) else {
                     wakeCooldown = Date().addingTimeInterval(1.2)
                     return
                 }

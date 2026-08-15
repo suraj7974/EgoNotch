@@ -131,10 +131,11 @@ final class EgoAssistant {
         Task { await ears.beginVoiceEnrolment() }
     }
 
-    func endVoiceEnrolment() {
-        VoicePrintStore.shared.cancelEnrolment()
-        ears.endVoiceEnrolment()
-    }
+    /// Enough read already — build the profile from what there is.
+    @discardableResult
+    func finishVoiceEnrolment() -> Bool { ears.finishVoiceEnrolment() }
+
+    func cancelVoiceEnrolment() { ears.cancelVoiceEnrolment() }
 
     /// The name in the wake phrase primes the recogniser when the microphone
     /// opens, so changing it has to reopen the ears — otherwise the new word

@@ -30,6 +30,10 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
     private var ringFilled = 0
     private var ringRate: Double = 0
 
+    /// Everything heard since enrolment began. Separate from the ring, which
+    /// only ever holds the last few seconds.
+    private var capture: [Float]?
+
     /// Yields `AnalyzerInput` rather than raw buffers: `AVAudioPCMBuffer` is
     /// not `Sendable`, so a stream of them cannot cross into the transcriber's
     /// actor. The stream keeps only the newest few — the audio thread must
@@ -149,6 +153,10 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         meter = loudness
         let sink = continuation
         appendToRing(converted)
+        if capture != nil, let channel = converted.floatChannelData?[0] {
+            capture?.append(contentsOf: UnsafeBufferPointer(start: channel,
+                                                            count: Int(converted.frameLength)))
+        }
         lock.unlock()
         sink?.yield(AnalyzerInput(buffer: converted))
     }
@@ -162,6 +170,26 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
             ringWrite = (ringWrite + 1) % ring.count
         }
         ringFilled = min(ringFilled + count, ring.count)
+    }
+
+    // MARK: - Enrolment capture
+
+    func beginCapture() {
+        lock.lock(); capture = []; lock.unlock()
+    }
+
+    /// How much speech-or-silence has been gathered so far.
+    var capturedSeconds: Double {
+        lock.lock(); defer { lock.unlock() }
+        guard ringRate > 0, let capture else { return 0 }
+        return Double(capture.count) / ringRate
+    }
+
+    func endCapture() -> (samples: [Float], sampleRate: Double)? {
+        lock.lock(); defer { lock.unlock() }
+        defer { capture = nil }
+        guard let capture, ringRate > 0, !capture.isEmpty else { return nil }
+        return (capture, ringRate)
     }
 
     /// The most recent `seconds` of audio, oldest first.
