@@ -119,7 +119,7 @@ struct EgoSettingsPane: View {
             }
             SettingsDivider()
             SettingsRow(label: "Keep talking",
-                        hint: "After a reply, keep listening so the next command needs no wake word. Say “stop” to end it.",
+                        hint: "After a reply, keep listening so the next command needs no wake word. Say “dismiss” when you're done. Off means one command per wake word.",
                         icon: "bubble.left.and.bubble.right") {
                 Toggle("", isOn: $settings.egoConversation)
                     .toggleStyle(SwitchToggleStyle(tint: Ego.accent))

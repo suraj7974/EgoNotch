@@ -46,7 +46,7 @@ final class SettingsStore {
         static let egoVoice       = "ego.voice"            // AVSpeechSynthesisVoice id
         static let egoWakeName    = "ego.wakeName"         // the name in the wake phrase
         static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
-        static let egoConverse    = "ego.conversation"     // Bool, default false
+        static let egoConverse    = "ego.conversation"     // Bool, default true
         static let egoRate        = "ego.speechRate"       // 0.3…0.7, default 0.52
         static let egoPauseInCall = "ego.pauseInMeetings"  // Bool, default true
         static func widgetEnabled(_ id: String) -> String { "widget.enabled.\(id)" }
@@ -146,8 +146,9 @@ final class SettingsStore {
         didSet { defaults.set(egoSpeakReplies, forKey: Key.egoSpeak) }
     }
     /// Keep the floor after a reply, so the next command needs no wake word.
-    /// Off by default: it holds the microphone open for half a minute at a
-    /// time, which is a real cost for something most commands don't need.
+    /// On by default: saying the wake word before every single command is the
+    /// thing that makes an assistant tiring to use. Ego holds the floor until
+    /// you dismiss it, and "dismiss" hands the microphone straight back.
     var egoConversation: Bool {
         didSet { defaults.set(egoConversation, forKey: Key.egoConverse) }
     }
@@ -244,7 +245,7 @@ final class SettingsStore {
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
-        egoConversation = defaults.bool(forKey: Key.egoConverse)
+        egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
         egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
@@ -314,7 +315,7 @@ final class SettingsStore {
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
-        egoConversation = defaults.bool(forKey: Key.egoConverse)
+        egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
         egoPauseInMeetings = defaults.bool(forKey: Key.egoPauseInCall)
         terminalHotKeyEnabled = defaults.bool(forKey: Key.termHotKeyOn)
