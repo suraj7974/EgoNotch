@@ -128,10 +128,12 @@ enum CommandGrammar {
         return text.split(separator: " ").count == 1 && needsObject.contains(text)
     }
 
-    /// Words no English sentence ends on.
+    /// Words no English sentence ends on. Emphatically NOT "it", "this" or
+    /// "that" — "pause it" is a whole command, and treating it as half of one
+    /// left Ego waiting four and a half seconds for a word that never came.
     private static let dangling: Set<String> = [
         "the", "a", "an", "to", "my", "of", "for", "and", "or", "in", "on",
-        "with", "at", "is", "it", "this", "that", "some", "go", "turn", "set",
+        "with", "at", "go", "turn", "set",
     ]
 
     private static let needsObject: Set<String> = [
