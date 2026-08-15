@@ -153,8 +153,9 @@ struct NotesTileView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Ego.text)
                         .frame(width: 30, height: 30)
-                        .background(Color.white.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color.black, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Ego.border, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .help("Add as checkbox")

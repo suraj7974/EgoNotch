@@ -135,7 +135,8 @@ struct BatteryTopBarPill: View {
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.07), in: Capsule())
+            .background(Color.black, in: Capsule())
+            .overlay(Capsule().strokeBorder(Ego.border, lineWidth: 1))
             .help(helpText)
         }
     }

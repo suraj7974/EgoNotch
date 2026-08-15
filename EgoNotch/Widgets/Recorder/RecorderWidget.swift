@@ -321,7 +321,7 @@ struct RecorderTileView: View {
             if camera.session != nil {
                 CameraPreview(previewLayer: camera.previewLayer)
             } else {
-                Ego.surface2.clipShape(Circle())
+                Color.black.clipShape(Circle()).overlay(Circle().strokeBorder(Ego.border, lineWidth: 1))
             }
         }
         .aspectRatio(1, contentMode: .fit)

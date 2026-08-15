@@ -54,7 +54,7 @@ struct SettingsCard<Content: View>: View {
                     .padding(.leading, 3)
             }
             VStack(spacing: 0) { content }
-                .background(Ego.surface2.opacity(0.55),
+                .background(Color.white.opacity(0.04),
                             in: RoundedRectangle(cornerRadius: Ego.cardRadius))
                 .overlay(
                     RoundedRectangle(cornerRadius: Ego.cardRadius)

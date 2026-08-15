@@ -259,7 +259,7 @@ private struct ClipRow: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(hovered ? Ego.surface2 : Ego.surface2.opacity(0.5),
+            .background(hovered ? Color.white.opacity(0.07) : Color.black,
                         in: RoundedRectangle(cornerRadius: 8))
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }

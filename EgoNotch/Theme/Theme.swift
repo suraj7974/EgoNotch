@@ -9,7 +9,9 @@ nonisolated enum Ego {
     // are separated by hairlines and borders, never by background shade.
     static let bg         = Color.black              // panel base
     static let surface    = Color.black              // card/tile background
-    static let surface2   = Color(hex: "141414")     // rows/fields: the only lift
+    /// Rows, fields and controls. Black like everything else — separation is
+    /// a hairline's job, never a lighter fill.
+    static let surface2   = Color.black
     static let border     = Color.white.opacity(0.12)
     static let accent     = Color(hex: "0A84FF")     // interactive accent — use sparingly
     static let accentSoft = Color(hex: "64D2FF")

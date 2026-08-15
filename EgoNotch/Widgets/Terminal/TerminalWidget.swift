@@ -104,7 +104,8 @@ struct TerminalSessionsButton: View {
                 .fixedSize()
                 .frame(width: 24, height: 24)
                 .foregroundStyle(Ego.textMute)
-                .background(Color.white.opacity(0.06), in: Circle())
+                .background(Color.black, in: Circle())
+                .overlay(Circle().strokeBorder(Ego.border, lineWidth: 1))
                 .help("Attach a tmux session")
                 .onHover { if $0 { sessions.refresh() } }
             }

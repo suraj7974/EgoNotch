@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Native-style buttons: filled light primary, gray secondary.
+/// Native-style buttons: filled light primary, black-with-hairline secondary.
 struct EgoButtonStyle: ButtonStyle {
     enum Variant { case primary, secondary }
     var variant: Variant = .primary
@@ -11,8 +11,12 @@ struct EgoButtonStyle: ButtonStyle {
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(
-                variant == .primary ? Color.white.opacity(0.9) : Ego.surface2,
+                variant == .primary ? Color.white.opacity(0.9) : Color.black,
                 in: RoundedRectangle(cornerRadius: 7)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .strokeBorder(Ego.border, lineWidth: variant == .primary ? 0 : 1)
             )
             .foregroundStyle(variant == .primary ? Color.black : Ego.text)
             .opacity(configuration.isPressed ? 0.75 : 1)

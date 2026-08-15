@@ -176,7 +176,7 @@ private struct ShelfItemCell: View {
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(selected ? Color.white.opacity(0.16)
-                      : (hovered ? Ego.surface2 : .clear))
+                      : (hovered ? Color.white.opacity(0.07) : .clear))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)

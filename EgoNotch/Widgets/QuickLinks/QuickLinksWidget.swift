@@ -134,7 +134,8 @@ struct QuickLinksCompactView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Ego.textMute)
                             .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.08), in: Circle())
+                            .background(Color.black, in: Circle())
+                            .overlay(Circle().strokeBorder(Ego.border, lineWidth: 1))
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -201,7 +202,8 @@ private struct LinkButton: View {
                         .font(Ego.font(15, .bold))
                         .foregroundStyle(Ego.text)
                         .frame(width: 34, height: 34)
-                        .background(Color.white.opacity(0.1), in: Circle())
+                        .background(Color.black, in: Circle())
+                        .overlay(Circle().strokeBorder(Ego.border, lineWidth: 1))
                 }
             }
             .frame(width: 40, height: 40)

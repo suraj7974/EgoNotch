@@ -109,7 +109,7 @@ struct FocusTileView: View {
                             .font(Ego.font(10, .medium))
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3)
-                            .background(timer.mode == m ? Color.white.opacity(0.14) : Ego.surface2,
+                            .background(timer.mode == m ? Color.white.opacity(0.14) : Color.black,
                                         in: Capsule())
                             .foregroundStyle(timer.mode == m ? Ego.text : Ego.textMute)
                     }
@@ -144,7 +144,8 @@ struct FocusTileView: View {
                             .egoDigits()
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3)
-                            .background(Ego.surface2, in: Capsule())
+                            .background(Color.black, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Ego.border, lineWidth: 1))
                             .foregroundStyle(custom.isRunning ? Ego.textMute.opacity(0.4) : Ego.text)
                     }
                     .buttonStyle(.plain)

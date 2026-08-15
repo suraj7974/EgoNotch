@@ -84,7 +84,7 @@ struct MediaCompactView: View {
                         .aspectRatio(contentMode: .fill)
                 } else {
                     ZStack {
-                        Ego.surface2
+                        Color.black
                         Image(systemName: "music.note")
                             .font(.system(size: 22))
                             .foregroundStyle(Ego.textMute)
