@@ -38,6 +38,7 @@ final class EgoAssistant {
     @ObservationIgnored let ears = EgoEars()
     @ObservationIgnored private let voice = EgoVoice()
     @ObservationIgnored private var levelPump: Task<Void, Never>?
+    @ObservationIgnored private var appliedWakeName = SettingsStore.shared.egoWakeName
 
     private(set) var isActive = false
 
@@ -83,6 +84,18 @@ final class EgoAssistant {
             EgoLog.trace("mic free again")
             startListeningIfWanted()
         }
+    }
+
+    /// The name in the wake phrase primes the recogniser when the microphone
+    /// opens, so changing it has to reopen the ears — otherwise the new word
+    /// is matched by the text matcher but never actually heard.
+    func wakeNameChanged() {
+        let name = SettingsStore.shared.egoWakeName
+        guard name != appliedWakeName else { return }
+        appliedWakeName = name
+        guard isActive else { return }
+        EgoLog.trace("wake name is now “\(name)” — reopening the microphone")
+        Task { await ears.stop(); self.startListeningIfWanted() }
     }
 
     /// Wake-word listening is a setting; with it off, Ego only opens the mic

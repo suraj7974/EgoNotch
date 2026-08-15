@@ -20,6 +20,24 @@ enum CommandGrammar {
         return nil
     }
 
+    /// Does this read like an order, without carrying it out? The wake matcher
+    /// asks: when the recogniser mangles the name past recognition ("Hey, Pen,
+    /// next song"), a greeting followed by an unmistakable command is still
+    /// clearly aimed at Ego. Deliberately strict — the text must *begin* with
+    /// a command verb and be short — because song lyrics are full of "hey".
+    static func looksLikeCommand(_ raw: String) -> Bool {
+        let text = normalise(raw)
+        guard !text.isEmpty, text.split(separator: " ").count <= 5 else { return false }
+        return verbs.contains { text == $0 || text.hasPrefix($0 + " ") }
+    }
+
+    private static let verbs = [
+        "pause", "play", "resume", "stop", "next", "previous", "skip", "back",
+        "volume", "mute", "unmute", "louder", "quieter", "turn it", "turn the",
+        "brightness", "brighter", "dimmer", "open", "close", "show", "hide",
+        "switch", "whats", "what is", "how loud", "how bright",
+    ]
+
     /// Lowercase, strip punctuation, collapse whitespace. Speech transcripts
     /// arrive with commas and stray capitals that would break naive matching.
     static func normalise(_ raw: String) -> String {

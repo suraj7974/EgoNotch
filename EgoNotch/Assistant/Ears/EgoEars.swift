@@ -57,6 +57,9 @@ final class EgoEars {
 
     func start() async {
         guard case .off = status else { return }
+        // The recogniser is primed with the name at start time, so this is
+        // where a changed wake word takes effect.
+        WakePhrase.setName(SettingsStore.shared.egoWakeName)
         status = .preparing("Checking microphone…")
         EgoLog.trace("ears: asking for permissions")
 
@@ -105,6 +108,7 @@ final class EgoEars {
             acceptedGeneration = tap.currentGeneration
             try await transcriber.start(
                 audio: audio,
+                wakeName: SettingsStore.shared.egoWakeName,
                 generation: { [tap] in tap.currentGeneration },
                 onUpdate: { [weak self] update in
                     Task { @MainActor in self?.ingest(update) }
@@ -182,15 +186,28 @@ final class EgoEars {
         case .listening:
             latestTranscript = WakePhrase.normalise(update.text)
             EgoLog.trace("raw: \(update.text)")
-            guard Date() > wakeCooldown,
-                  let hit = WakePhrase.match(in: update.text,
-                                             allowBareName: SettingsStore.shared.egoBareWakeWord)
-            else { return }
+            guard Date() > wakeCooldown else { return }
+
+            let command: String
+            if let hit = WakePhrase.match(in: update.text,
+                                          allowBareName: SettingsStore.shared.egoBareWakeWord) {
+                command = hit.command
+            } else if let tail = WakePhrase.afterGreetingAndName(update.text),
+                      CommandGrammar.looksLikeCommand(tail) {
+                // The name was mangled beyond any variant list, but a greeting
+                // followed by a plain order is unambiguous. This is what saves
+                // "Hey, Ele, next song" and "Hey, Pen, volume 30".
+                EgoLog.trace("wake by command shape")
+                command = tail
+            } else {
+                return
+            }
+
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
-            lastCommandText = hit.command
-            partial = hit.command
-            EgoLog.trace("wake heard, command so far: \(hit.command)")
+            lastCommandText = command
+            partial = command
+            EgoLog.trace("wake heard, command so far: \(command)")
             onWake?()
             armEndpoint()
 

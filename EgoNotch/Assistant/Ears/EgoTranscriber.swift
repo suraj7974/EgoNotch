@@ -33,13 +33,16 @@ actor EgoTranscriber {
 
     private let locale: Locale
 
-    /// Words to weight up. The wake phrase first, then the vocabulary of the
-    /// commands themselves — "notch" and "boomerang" are misheard for the same
-    /// reason the name is.
-    private static let vocabulary = [
-        "Ego", "Hey Ego", "hey Ego", "Ego pause", "Ego play",
-        "notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"
-    ]
+    /// Words to weight up: the wake phrase, then the vocabulary of the
+    /// commands themselves — "boomerang" and "pomodoro" are misheard for the
+    /// same reason a rare name is. The name is injected at `start`, since the
+    /// user can change it.
+    private static func vocabulary(name: String) -> [String] {
+        let capitalised = name.prefix(1).uppercased() + name.dropFirst()
+        return ["\(capitalised)", "Hey \(capitalised)", "hey \(capitalised)",
+                "\(capitalised) pause", "\(capitalised) play",
+                "notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"]
+    }
 
     init(locale: Locale = Locale(identifier: "en-US")) {
         self.locale = locale
@@ -75,6 +78,7 @@ actor EgoTranscriber {
     }
 
     func start(audio: AsyncStream<AnalyzerInput>,
+               wakeName: String,
                generation: @escaping @Sendable () -> UInt64,
                onUpdate: @escaping @Sendable (Update) -> Void) async throws {
         await stop()
@@ -90,7 +94,7 @@ actor EgoTranscriber {
         // name is rare enough that the language model always prefers a common
         // word, and the wake phrase then never matches.
         let context = AnalysisContext()
-        context.contextualStrings[.general] = Self.vocabulary
+        context.contextualStrings[.general] = Self.vocabulary(name: wakeName)
 
         let analyzer = SpeechAnalyzer(modules: [module])
         try? await analyzer.setContext(context)

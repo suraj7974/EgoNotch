@@ -68,15 +68,26 @@ struct EgoSettingsPane: View {
 
     private var listeningCard: some View {
         SettingsCard(title: "Listening") {
+            SettingsRow(label: "Answers to", hint: nameHint, icon: "person.text.rectangle") {
+                Picker("", selection: $settings.egoWakeName) {
+                    Text("Hey Ego").tag("ego")
+                    Text("Hey Siri").tag("siri")
+                    Text("Hey Notch").tag("notch")
+                    Text("Hey Nova").tag("nova")
+                }
+                .labelsHidden()
+                .frame(width: 130)
+            }
+            SettingsDivider()
             SettingsRow(label: "Wake word",
-                        hint: "Say “Hey Ego”, then your command. Off means ⌘⌥E only.",
+                        hint: "Say it, then your command. Off means ⌘⌥E only.",
                         icon: "ear") {
                 Toggle("", isOn: $settings.egoWakeWord)
                     .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
                     .labelsHidden()
             }
             SettingsDivider()
-            SettingsRow(label: "Also answer to plain “Ego”",
+            SettingsRow(label: "Also answer to plain “\(bareName)”",
                         hint: "Faster, but it's an ordinary word — expect false wakes.",
                         icon: "exclamationmark.bubble") {
                 Toggle("", isOn: $settings.egoBareWakeWord)
@@ -171,6 +182,25 @@ struct EgoSettingsPane: View {
 
     private func testVoice() {
         assistant.speakSample()
+    }
+
+    /// The recogniser, not taste, decides which name works: a word it already
+    /// knows is heard every time, a rare one about half the time.
+    private var nameHint: String {
+        switch settings.egoWakeName {
+        case "siri":
+            "Heard most reliably of all — but every nearby iPhone, Watch and HomePod answers to it too."
+        case "notch", "nova":
+            "A common word, so it's heard reliably."
+        default:
+            "The name, but rare enough that it's sometimes misheard. Switch if it keeps missing."
+        }
+    }
+
+    /// Also announce the name to the bare-word toggle, which is about the same
+    /// word without a greeting.
+    private var bareName: String {
+        settings.egoWakeName.prefix(1).uppercased() + settings.egoWakeName.dropFirst()
     }
 
     /// Nudges toward a Premium voice when only the compact ones are present —

@@ -119,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Wake-word and stand-down rules changed — re-apply them live.
     @objc private func assistantSettingsChanged() {
         let assistant = EgoAssistant.shared
+        assistant.wakeNameChanged()
         guard assistant.isActive else { return }
         if SettingsStore.shared.egoWakeWord {
             assistant.startListeningIfWanted()
