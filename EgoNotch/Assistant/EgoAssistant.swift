@@ -188,11 +188,14 @@ final class EgoAssistant {
                 self.level = self.ears.level
                 if case .capturing = self.ears.status {
                     if self.phase != .listening { self.phase = .listening }
-                    if !self.ears.partial.isEmpty {
+                    // On each new word, not on every tick. This pump runs
+                    // sixteen times a second, and calling show() from it
+                    // unconditionally re-entered the panel controller, re-armed
+                    // its watchdog and wrote a log line at that rate.
+                    if !self.ears.partial.isEmpty, self.ears.partial != self.heard {
                         self.heard = self.ears.partial
-                        // Show it as soon as words arrive. In a conversation
-                        // there is no wake to open the HUD, so without this
-                        // Ego looks asleep for as long as you are talking.
+                        // In a conversation there is no wake to open the HUD,
+                        // so without this Ego looks asleep while you talk.
                         self.show()
                     }
                 }
@@ -399,16 +402,16 @@ final class EgoAssistant {
 
     private func show() {
         dismissTask?.cancel()
+        guard let panel = NotchPanelController.current?.stateController else { return }
         // With the panel already open you can see everything; replacing it
         // with Ego's strip would take away what you were looking at. The
         // waveform along the panel's top edge is enough, and the answer comes
         // by voice.
-        guard NotchPanelController.current?.stateController.state != .expanded else {
-            EgoLog.trace("panel is open — showing the inline wave instead")
-            return
-        }
-        EgoLog.trace("hud: open")
-        NotchPanelController.current?.stateController.beginAssistant()
+        guard panel.state != .expanded else { return }
+        // Traced only when it genuinely opens — this is called on every new
+        // word, and a line per call buried everything else in the log.
+        if panel.state != .assistant { EgoLog.trace("hud: open") }
+        panel.beginAssistant()
     }
 
     /// Ego heard the wake phrase and is taking a command. Shows the HUD with a
