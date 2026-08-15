@@ -39,34 +39,39 @@ struct AudioBars: View {
                 AudioBar(delay: 0.30, playing: model.isPlaying)
             }
             .frame(height: 14, alignment: .center)
-            // Hard teardown on play/pause: retargeting a delayed repeatForever
-            // animation is unreliable — fresh identity guarantees bars stop.
-            .id(model.isPlaying)
         }
     }
 }
 
+/// One bar, driven by the clock rather than by a `repeatForever` animation.
+///
+/// The old version started its animation in `onAppear`. When a track is
+/// already playing at launch the bars are built before the panel window is on
+/// screen, Core Animation drops that implicit animation, and nothing ever
+/// restarts it — the bars sat frozen until a hover rebuilt the view. A
+/// TimelineView has no start to miss: it just reads the current time, and
+/// pauses outright when nothing is playing, so idle cost stays zero.
 private struct AudioBar: View {
     let delay: Double
     var playing: Bool
-    @State private var up = false
+
+    private static let period: Double = 0.8
+    private static let minHeight: Double = 4
+    private static let maxHeight: Double = 13
 
     var body: some View {
-        Capsule()
-            .fill(Ego.text)
-            .frame(width: 2.5, height: up ? 13 : 4)
-            .opacity(playing ? 1 : 0.4)
-            .onAppear { sync() }
-            .onChange(of: playing) { sync() }
+        TimelineView(.animation(minimumInterval: 1 / 20, paused: !playing)) { context in
+            Capsule()
+                .fill(Ego.text)
+                .frame(width: 2.5, height: height(at: context.date))
+                .opacity(playing ? 1 : 0.4)
+        }
     }
 
-    private func sync() {
-        if playing {
-            withAnimation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true).delay(delay)) {
-                up = true
-            }
-        } else {
-            withAnimation(.easeOut(duration: 0.2)) { up = false }
-        }
+    private func height(at date: Date) -> Double {
+        guard playing else { return Self.minHeight }
+        let phase = (date.timeIntervalSinceReferenceDate / Self.period) + delay
+        let wave = 0.5 + 0.5 * sin(phase * 2 * .pi)      // 0…1
+        return Self.minHeight + (Self.maxHeight - Self.minHeight) * wave
     }
 }
