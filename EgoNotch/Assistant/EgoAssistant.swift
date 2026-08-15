@@ -54,6 +54,7 @@ final class EgoAssistant {
 
         ears.onCommand = { [weak self] command in self?.handle(command) }
         ears.onWake = { [weak self] in self?.beganCapturing() }
+        ears.onIdle = { [weak self] in self?.captureEndedEmpty() }
         voice.onFinish = { [weak self] in
             Task { @MainActor in self?.ears.resumeAfterSpeaking() }
         }
@@ -255,6 +256,27 @@ final class EgoAssistant {
             EgoLog.trace("hud: retired")
             NotchPanelController.current?.stateController.endAssistant()
         }
+    }
+
+    /// The user hovered or clicked the notch while Ego's HUD was up. Let go
+    /// quietly: drop a held question — reaching for the mouse is not an answer
+    /// — and reset, without touching the panel. The state controller is
+    /// already moving it, and fighting it here would flicker.
+    func userReclaimedPanel() {
+        dismissTask?.cancel(); dismissTask = nil
+        confirmTask?.cancel(); confirmTask = nil
+        pending = nil
+        phase = .idle
+        heard = ""
+        EgoLog.trace("hud: user took the panel back")
+    }
+
+    /// A wake phrase with nothing after it. Retire promptly instead of sitting
+    /// on the 15-second safety net — a half-heard "hey ego" shouldn't park a
+    /// panel over the user's screen.
+    private func captureEndedEmpty() {
+        guard phase == .listening, pending == nil else { return }
+        scheduleDismiss(after: 0.5)
     }
 
     /// Close the HUD immediately (Esc, or the user clicking away).

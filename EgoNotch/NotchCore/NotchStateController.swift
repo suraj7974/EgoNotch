@@ -32,6 +32,9 @@ final class NotchStateController {
 
     /// Where the panel was before Ego took it over, so it can be handed back.
     @ObservationIgnored private var stateBeforeAssistant: NotchState?
+    /// Called when the user reclaims the panel mid-HUD. Injected, so nothing in
+    /// NotchCore has to know the assistant exists.
+    @ObservationIgnored var assistantWillYield: (() -> Void)?
     @ObservationIgnored private var assistantWatchdog: Task<Void, Never>?
 
     @ObservationIgnored private var dwellTask: Task<Void, Never>?
@@ -96,6 +99,12 @@ final class NotchStateController {
             scheduleDwellIfNeeded()
             return
         }
+        // So does Ego. Its HUD is transient, and reaching for the notch must
+        // never be blocked by it — being unable to open the panel while the
+        // assistant is talking reads as the notch being stuck.
+        if state == .assistant {
+            yieldAssistant()
+        }
         guard state == .closed, let geometry else { return }
         // During a deferred shrink the tracking rect is still the old, larger
         // frame — accept the enter only if the pointer is really on the
@@ -132,6 +141,7 @@ final class NotchStateController {
     /// Click on the notch chrome (any mode expands immediately).
     func clicked() {
         guard state != .expanded else { return }
+        if state == .assistant { yieldAssistant() }
         dismissBanner()
         expandedInteractively = true
         transition(to: .expanded)
@@ -180,6 +190,13 @@ final class NotchStateController {
             guard !Task.isCancelled, let self, self.state == .assistant else { return }
             self.endAssistant()
         }
+    }
+
+    /// The user took the panel back by hand. Ego is told so it can drop a held
+    /// confirmation — reaching for the mouse is not an answer to a question.
+    private func yieldAssistant() {
+        assistantWillYield?()
+        endAssistant()
     }
 
     /// Hand the panel back to whatever it was doing.

@@ -83,6 +83,12 @@ nonisolated final class EgoVoice: NSObject, AVSpeechSynthesizerDelegate, @unchec
         speaking = false
         lock.unlock()
         if wasSpeaking { onFinish?() }
+        EgoLog.trace("voice: finished (wasSpeaking=\(wasSpeaking))")
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                           didStart utterance: AVSpeechUtterance) {
+        EgoLog.trace("voice: started")
     }
 
     // MARK: - AVSpeechSynthesizerDelegate

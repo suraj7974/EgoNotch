@@ -45,6 +45,9 @@ final class NotchPanelController: NSObject {
         stateController.onStateChange = { [weak self] state in
             self?.stateDidChange(state)
         }
+        stateController.assistantWillYield = {
+            EgoAssistant.shared.userReclaimedPanel()
+        }
         panel.onTabShortcut = { [weak self] index in
             self?.selectTab(at: index)
         }

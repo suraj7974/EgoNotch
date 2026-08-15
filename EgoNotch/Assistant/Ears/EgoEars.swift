@@ -32,6 +32,8 @@ final class EgoEars {
     /// The wake phrase landed — show the listening HUD immediately, rather
     /// than only once the whole sentence is finished.
     var onWake: (() -> Void)?
+    /// Woken, but nothing followed.
+    var onIdle: (() -> Void)?
 
     @ObservationIgnored private let tap = EgoAudioTap()
     @ObservationIgnored private let transcriber = EgoTranscriber()
@@ -166,6 +168,7 @@ final class EgoEars {
             self.acceptedGeneration = self.tap.setMuted(false)
             self.partial = ""
             self.lastCommandText = ""
+            EgoLog.trace("ears: unmuted, accepting generation \(self.acceptedGeneration)")
         }
     }
 
@@ -178,6 +181,7 @@ final class EgoEars {
         switch status {
         case .listening:
             latestTranscript = WakePhrase.normalise(update.text)
+            EgoLog.trace("raw: \(update.text)")
             guard Date() > wakeCooldown,
                   let hit = WakePhrase.match(in: update.text,
                                              allowBareName: SettingsStore.shared.egoBareWakeWord)
@@ -202,7 +206,12 @@ final class EgoEars {
                                                  allowBareName: SettingsStore.shared.egoBareWakeWord) {
                 command = hit.command
             } else {
-                return
+                // The recogniser ends a segment after the wake phrase and
+                // starts the command in a fresh one, so the text arriving now
+                // has no "hey ego" in it at all. Everything in this new segment
+                // IS the command — discarding it (as this branch used to) is
+                // why "hey ego, pause" woke Ego and then did nothing.
+                command = WakePhrase.normalise(update.text)
             }
 
             if command != lastCommandText {
@@ -248,6 +257,7 @@ final class EgoEars {
 
         guard !command.isEmpty else {
             EgoLog.trace("wake with no command")
+            onIdle?()
             return
         }
         EgoLog.trace("utterance: \(command)")

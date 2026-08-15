@@ -33,6 +33,14 @@ actor EgoTranscriber {
 
     private let locale: Locale
 
+    /// Words to weight up. The wake phrase first, then the vocabulary of the
+    /// commands themselves — "notch" and "boomerang" are misheard for the same
+    /// reason the name is.
+    private static let vocabulary = [
+        "Ego", "Hey Ego", "hey Ego", "Ego pause", "Ego play",
+        "notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"
+    ]
+
     init(locale: Locale = Locale(identifier: "en-US")) {
         self.locale = locale
     }
@@ -77,7 +85,15 @@ actor EgoTranscriber {
         transcriber = module
         _ = try? await AssetInventory.reserve(locale: locale)
 
+        // Bias the recogniser toward the words Ego actually cares about.
+        // Untold, it renders "hey ego" as "Hey, Eagle" or "Hey you go" — the
+        // name is rare enough that the language model always prefers a common
+        // word, and the wake phrase then never matches.
+        let context = AnalysisContext()
+        context.contextualStrings[.general] = Self.vocabulary
+
         let analyzer = SpeechAnalyzer(modules: [module])
+        try? await analyzer.setContext(context)
         self.analyzer = analyzer
 
         results = Task {
