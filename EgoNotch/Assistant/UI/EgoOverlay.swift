@@ -9,19 +9,20 @@ struct EgoOverlay: View {
     var assistant: EgoAssistant
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             EgoWaveform(level: assistant.level, mode: mode)
-                .frame(height: 22)
+                .frame(height: assistant.pending == nil ? 22 : 14)
             Text(caption)
                 .font(Ego.font(10.5, assistant.phase == .confirming ? .semibold : .regular))
                 .foregroundStyle(assistant.phase == .confirming ? Ego.text : Ego.textMute)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            // Answered by voice, never by a button: the strip is the height of
+            // a notch, and a target that small is worse than no target at all.
             if assistant.pending != nil {
-                HStack(spacing: 6) {
-                    miniButton("Cancel") { assistant.cancelFromUI() }
-                    miniButton("Confirm") { assistant.confirmFromUI() }
-                }
+                Text("say confirm or cancel")
+                    .font(Ego.font(8.5, .medium))
+                    .foregroundStyle(Ego.textMute)
             }
         }
         .padding(.horizontal, 16)
@@ -47,17 +48,6 @@ struct EgoOverlay: View {
         return "Listening…"
     }
 
-    private func miniButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(Ego.font(9.5, .semibold))
-                .foregroundStyle(Ego.text)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Color.white.opacity(0.12), in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 /// The wavy line. Driven by a clock rather than by animations started on

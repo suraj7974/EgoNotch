@@ -43,6 +43,20 @@ final class EgoAssistant {
     @ObservationIgnored private var thinkTask: Task<Void, Never>?
     @ObservationIgnored private var thinkCount = 0
 
+    /// Ways of saying "I didn't mean to summon you". Matched only as the WHOLE
+    /// utterance: "stop" dismisses Ego, while "stop the music" is a command,
+    /// and telling them apart is the difference between a good assistant and
+    /// one you stop talking to.
+    private static let dismissals: Set<String> = [
+        "stop", "cancel", "nothing", "no", "never mind", "nevermind", "forget it",
+        "sorry", "shut up", "be quiet", "quiet", "go away", "leave it", "not you",
+        "chup", "ruko", "kuch nahi", "nahi", "rehne do", "jao",
+    ]
+
+    private static func isDismissal(_ text: String) -> Bool {
+        dismissals.contains(WakePhrase.normalise(text))
+    }
+
     /// Why the model isn't answering, shown on screen rather than spoken.
     private static var plannerHint: String {
         if case .unavailable(let why) = EgoPlanner.readiness { return why }
@@ -169,6 +183,17 @@ final class EgoAssistant {
         // held action, never a fresh command.
         if pending != nil, let decision = ConfirmWords.decide(command) {
             decision ? confirmPending() : cancelPending()
+            return
+        }
+
+        // "Stop" — you didn't mean to summon it. A false wake has to cost one
+        // word to undo, and that word must not be interpreted as anything
+        // else: this is checked before the grammar, so "stop" here never
+        // reaches the media rules.
+        if Self.isDismissal(command) {
+            EgoLog.trace("dismissed by voice")
+            voice.stop()                    // cut it off mid-sentence if it's talking
+            dismiss()
             return
         }
         // "Yes" while Ego is still working out what to ask is an answer to a
@@ -347,14 +372,35 @@ final class EgoAssistant {
 /// Words that answer a held question. Deliberately matched here and never by
 /// the language model — a confirmation must be mechanical.
 enum ConfirmWords {
-    private static let yes = ["confirm", "yes", "yeah", "yep", "do it", "go ahead", "run it", "okay", "ok"]
-    private static let no = ["cancel", "no", "nope", "stop", "don't", "dont", "never mind", "nevermind"]
+    /// Answers arrive as a transcript of a person talking, not as button
+    /// presses, so the lists are generous — and cover the Hindi the user
+    /// actually speaks, because "nahi" meaning "no" and being heard as nothing
+    /// would run the command.
+    private static let yes = [
+        "confirm", "confirmed", "yes", "yeah", "yep", "yup", "sure", "correct",
+        "do it", "go ahead", "go on", "run it", "run", "okay", "ok", "affirmative",
+        "please do", "yes please", "haan", "haa", "ha", "theek hai", "thik hai",
+        "kar do", "karo", "chalao", "bilkul",
+    ]
+    /// Deliberately longer than the yes list: when Ego is unsure, not doing it
+    /// is always the cheaper mistake.
+    private static let no = [
+        "cancel", "cancelled", "no", "nope", "nah", "stop", "dont", "do not",
+        "never mind", "nevermind", "forget it", "leave it", "skip it", "abort",
+        "decline", "declined", "negative", "no thanks", "no thank you", "wait",
+        "hold on", "not now", "nahi", "nahin", "mat karo", "rehne do", "ruko",
+        "band karo", "chodo",
+    ]
 
     /// true = go, false = cancel, nil = not an answer at all.
     static func decide(_ text: String) -> Bool? {
-        let normalised = text.lowercased().trimmingCharacters(in: .whitespaces)
-        if yes.contains(where: { normalised == $0 || normalised.hasPrefix($0 + " ") }) { return true }
+        // Apostrophes are stripped rather than spaced, so "don't" reads as
+        // "dont" and matches the list.
+        let normalised = WakePhrase.normalise(text)
+        // "no" is checked first: "no, go ahead" is a refusal with a stray verb
+        // in it, and the opposite reading is the expensive one.
         if no.contains(where: { normalised == $0 || normalised.hasPrefix($0 + " ") }) { return false }
+        if yes.contains(where: { normalised == $0 || normalised.hasPrefix($0 + " ") }) { return true }
         return nil
     }
 }
