@@ -505,17 +505,33 @@ final class EgoEars {
             armEndpoint(settle: 1.4)
             return
         }
-        // One sentence, one command. The recogniser keeps a whole segment
-        // alive and revises it, so acting on "play" and then seeing "play the
-        // song" arrive is the SAME sentence growing — not a second order. That
-        // is how "hey zoro play the song" ran play, then play again, then
-        // pause. Either text containing the other means it is the same
-        // utterance still being written down.
-        if !lastDispatched.isEmpty, Date().timeIntervalSince(lastDispatchedAt) < 12,
-           command.hasPrefix(lastDispatched) || lastDispatched.hasPrefix(command) {
-            EgoLog.trace("still the same sentence, ignoring: \(command)")
-            onIdle?()
-            return
+        // Words already acted on can come back attached to new ones. What
+        // matters is whether anything is LEFT once they are removed: "open
+        // terminal run kl" after "open terminal" is a real second command and
+        // was being thrown away, while "play the song" after "play" is the
+        // same sentence still being written down.
+        if !recentlyDone.isEmpty, Date().timeIntervalSince(lastDispatchedAt) < 12 {
+            let rest = stripAlreadyDone(command)
+            if rest.isEmpty {
+                EgoLog.trace("all of that was already done, ignoring: \(command)")
+                onIdle?()
+                return
+            }
+            if rest != command {
+                // Something new is attached. Act on it only if it reads like an
+                // instruction — otherwise it is the tail of the old sentence.
+                guard CommandGrammar.looksLikeCommand(rest) else {
+                    EgoLog.trace("still the same sentence, ignoring: \(command)")
+                    onIdle?()
+                    return
+                }
+                EgoLog.trace("already did “\(lastDispatched)” — taking the rest: \(rest)")
+                command = rest
+            } else if command.hasPrefix(lastDispatched) || lastDispatched.hasPrefix(command) {
+                EgoLog.trace("still the same sentence, ignoring: \(command)")
+                onIdle?()
+                return
+            }
         }
         lastDispatched = command
         lastDispatchedAt = Date()

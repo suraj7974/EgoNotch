@@ -12,6 +12,18 @@ import Speech
 /// async sequence, and under this module's MainActor-by-default isolation it
 /// would otherwise be dragged onto the main actor.
 actor EgoTranscriber {
+    /// Built by hand rather than from `.progressiveTranscription`, for one
+    /// option that preset leaves out: **fastResults**. The measured delay
+    /// between the last word arriving and Ego acting was only 365 ms — the
+    /// wait a person actually feels is the recogniser deciding it is ready to
+    /// speak, and this is the switch that asks it to hurry.
+    private static func module(locale: Locale) -> SpeechTranscriber {
+        SpeechTranscriber(locale: locale,
+                          transcriptionOptions: [],
+                          reportingOptions: [.volatileResults, .fastResults],
+                          attributeOptions: [])
+    }
+
     struct Update: Sendable {
         let text: String
         let isFinal: Bool
@@ -66,7 +78,7 @@ actor EgoTranscriber {
     }
 
     func installModel() async throws {
-        let module = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        let module = Self.module(locale: locale)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             try await request.downloadAndInstall()
         }
@@ -76,7 +88,7 @@ actor EgoTranscriber {
 
     /// The audio format the analyser wants; the tap converts into it.
     func preferredFormat() async -> AVAudioFormat? {
-        let module = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        let module = Self.module(locale: locale)
         return await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module])
     }
 
@@ -86,9 +98,9 @@ actor EgoTranscriber {
                onUpdate: @escaping @Sendable (Update) -> Void) async throws {
         await stop()
 
-        // `progressiveTranscription` gives volatile partials — the live text
-        // in the HUD, and what the wake matcher watches.
-        let module = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+        // Volatile partials feed the live text in the HUD and the wake
+        // matcher; fast results ask for them sooner.
+        let module = Self.module(locale: locale)
         transcriber = module
         _ = try? await AssetInventory.reserve(locale: locale)
 
