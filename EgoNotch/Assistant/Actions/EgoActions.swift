@@ -235,6 +235,16 @@ enum EgoActions {
         return ActionResult("Running.", detail: command)
     }
 
+    /// A key combination is a *signal*, not text. Saying "control C" has to
+    /// send ⌃C to whatever is running — typing the letters would land them in
+    /// the process's stdin and do nothing at all, which is what it did before.
+    static func terminalControlKey(_ letter: Character) -> ActionResult {
+        guard let terminal = terminal() else { return ActionResult("The terminal is turned off.") }
+        terminal.sendControl(letter)
+        let name = String(letter).uppercased()
+        return ActionResult(name == "C" ? "Stopped." : "Control \(name).")
+    }
+
     static func interruptTerminal() -> ActionResult {
         guard let terminal = terminal(), terminal.isRunning else {
             return ActionResult("Nothing to stop.")

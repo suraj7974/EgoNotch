@@ -54,17 +54,35 @@ struct EgoOverlay: View {
 
 /// Ego inside an already-open panel.
 ///
-/// No takeover and no caption: with the panel open you can already see
-/// everything, and replacing it with a strip would take away what you were
-/// looking at. A small wave at the top edge is enough to show it is listening;
-/// the answer comes by voice.
-struct EgoInlineWave: View {
+/// No takeover: with the panel open you can already see everything, and
+/// replacing it with a strip would take away what you were looking at. A small
+/// wave and one line of text, centred under the top bar — the reply is spoken
+/// as well, this is so you can read it.
+struct EgoPanelStatus: View {
     var assistant: EgoAssistant
 
     var body: some View {
-        EgoWaveform(level: assistant.level, mode: EgoOverlay.mode(for: assistant.phase))
-            .frame(width: 130, height: 14)
-            .allowsHitTesting(false)
+        HStack(spacing: 9) {
+            EgoWaveform(level: assistant.level,
+                        mode: EgoOverlay.mode(for: assistant.phase))
+                .frame(width: 84, height: 13)
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(Ego.font(10.5, assistant.pending == nil ? .medium : .semibold))
+                    .foregroundStyle(assistant.pending == nil ? Ego.textMute : Ego.text)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .frame(maxWidth: 520)
+        .allowsHitTesting(false)
+    }
+
+    /// What Ego said, or — while you are still talking — what it is hearing.
+    private var caption: String {
+        if assistant.pending != nil { return assistant.reply }
+        if !assistant.reply.isEmpty, assistant.phase != .listening { return assistant.reply }
+        return assistant.heard
     }
 }
 

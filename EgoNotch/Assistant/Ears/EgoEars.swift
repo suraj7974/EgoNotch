@@ -48,6 +48,10 @@ final class EgoEars {
     /// Where the transcript stood when push-to-talk began, so earlier speech
     /// in the same session isn't swept into the command.
     @ObservationIgnored private var transcriptFloor = ""
+    /// The last utterance actually handed on, so a re-emitted segment can be
+    /// recognised as a repeat rather than obeyed twice.
+    @ObservationIgnored private var lastDispatched = ""
+    @ObservationIgnored private var lastDispatchedAt = Date.distantPast
 
     /// How long a pause means "they've finished talking".
     private let silenceWindow: Double = 1.3
@@ -196,9 +200,15 @@ final class EgoEars {
         // Audio captured before Ego spoke is stale by definition.
         guard update.generation >= acceptedGeneration else { return }
 
+        // Tracked on EVERY update, not just while listening. A follow-up marks
+        // where the transcript stood when it began, and a floor left over from
+        // before the last command makes the whole segment look new — which is
+        // why Ego kept carrying out the same command over and over with
+        // nothing said in between.
+        latestTranscript = WakePhrase.normalise(update.text)
+
         switch status {
         case .listening:
-            latestTranscript = WakePhrase.normalise(update.text)
             EgoLog.trace("raw: \(update.text)")
             guard Date() > wakeCooldown else { return }
 
@@ -228,11 +238,22 @@ final class EgoEars {
         case .capturing:
             let command: String
             if capturingWithoutWake {
-                // Everything said since the key was pressed.
-                let whole = WakePhrase.normalise(update.text)
-                command = whole.hasPrefix(transcriptFloor) && !transcriptFloor.isEmpty
-                    ? String(whole.dropFirst(transcriptFloor.count)).trimmingCharacters(in: .whitespaces)
-                    : whole
+                var whole = WakePhrase.normalise(update.text)
+                // A wake phrase inside a follow-up means the recogniser has
+                // handed back a segment that reaches further into the past
+                // than we asked for. Whatever came after it is the newest
+                // thing said, and the only part that is a command.
+                if let hit = WakePhrase.match(in: whole, allowBareName: false) {
+                    whole = hit.command
+                }
+                // `range(of:)` rather than `hasPrefix`: segments get revised,
+                // so what we already consumed can end up in the middle of the
+                // text rather than at the front. Missing it is what made Ego
+                // carry out the previous command a second time.
+                if !transcriptFloor.isEmpty, let seen = whole.range(of: transcriptFloor) {
+                    whole = String(whole[seen.upperBound...])
+                }
+                command = whole.trimmingCharacters(in: .whitespaces)
             } else if let hit = WakePhrase.match(in: update.text,
                                                  allowBareName: SettingsStore.shared.egoBareWakeWord) {
                 command = hit.command
@@ -297,6 +318,16 @@ final class EgoEars {
             onIdle?()
             return
         }
+        // Belt and braces against the recogniser re-emitting a finished
+        // segment: the same words, with nothing said in between, are the same
+        // utterance — not a second instruction.
+        if command == lastDispatched, Date().timeIntervalSince(lastDispatchedAt) < 12 {
+            EgoLog.trace("same utterance again, ignoring: \(command)")
+            onIdle?()
+            return
+        }
+        lastDispatched = command
+        lastDispatchedAt = Date()
         EgoLog.trace("utterance: \(command)")
         onCommand?(command)
     }

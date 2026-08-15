@@ -51,6 +51,24 @@ enum CommandGrammar {
         return nil
     }
 
+    /// "press control c", "ctrl d", "control see" — the recogniser writes the
+    /// letter as a word about as often as it writes the letter.
+    private static func controlKey(in text: String) -> Character? {
+        let spoken = ["see": "c", "sea": "c", "si": "c", "dee": "d", "de": "d",
+                      "zed": "z", "zee": "z", "el": "l", "you": "u", "yu": "u"]
+        for prefix in ["control ", "ctrl ", "control", "ctrl"] {
+            guard let range = text.range(of: prefix) else { continue }
+            let rest = text[range.upperBound...]
+                .trimmingCharacters(in: CharacterSet(charactersIn: " +-"))
+            guard let word = rest.split(separator: " ").first.map(String.init) else { continue }
+            let letter = spoken[word] ?? word
+            guard letter.count == 1, let character = letter.first,
+                  character.isLetter else { continue }
+            return character
+        }
+        return nil
+    }
+
     private static func isQuestion(_ text: String) -> Bool {
         text.hasSuffix("?")
             || text.matches("^(what|whats|which|who|whos|when|where|why|how|is|are|was|were"
@@ -99,8 +117,13 @@ enum CommandGrammar {
     /// First in the list on purpose: "run npm start" must never be read as
     /// "start" the music.
     private static let terminalRules: Rule = { text in
-        if text.hasAny("stop the command", "cancel the command", "control c",
-                       "interrupt it", "kill it") {
+        // Spoken control keys, before anything else: "control c" must never be
+        // typed out as words into a running process.
+        if let letter = controlKey(in: text) {
+            return EgoActions.terminalControlKey(letter)
+        }
+        if text.hasAny("stop the command", "cancel the command",
+                       "interrupt it", "kill it", "kill the command") {
             return EgoActions.interruptTerminal()
         }
         if text.hasAny("what directory", "which directory", "where am i",

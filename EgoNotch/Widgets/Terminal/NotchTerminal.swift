@@ -129,6 +129,16 @@ final class NotchTerminal: NSObject, LocalProcessTerminalViewDelegate {
     /// Send a signal the way a keystroke would.
     func interrupt() { view.send(txt: "\u{3}") }
 
+    /// Control keys, sent as the control characters a terminal expects rather
+    /// than typed out as words. "Control C" has to *be* ⌃C — typing the letters
+    /// into a running process does nothing at all.
+    func sendControl(_ letter: Character) {
+        guard let ascii = letter.uppercased().first?.asciiValue,
+              ascii >= 65, ascii <= 90 else { return }
+        // ⌃A is 1, ⌃B is 2 … ⌃Z is 26.
+        view.send(txt: String(UnicodeScalar(ascii - 64)))
+    }
+
     /// Type a command and press return, exactly as if you had.
     ///
     /// Ego's only way into the shell. It goes through the same PTY as your

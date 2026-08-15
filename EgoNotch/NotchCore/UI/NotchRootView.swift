@@ -122,6 +122,13 @@ struct NotchRootView: View {
             }
             ZStack(alignment: .top) {
                 Color.black
+                // Centred under the bar: the bar's own middle is the camera
+                // housing, so nothing drawn there would be visible at all.
+                if EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle {
+                    EgoPanelStatus(assistant: EgoAssistant.shared)
+                        .padding(.top, geometry.isPhysicalNotch ? 1 : 5)
+                        .transition(.opacity)
+                }
                 VStack(spacing: 10) {
                     if !geometry.isPhysicalNotch {
                         PanelTopBar(notchGap: nil)
@@ -194,13 +201,6 @@ struct PanelTopBar: View {
                     }
                     .buttonStyle(.plain)
                     .help(tab.title)
-                }
-                // Ego lives in the bar's empty strip while the panel is open:
-                // aligned with the tabs, taking none of the content.
-                if EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle {
-                    EgoInlineWave(assistant: EgoAssistant.shared)
-                        .padding(.leading, compact ? 6 : 10)
-                        .transition(.opacity)
                 }
                 if !compact { Spacer(minLength: 0) }
             }
