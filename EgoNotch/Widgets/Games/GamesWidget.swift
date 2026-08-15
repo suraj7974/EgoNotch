@@ -31,20 +31,20 @@ final class GamesState {
     @ObservationIgnored let dino = DinoGame()
     @ObservationIgnored let snake = SnakeGame()
     @ObservationIgnored let pong = PongGame()
-    @ObservationIgnored let breakout = BreakoutGame()
+    @ObservationIgnored let whack = WhackGame()
 
     func score(for choice: GameChoice) -> Int {
         switch choice {
         case .dino: dino.score
         case .snake: snake.score
         case .pong: pong.score
-        case .breakout: breakout.score
+        case .whack: whack.score
         }
     }
 }
 
 enum GameChoice: String, CaseIterable, Identifiable {
-    case dino, snake, pong, breakout
+    case dino, snake, pong, whack
 
     var id: String { rawValue }
 
@@ -53,7 +53,7 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "Runner"
         case .snake: "Snake"
         case .pong: "Pong"
-        case .breakout: "Breakout"
+        case .whack: "Whack"
         }
     }
 
@@ -62,7 +62,7 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "hare.fill"
         case .snake: "point.topleft.down.to.point.bottomright.curvepath.fill"
         case .pong: "circle.circle"
-        case .breakout: "square.grid.3x1.below.line.grid.1x2"
+        case .whack: "hand.tap.fill"
         }
     }
 
@@ -72,7 +72,7 @@ enum GameChoice: String, CaseIterable, Identifiable {
         case .dino: "Space to jump"
         case .snake: "Arrows to steer"
         case .pong: "↑ ↓ to move"
-        case .breakout: "Move the mouse"
+        case .whack: "Click the moles"
         }
     }
 }
@@ -121,7 +121,7 @@ struct GamesTileView: View {
         case .dino:     GameSurface(model: state.dino, gameID: "dino")
         case .snake:    GameSurface(model: state.snake, gameID: "snake")
         case .pong:     GameSurface(model: state.pong, gameID: "pong")
-        case .breakout: GameSurface(model: state.breakout, gameID: "breakout")
+        case .whack:    GameSurface(model: state.whack, gameID: "whack")
         }
     }
 }

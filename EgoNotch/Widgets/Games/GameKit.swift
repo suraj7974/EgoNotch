@@ -21,12 +21,16 @@ protocol GameModel: AnyObject, Observable {
     func press(_ key: GameKey)
     /// Pointer position inside the board, for paddle games.
     func pointerMoved(to x: Double, size: CGSize)
+    /// A click, with where it landed — target games need the position.
+    func tap(at point: CGPoint, size: CGSize)
     func draw(in context: inout GraphicsContext, size: CGSize)
     func reset()
 }
 
 extension GameModel {
     func pointerMoved(to x: Double, size: CGSize) {}
+    /// Most games only care that a click happened.
+    func tap(at point: CGPoint, size: CGSize) { press(.action) }
 }
 
 enum GameKey { case action, up, down, left, right }
@@ -69,7 +73,10 @@ struct GameSurface<Model: GameModel>: View {
             .background(Color.black)
             .overlay(alignment: .center) { banner }
             .contentShape(Rectangle())
-            .onTapGesture { model.press(.action) }
+            // DragGesture with no minimum distance, because a plain tap
+            // gesture doesn't hand over where the click landed.
+            .gesture(DragGesture(minimumDistance: 0)
+                .onEnded { model.tap(at: $0.location, size: geo.size) })
             .onContinuousHover { phase in
                 if case .active(let point) = phase {
                     model.pointerMoved(to: point.x, size: geo.size)
