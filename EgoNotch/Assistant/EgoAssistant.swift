@@ -35,6 +35,9 @@ final class EgoAssistant {
 
     @ObservationIgnored private var dismissTask: Task<Void, Never>?
     @ObservationIgnored private var confirmTask: Task<Void, Never>?
+    @ObservationIgnored let ears = EgoEars()
+    @ObservationIgnored private let voice = EgoVoice()
+    @ObservationIgnored private var levelPump: Task<Void, Never>?
 
     private(set) var isActive = false
 
@@ -48,14 +51,77 @@ final class EgoAssistant {
         guard !isActive else { return }
         isActive = true
         EgoLog.trace("activated")
-        // P1 starts the microphone here. P0 answers typed commands only.
+
+        ears.onCommand = { [weak self] command in self?.handle(command) }
+        voice.onFinish = { [weak self] in
+            Task { @MainActor in self?.ears.resumeAfterSpeaking() }
+        }
+        startListeningIfWanted()
+        startLevelPump()
     }
 
     func deactivate() {
         guard isActive else { return }
         isActive = false
+        levelPump?.cancel(); levelPump = nil
+        voice.stop()
+        Task { await ears.stop() }
         dismiss()
         EgoLog.trace("deactivated")
+    }
+
+    /// Another app took the microphone (a real call). Stand down, then come
+    /// back when they're done — unless the user turned that behaviour off.
+    func meetingStateChanged(_ inMeeting: Bool) {
+        guard isActive, SettingsStore.shared.egoPauseInMeetings else { return }
+        if inMeeting {
+            EgoLog.trace("standing down: another app has the mic")
+            stopListening()
+        } else {
+            EgoLog.trace("mic free again")
+            startListeningIfWanted()
+        }
+    }
+
+    /// Wake-word listening is a setting; with it off, Ego only opens the mic
+    /// for a push-to-talk utterance.
+    func startListeningIfWanted() {
+        guard isActive, SettingsStore.shared.egoWakeWord else { return }
+        Task { await ears.start() }
+    }
+
+    func stopListening() {
+        Task { await ears.stop() }
+    }
+
+    /// ⌘⌥E: talk without the wake phrase. Press again to cancel.
+    func pushToTalk() {
+        guard isActive else { return }
+        if case .capturing = ears.status {
+            Task { await ears.stop(); self.startListeningIfWanted() }
+            dismiss()
+            return
+        }
+        phase = .listening
+        heard = ""
+        reply = "Listening…"
+        show()
+        Task { await ears.beginPushToTalk() }
+    }
+
+    private func startLevelPump() {
+        levelPump?.cancel()
+        levelPump = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(60))
+                guard let self else { return }
+                self.level = self.ears.level
+                if case .capturing = self.ears.status {
+                    if self.phase != .listening { self.phase = .listening }
+                    if !self.ears.partial.isEmpty { self.heard = self.ears.partial }
+                }
+            }
+        }
     }
 
     // MARK: - Entry point
@@ -102,11 +168,24 @@ final class EgoAssistant {
             reply = pending.question
             detail = pending.detail
             armConfirmTimeout()
+            say(pending.question)
             return
         }
 
         phase = .speaking
+        say(result.spoken)
         scheduleDismiss(after: 2.6)
+    }
+
+    private func say(_ text: String) {
+        guard SettingsStore.shared.egoSpeakReplies, isActive else { return }
+        // Mute BEFORE speaking: the tap stops producing audio entirely, so the
+        // transcriber can never hear the reply and treat it as a command.
+        EgoLog.trace("speaking: \(text)")
+        ears.muteWhileSpeaking()
+        voice.speak(text,
+                    voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
+                    rate: SettingsStore.shared.egoSpeechRate)
     }
 
     private func confirmPending() {

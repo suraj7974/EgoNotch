@@ -5,13 +5,14 @@ import SwiftUI
 /// sidebar leaves room for the panes to grow.
 struct SettingsView: View {
     enum Pane: String, CaseIterable, Identifiable {
-        case general, shortcuts, modules, panel, focus, about
+        case general, ego, shortcuts, modules, panel, focus, about
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .general: "General"
+            case .ego: "Ego"
             case .shortcuts: "Shortcuts"
             case .modules: "Modules"
             case .panel:   "Panel"
@@ -23,6 +24,7 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .general: "gearshape.fill"
+            case .ego: "waveform.circle.fill"
             case .shortcuts: "keyboard.fill"
             case .modules: "square.grid.2x2.fill"
             case .panel:   "macwindow"
@@ -97,6 +99,7 @@ struct SettingsView: View {
     private var pane: some View {
         switch selection {
         case .general: GeneralPane()
+        case .ego: EgoSettingsPane()
         case .shortcuts: ShortcutsPane()
         case .modules: ModulesPane()
         case .panel:   PanelPane()

@@ -59,6 +59,10 @@ final class NotchPanelController: NSObject {
         meetingObserver?.onChange = { [weak self] inMeeting in
             self?.meetingActive = inMeeting
             self?.updateVisibility()
+            // Ego stands down while someone else holds the mic: it stops the
+            // assistant transcribing your meeting, and stops other people's
+            // voices waking it.
+            EgoAssistant.shared.meetingStateChanged(inMeeting)
         }
         meetingObserver?.start()
         NotificationCenter.default.addObserver(
