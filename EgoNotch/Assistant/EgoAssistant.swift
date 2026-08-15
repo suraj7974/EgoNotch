@@ -188,7 +188,13 @@ final class EgoAssistant {
                 self.level = self.ears.level
                 if case .capturing = self.ears.status {
                     if self.phase != .listening { self.phase = .listening }
-                    if !self.ears.partial.isEmpty { self.heard = self.ears.partial }
+                    if !self.ears.partial.isEmpty {
+                        self.heard = self.ears.partial
+                        // Show it as soon as words arrive. In a conversation
+                        // there is no wake to open the HUD, so without this
+                        // Ego looks asleep for as long as you are talking.
+                        self.show()
+                    }
                 }
             }
         }

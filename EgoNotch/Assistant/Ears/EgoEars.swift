@@ -54,6 +54,10 @@ final class EgoEars {
     @ObservationIgnored private var lastDispatchedAt = Date.distantPast
     @ObservationIgnored private var wokeAt = Date.distantPast
     @ObservationIgnored private var capTask: Task<Void, Never>?
+    /// When the microphone first heard speech, for measuring the lag.
+    @ObservationIgnored private var speechHeardAt = Date.distantPast
+    /// When the first word of this utterance arrived.
+    @ObservationIgnored private var speechStartedAt = Date.distantPast
 
     /// How long a pause means "they've finished talking". Every command waits
     /// this long before anything happens, so it is the single biggest
@@ -176,6 +180,7 @@ final class EgoEars {
         capturingWithoutWake = true
         transcriptFloor = latestTranscript
         status = .capturing
+        speechStartedAt = .distantPast
         // Follow-ups have no wake of their own; without this the cap below
         // would measure from the *previous* wake and cut them off instantly.
         wokeAt = Date()
@@ -299,9 +304,12 @@ final class EgoEars {
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
             wokeAt = Date()
+            speechStartedAt = Date()
             lastCommandText = command
             partial = command
-            EgoLog.trace("wake heard, command so far: \(command)")
+            EgoLog.trace(String(format: "wake heard %.0f ms after you started speaking, "
+                                + "command so far: %@",
+                                Date().timeIntervalSince(speechHeardAt) * 1000, command))
             onWake?()
             armEndpoint()
 
@@ -337,6 +345,7 @@ final class EgoEars {
             }
 
             if command != lastCommandText {
+                if lastCommandText.isEmpty, !command.isEmpty { speechStartedAt = Date() }
                 lastCommandText = command
                 partial = command
                 // A command with nothing that could follow it doesn't need the
@@ -386,7 +395,12 @@ final class EgoEars {
         // endlessly revising lyrics — the utterance never settled at all, and
         // commands took anywhere from four to thirty-six seconds to land.
         capTask?.cancel()
-        let remaining = hardCap - Date().timeIntervalSince(wokeAt)
+        // Measured from the first WORD, not from when the capture opened. A
+        // follow-up spends most of its life waiting in silence, so timing the
+        // cap from the open truncated real commands — "dismiss" arrived as
+        // "dism".
+        let began = speechStartedAt > wokeAt ? speechStartedAt : Date()
+        let remaining = hardCap - Date().timeIntervalSince(began)
         capTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(max(remaining, 0.5)))
             guard !Task.isCancelled, let self, self.status == .capturing else { return }
@@ -461,10 +475,22 @@ final class EgoEars {
     private func startMeter() {
         meterPump?.cancel()
         meterPump = Task { [weak self] in
+            var quiet = true
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(50))
                 guard let self else { return }
-                self.level = self.tap.level()
+                let level = self.tap.level()
+                self.level = level
+                // When speech starts, so the gap until the wake fires can be
+                // measured rather than guessed at. That gap is the speech
+                // recogniser's own lag, and it is the only part of "slow to
+                // activate" left that isn't ours.
+                if quiet, level > 0.25 {
+                    self.speechHeardAt = Date()
+                    quiet = false
+                } else if level < 0.12 {
+                    quiet = true
+                }
             }
         }
     }
