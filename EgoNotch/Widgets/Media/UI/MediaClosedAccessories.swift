@@ -12,8 +12,10 @@ struct MediaArtThumb: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } else {
+                    // Pure black, not a grey tile: on the closed notch any
+                    // lifted surface reads as the chrome not being black.
                     ZStack {
-                        Ego.surface2
+                        Color.black
                         Image(systemName: "music.note")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(Ego.textMute)
