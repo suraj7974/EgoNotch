@@ -108,7 +108,13 @@ enum CommandGrammar {
         let text = normalise(raw)
         if finished.contains(text) { return true }
         // "volume 40", "brightness 60" — a number ends the sentence.
-        return text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$")
+        if text.matches("^(volume|brightness) (to )?[0-9]{1,3}( percent)?$") { return true }
+        // Anything short that begins with a command verb. Waiting on silence
+        // never works with music playing — the recogniser keeps revising song
+        // lyrics, so the transcript never settles and every command ran to the
+        // cap instead, taking four to seven seconds.
+        let words = text.split(separator: " ")
+        return words.count >= 2 && words.count <= 5 && looksLikeCommand(text)
     }
 
     private static let finished: Set<String> = [
@@ -120,6 +126,10 @@ enum CommandGrammar {
         "hows my battery", "whats next", "take a photo", "take a selfie", "boomerang",
         "start the stopwatch", "start a pomodoro", "take a break", "read my notes",
         "whats on my list", "gaana roko", "gaana chalu karo",
+        // Answers to a question Ego asked, and ways of calling it off. Nothing
+        // can follow these, and waiting on them is the most annoying wait.
+        "yes", "yeah", "yep", "confirm", "no", "nope", "cancel", "dismiss",
+        "stop it", "haan", "nahi", "theek hai", "kar do",
     ]
 
     /// Does this read like an order, without carrying it out? The wake matcher
@@ -137,7 +147,9 @@ enum CommandGrammar {
         "pause", "play", "resume", "stop", "next", "previous", "skip", "back",
         "volume", "mute", "unmute", "louder", "quieter", "turn it", "turn the",
         "brightness", "brighter", "dimmer", "open", "close", "show", "hide",
-        "switch", "whats", "what is", "how loud", "how bright",
+        "switch", "whats", "what is", "how loud", "how bright", "go to", "jump to",
+        "hows", "how much", "take a", "start", "set a", "run", "read", "add",
+        "note", "todo", "complete", "record", "gaana", "volume ko",
     ]
 
     /// Lowercase, strip punctuation, collapse whitespace. Speech transcripts

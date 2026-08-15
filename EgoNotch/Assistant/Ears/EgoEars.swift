@@ -67,7 +67,7 @@ final class EgoEars {
     /// The longest an utterance may take before Ego acts on what it has. With
     /// music in the room the transcript never stops changing, so this is what
     /// actually ends most commands — twelve seconds felt broken.
-    private let hardCap: Double = 6
+    private let hardCap: Double = 4.5
 
     // MARK: - Lifecycle
 
