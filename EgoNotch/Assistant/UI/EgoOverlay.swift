@@ -63,7 +63,7 @@ struct EgoInlineWave: View {
 
     var body: some View {
         EgoWaveform(level: assistant.level, mode: EgoOverlay.mode(for: assistant.phase))
-            .frame(width: 190, height: 13)
+            .frame(width: 130, height: 14)
             .allowsHitTesting(false)
     }
 }

@@ -48,10 +48,11 @@ final class EgoAssistant {
     /// the floor: no wake word is needed for the next command or answer.
     private(set) var isConversing = false
 
-    /// How long Ego waits, hearing nothing, before letting the conversation
-    /// go. Long enough to think about your answer, short enough that a false
-    /// wake doesn't leave the microphone open all afternoon.
-    private static let conversationIdle: Double = 30
+    /// A conversation ends when you end it — "stop", Esc, or reaching for the
+    /// notch. This is only a backstop against Ego being left open by accident
+    /// (a false wake while you're out of the room), which is why it is long
+    /// rather than tidy.
+    private static let conversationIdle: Double = 600
 
     /// Ways of saying "I didn't mean to summon you". Matched only as the WHOLE
     /// utterance: "stop" dismisses Ego, while "stop the music" is a command,

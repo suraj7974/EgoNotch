@@ -122,13 +122,6 @@ struct NotchRootView: View {
             }
             ZStack(alignment: .top) {
                 Color.black
-                // Ego, while the panel is open: a small wave in the space
-                // above the content, rather than a strip that would cover it.
-                if EgoAssistant.shared.phase != .idle {
-                    EgoInlineWave(assistant: EgoAssistant.shared)
-                        .padding(.top, geometry.isPhysicalNotch ? 2 : 6)
-                        .transition(.opacity)
-                }
                 VStack(spacing: 10) {
                     if !geometry.isPhysicalNotch {
                         PanelTopBar(notchGap: nil)
@@ -201,6 +194,13 @@ struct PanelTopBar: View {
                     }
                     .buttonStyle(.plain)
                     .help(tab.title)
+                }
+                // Ego lives in the bar's empty strip while the panel is open:
+                // aligned with the tabs, taking none of the content.
+                if EgoAssistant.shared.isConversing || EgoAssistant.shared.phase != .idle {
+                    EgoInlineWave(assistant: EgoAssistant.shared)
+                        .padding(.leading, compact ? 6 : 10)
+                        .transition(.opacity)
                 }
                 if !compact { Spacer(minLength: 0) }
             }

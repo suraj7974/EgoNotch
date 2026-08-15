@@ -186,7 +186,10 @@ final class NotchStateController {
         // never strand the panel open.
         assistantWatchdog?.cancel()
         assistantWatchdog = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(60))
+            // Long, because a conversation legitimately stays open for as long
+            // as the user wants one. This only catches an assistant that has
+            // crashed or hung with the panel still down.
+            try? await Task.sleep(for: .seconds(900))
             guard !Task.isCancelled, let self, self.state == .assistant else { return }
             self.endAssistant()
         }
