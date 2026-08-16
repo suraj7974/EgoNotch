@@ -1,8 +1,9 @@
-import SwiftUI
-import EventKit
 import AVFoundation
-import UserNotifications
 import ApplicationServices
+import EventKit
+import Speech
+import SwiftUI
+import UserNotifications
 
 /// First-launch walkthrough: what the notch does + a live permissions
 /// overview. Nothing is requested here — prompts fire lazily when a widget
@@ -48,6 +49,10 @@ struct OnboardingView: View {
                               status: AXIsProcessTrusted() ? .granted : .pending)
                 permissionRow("bell.badge", "Notifications", "Focus timer completion",
                               status: notificationRowStatus)
+                permissionRow("mic", "Microphone", "Ego, the voice assistant (off by default)",
+                              status: microphoneStatus)
+                permissionRow("waveform", "Speech Recognition", "Ego — grant it in Settings › Ego",
+                              status: speechStatus)
             }
             .padding(14)
             .background(Ego.surface, in: RoundedRectangle(cornerRadius: Ego.cardRadius))
@@ -124,6 +129,17 @@ struct OnboardingView: View {
         case .denied, .restricted: .denied
         default: .pending
         }
+    }
+
+    private var microphoneStatus: PermissionStatus {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized ? .granted : .pending
+    }
+
+    /// The one permission that cannot be asked for from a menu-bar app: the
+    /// system prompt has no window to attach to, so Settings › Ego promotes
+    /// the app for long enough to show it.
+    private var speechStatus: PermissionStatus {
+        SFSpeechRecognizer.authorizationStatus() == .authorized ? .granted : .pending
     }
 
     private var notificationRowStatus: PermissionStatus {

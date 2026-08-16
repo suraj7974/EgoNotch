@@ -155,7 +155,32 @@ final class EgoAssistant {
     /// for a push-to-talk utterance.
     func startListeningIfWanted() {
         guard isActive, SettingsStore.shared.egoWakeWord else { return }
+        guard !batteryTooLow else {
+            EgoLog.trace("battery low — not opening the microphone")
+            return
+        }
         Task { await ears.start() }
+    }
+
+    /// Listening all day costs battery, and a laptop at 15% has better things
+    /// to spend it on. Push-to-talk still works — this only stands down the
+    /// always-on ear, and only on battery.
+    private var batteryTooLow: Bool {
+        guard let battery = (WidgetRegistry.widget(id: "battery") as? BatteryWidget)?.monitor,
+              let percent = battery.percent else { return false }
+        return !battery.isPluggedIn && percent <= 15
+    }
+
+    /// Called when the power state changes, so the ear comes back when the
+    /// charger does.
+    func powerStateChanged() {
+        guard isActive else { return }
+        if batteryTooLow {
+            EgoLog.trace("battery low — standing down")
+            stopListening()
+        } else {
+            startListeningIfWanted()
+        }
     }
 
     func stopListening() {
