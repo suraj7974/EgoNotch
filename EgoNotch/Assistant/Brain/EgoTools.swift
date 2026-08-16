@@ -394,27 +394,29 @@ struct CaptureTool: Tool {
 }
 
 struct PlayTool: Tool {
-    let name = "open_game_or_link"
-    let description = "Start one of the notch's games, or open one of the user's saved quick links by name."
+    let name = "play_notch_game"
+    /// Narrow on purpose. When this also claimed to "open things by name" the
+    /// model reached for it on "open Zed" and started the runner game instead.
+    let description = "Start one of the notch's four built-in games, and nothing else. "
+        + "The games are: runner, snake, pong, shooter. Never use this to open an application."
 
     @Generable
     struct Arguments {
-        @Guide(description: "'game' or 'link'.", .anyOf(["game", "link"]))
-        var kind: String
-        @Guide(description: "Which game (runner, snake, pong, shooter) or the name of the link.")
-        var name: String
+        @Guide(description: "Which game.", .anyOf(["runner", "snake", "pong", "shooter"]))
+        var game: String
     }
 
     func call(arguments: Arguments) async throws -> String {
-        let name = arguments.name.lowercased()
-        let isGame = arguments.kind.lowercased() == "game"
+        let name = arguments.game.lowercased()
         return await EgoToolBridge.run {
-            guard isGame else { return EgoActions.openLink(named: name) }
             let game = GameChoice.allCases.first { $0.title.lowercased() == name || $0.rawValue == name }
                 ?? GameChoice.allCases.first {
                     name.contains($0.title.lowercased()) || name.contains($0.rawValue)
                 }
-            return EgoActions.playGame(game ?? .dino)
+            // No falling back to a default: starting the wrong game because the
+            // name didn't match is worse than saying so.
+            guard let game else { return ActionResult("I don't have a game called that.") }
+            return EgoActions.playGame(game)
         }
     }
 }
@@ -446,8 +448,11 @@ struct SystemTool: Tool {
 
 struct AppTool: Tool {
     let name = "control_app"
-    let description = "Open, switch to or quit another application, or move its front window "
-        + "to half the screen, maximise it or centre it."
+    /// The tool for anything that is an *app*. Said explicitly, because the
+    /// games tool used to answer "open Zed".
+    let description = "Open, switch to or quit any application installed on this Mac — Spotify, "
+        + "Zed, Safari, Xcode, anything — or move its front window to half the screen, maximise "
+        + "it or centre it. Use this for every application by name."
 
     @Generable
     struct Arguments {
@@ -519,21 +524,26 @@ struct ShortcutTool: Tool {
 
 struct WebTool: Tool {
     let name = "open_web"
-    let description = "Open a web address in the default browser, or search the web for something."
+    let description = "Open a web address in the browser, search the web, or open one of the "
+        + "user's saved quick links by name. For web pages only — not for applications."
 
     @Generable
     struct Arguments {
-        @Guide(description: "What to do.", .anyOf(["open", "search"]))
+        @Guide(description: "What to do.", .anyOf(["open", "search", "link"]))
         var action: String
-        @Guide(description: "The address, or the words to search for.")
+        @Guide(description: "The address, the words to search for, or the saved link's name.")
         var text: String
     }
 
     func call(arguments: Arguments) async throws -> String {
-        let searching = arguments.action.lowercased() == "search"
+        let action = arguments.action.lowercased()
         let text = arguments.text
         return await EgoToolBridge.run {
-            searching ? EgoActions.search(text) : EgoActions.openURL(text)
+            switch action {
+            case "search": EgoActions.search(text)
+            case "link": EgoActions.openLink(named: text)
+            default: EgoActions.openURL(text)
+            }
         }
     }
 }
