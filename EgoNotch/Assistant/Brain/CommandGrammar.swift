@@ -113,7 +113,9 @@ enum CommandGrammar {
         "pause", "play", "resume", "stop", "next", "previous", "skip", "back",
         "volume", "mute", "unmute", "louder", "quieter", "turn it", "turn the",
         "brightness", "brighter", "dimmer", "open", "close", "show", "hide",
-        "switch", "whats", "what is", "how loud", "how bright",
+        "switch", "whats", "what is", "how loud", "how bright", "go to", "jump to",
+        "hows", "how much", "take a", "start", "set a", "run", "read", "add",
+        "note", "todo", "complete", "record", "gaana", "volume ko",
     ]
 
     /// Lowercase, strip punctuation, collapse whitespace. Speech transcripts

@@ -31,7 +31,7 @@ final class EgoEars {
     var onCommand: ((String) -> Void)?
     /// The wake phrase landed — show the listening HUD immediately, rather
     /// than only once the whole sentence is finished.
-    var onWake: (() -> Void)?
+    var onWake: ((String) -> Void)?
     /// Woken, but nothing followed.
     var onIdle: (() -> Void)?
 
@@ -52,10 +52,20 @@ final class EgoEars {
     /// recognised as a repeat rather than obeyed twice.
     @ObservationIgnored private var lastDispatched = ""
     @ObservationIgnored private var lastDispatchedAt = Date.distantPast
+    @ObservationIgnored private var wokeAt = Date.distantPast
+    /// When the microphone first heard speech, for measuring the lag.
+    @ObservationIgnored private var speechHeardAt = Date.distantPast
+    /// When the newest word arrived — the delay a person actually feels is
+    /// measured from here, not from the wake.
+    @ObservationIgnored private var lastWordAt = Date.distantPast
+    /// When the first word of this utterance arrived.
+    @ObservationIgnored private var speechStartedAt = Date.distantPast
 
-    /// How long a pause means "they've finished talking".
+    /// How long a pause means "they've finished talking". Every command waits
+    /// this long before anything happens, so it is the single biggest
+    /// contributor to Ego feeling slow — kept just long enough to survive the
+    /// gap between two words.
     private let silenceWindow: Double = 1.3
-    private let hardCap: Double = 12
 
     // MARK: - Lifecycle
 
@@ -168,8 +178,30 @@ final class EgoEars {
         capturingWithoutWake = true
         transcriptFloor = latestTranscript
         status = .capturing
+        speechStartedAt = .distantPast
+        // Follow-ups have no wake of their own; without this the cap below
+        // would measure from the *previous* wake and cut them off instantly.
+        wokeAt = Date()
         EgoLog.trace("\(reason): listening without a wake word")
         armEndpoint(grace: grace)
+    }
+
+    /// Teaching the voice: record continuously while the passage is read.
+    ///
+    /// Nothing here depends on transcription or on detecting where one
+    /// utterance ends. Both of those were tried and both failed — the first
+    /// because it needed the wake word recognised, which is the very thing
+    /// being worked around, and the second because a burst detector tuned by
+    /// guesswork never fired at all. Recording plain audio cannot fail that
+    /// way; the silences are dropped later, when the frames are measured.
+    func beginVoiceEnrolment() async {
+        if case .off = status { await start() }
+        await captureWithoutWake(reason: "enrolment", grace: 12)
+    }
+
+    func cancelVoiceEnrolment() {
+        VoicePrintStore.shared.cancelEnrolment()
+        endCapture()
     }
 
     /// Stop taking commands and go back to waiting for the wake word.
@@ -187,9 +219,20 @@ final class EgoEars {
         // Everything heard so far is history now, so the next capture doesn't
         // sweep it up.
         transcriptFloor = latestTranscript
-        wakeCooldown = Date().addingTimeInterval(1)
+        // Short: this only exists to stop the tail of the last utterance
+        // re-triggering, and a full second of deafness right after "dismiss"
+        // reads as Ego being slow to come back.
+        wakeCooldown = Date().addingTimeInterval(0.4)
         status = .listening
         EgoLog.trace("done — back to waiting for the wake word")
+    }
+
+    /// Give the speaker longer to begin. The patience after a wake is counted
+    /// from the wake itself, and a spoken greeting eats most of it before the
+    /// user has had a chance to say anything.
+    func waitLonger() {
+        guard status == .capturing, lastCommandText.isEmpty else { return }
+        armEndpoint(grace: 5)
     }
 
     // MARK: - Speaking without hearing yourself
@@ -229,7 +272,7 @@ final class EgoEars {
 
         switch status {
         case .listening:
-            EgoLog.trace("raw: \(update.text)")
+            if EgoLog.recordsTranscripts { EgoLog.trace("raw: \(update.text)") }
             guard Date() > wakeCooldown else { return }
 
             let command: String
@@ -247,12 +290,37 @@ final class EgoEars {
                 return
             }
 
+            // While teaching, Ego must not act on what it hears — the samples
+            // are taken by the enrolment pump, which listens for *speech*
+            // rather than waiting for the recogniser to spell the name right.
+            if VoicePrintStore.shared.isEnrolling { return }
+
+            // The gate, on the wake phrase itself — the one thing said the
+            // same way every time, which is what makes comparing it possible
+            // at all. "Dismiss" is never gated: being unable to call Ego off
+            // is worse than a stranger being able to shut it up.
+            if SettingsStore.shared.egoVoiceMatch, VoicePrintStore.shared.isEnrolled,
+               let heard = tap.recentAudio(seconds: VoicePrintStore.verifyWindow),
+               !VoicePrintStore.shared.accepts(samples: heard.samples,
+                                               sampleRate: heard.sampleRate) {
+                wakeCooldown = Date().addingTimeInterval(1.0)
+                return
+            }
+
             wakeCooldown = Date().addingTimeInterval(1.5)
             status = .capturing
+            wokeAt = Date()
+            speechStartedAt = Date()
             lastCommandText = command
             partial = command
-            EgoLog.trace("wake heard, command so far: \(command)")
-            onWake?()
+            let lag = Date().timeIntervalSince(speechHeardAt)
+            EgoLog.trace(lag < 8
+                         ? String(format: "wake heard %.0f ms after you started speaking, "
+                                  + "command so far: %@", lag * 1000, command)
+                         // With music playing the level never falls back to
+                         // silence, so there is no onset to measure from.
+                         : "wake heard (no quiet moment to measure from), command so far: \(command)")
+            onWake?(command)
             armEndpoint()
 
         case .capturing:
@@ -287,6 +355,8 @@ final class EgoEars {
             }
 
             if command != lastCommandText {
+                if lastCommandText.isEmpty, !command.isEmpty { speechStartedAt = Date() }
+                lastWordAt = Date()
                 lastCommandText = command
                 partial = command
                 armEndpoint()          // still talking — restart the silence clock
@@ -300,6 +370,19 @@ final class EgoEars {
         }
     }
 
+    /// Restarted on every new word; whichever fires first wins.
+    ///
+    /// `grace` is how long to wait for the user to START talking. Without it,
+    /// a capture armed into a silent room ends about a second later with
+    /// nothing — which is exactly what happens when Ego asks a question and
+    /// waits for an answer a person needs a moment to give.
+    /// End-of-speech is measured on the TRANSCRIPT, not the microphone level.
+    ///
+    /// `ingest` re-arms this on every new word, so a timer that simply expires
+    /// *is* the silence detector. The level meter was the obvious choice and
+    /// the wrong one: with music playing out of the speakers the level never
+    /// drops, so every command sat until the hard cap — twelve seconds to
+    /// answer "pause".
     /// Restarted on every new word; whichever fires first wins.
     ///
     /// `grace` is how long to wait for the user to START talking. Without it,
@@ -327,13 +410,32 @@ final class EgoEars {
 
     private func finishUtterance() {
         endpoint?.cancel(); endpoint = nil
+
+        // Teaching: the utterance that just ended is one repetition of the
+        // phrase. Taken here rather than from the wake matcher, because this
+        // is the path that reliably fires — the transcript can say anything.
+        if VoicePrintStore.shared.isEnrolling {
+            capturingWithoutWake = false
+            let audio = tap.recentAudio(seconds: VoicePrintStore.verifyWindow)
+            let done = audio.map {
+                VoicePrintStore.shared.addSample(samples: $0.samples, sampleRate: $0.sampleRate)
+            } ?? false
+            partial = ""
+            lastCommandText = ""
+            status = .listening
+            if done {
+                EgoAssistant.shared.voiceEnrolmentFinished()
+            } else {
+                // Straight back to listening for the next repetition.
+                Task { [weak self] in await self?.beginVoiceEnrolment() }
+            }
+            return
+        }
         capturingWithoutWake = false
         var command = lastCommandText.trimmingCharacters(in: .whitespaces)
         // A stray wake phrase can still be sitting in front of the command
-        // when the recogniser revises a segment it had already finished.
-        // Stripping it here means "heygo pause" and "hey ego pause" — the same
-        // words, transcribed twice — both reduce to "pause", so the repeat
-        // guard below recognises the second one for what it is.
+        // when the recogniser revises a segment it had already finished, so
+        // "heygo pause" and "hey ego pause" both reduce to "pause".
         if let hit = WakePhrase.match(in: command), !hit.command.isEmpty {
             command = hit.command
         }
@@ -346,9 +448,9 @@ final class EgoEars {
             onIdle?()
             return
         }
-        // Belt and braces against the recogniser re-emitting a finished
-        // segment: the same words, with nothing said in between, are the same
-        // utterance — not a second instruction.
+        // The recogniser re-emits a finished segment: the same words, with
+        // nothing said in between, are the same utterance — not a second
+        // instruction.
         if command == lastDispatched, Date().timeIntervalSince(lastDispatchedAt) < 12 {
             EgoLog.trace("same utterance again, ignoring: \(command)")
             onIdle?()
@@ -356,7 +458,8 @@ final class EgoEars {
         }
         lastDispatched = command
         lastDispatchedAt = Date()
-        EgoLog.trace("utterance: \(command)")
+        EgoLog.trace(String(format: "utterance: %@  (%.0f ms after your last word)",
+                            command, Date().timeIntervalSince(lastWordAt) * 1000))
         onCommand?(command)
     }
 
@@ -365,10 +468,22 @@ final class EgoEars {
     private func startMeter() {
         meterPump?.cancel()
         meterPump = Task { [weak self] in
+            var quiet = true
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(50))
                 guard let self else { return }
-                self.level = self.tap.level()
+                let level = self.tap.level()
+                self.level = level
+                // When speech starts, so the gap until the wake fires can be
+                // measured rather than guessed at. That gap is the speech
+                // recogniser's own lag, and it is the only part of "slow to
+                // activate" left that isn't ours.
+                if quiet, level > 0.25 {
+                    self.speechHeardAt = Date()
+                    quiet = false
+                } else if level < 0.12 {
+                    quiet = true
+                }
             }
         }
     }

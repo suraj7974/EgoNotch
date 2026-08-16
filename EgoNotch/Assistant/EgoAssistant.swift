@@ -66,7 +66,7 @@ final class EgoAssistant {
         "chup", "ruko", "kuch nahi", "nahi", "rehne do", "jao", "bas", "khatam",
     ]
 
-    private static func isDismissal(_ text: String) -> Bool {
+    static func isDismissal(_ text: String) -> Bool {
         dismissals.contains(WakePhrase.normalise(text))
     }
 
@@ -90,7 +90,7 @@ final class EgoAssistant {
         EgoLog.trace("activated")
 
         ears.onCommand = { [weak self] command in self?.handle(command) }
-        ears.onWake = { [weak self] in self?.beganCapturing() }
+        ears.onWake = { [weak self] command in self?.beganCapturing(command) }
         ears.onIdle = { [weak self] in self?.captureEndedEmpty() }
         voice.onFinish = { [weak self] in
             Task { @MainActor in self?.finishedSpeaking() }
@@ -123,6 +123,21 @@ final class EgoAssistant {
             startListeningIfWanted()
         }
     }
+
+    /// Teaching Ego a voice. Opens the microphone if it isn't already, since
+    /// enrolment is useless without it.
+    func beginVoiceEnrolment() {
+        VoicePrintStore.shared.beginEnrolment()
+        Task { await ears.beginVoiceEnrolment() }
+    }
+
+    /// Said out loud, because a silent success and a silent failure look
+    /// exactly the same from the outside.
+    func voiceEnrolmentFinished() {
+        say("I know your voice now.")
+    }
+
+    func cancelVoiceEnrolment() { ears.cancelVoiceEnrolment() }
 
     /// The name in the wake phrase primes the recogniser when the microphone
     /// opens, so changing it has to reopen the ears — otherwise the new word
@@ -173,7 +188,16 @@ final class EgoAssistant {
                 self.level = self.ears.level
                 if case .capturing = self.ears.status {
                     if self.phase != .listening { self.phase = .listening }
-                    if !self.ears.partial.isEmpty { self.heard = self.ears.partial }
+                    // On each new word, not on every tick. This pump runs
+                    // sixteen times a second, and calling show() from it
+                    // unconditionally re-entered the panel controller, re-armed
+                    // its watchdog and wrote a log line at that rate.
+                    if !self.ears.partial.isEmpty, self.ears.partial != self.heard {
+                        self.heard = self.ears.partial
+                        // In a conversation there is no wake to open the HUD,
+                        // so without this Ego looks asleep while you talk.
+                        self.show()
+                    }
                 }
             }
         }
@@ -311,6 +335,9 @@ final class EgoAssistant {
     /// never heard and every question timed out unanswered.
     private func finishedSpeaking() {
         ears.resumeAfterSpeaking()
+        // A capture is already running (the greeting plays while Ego waits for
+        // your command); restarting it here would throw that away.
+        if case .capturing = ears.status { return }
         guard isActive, holdsFloor else { return }
         Task { [weak self] in
             // After the tap unmutes, or the follow-up captures the tail of
@@ -334,6 +361,19 @@ final class EgoAssistant {
         isConversing = true
         // No idle timer: in this mode Ego stays until dismissed, by design.
         idleTask?.cancel(); idleTask = nil
+    }
+
+    /// The little noise that says "I'm listening" — Siri's "mhm". Short on
+    /// purpose: the microphone is deaf while it plays.
+    private func acknowledge() {
+        let greeting = SettingsStore.shared.egoGreeting.trimmingCharacters(in: .whitespaces)
+        guard !greeting.isEmpty, SettingsStore.shared.egoSpeakReplies, isActive else { return }
+        ears.muteWhileSpeaking()
+        ears.waitLonger()
+        voice.speak(greeting,
+                    voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
+                    rate: SettingsStore.shared.egoSpeechRate)
+        EgoLog.trace("said “\(greeting)” on waking")
     }
 
     private func say(_ text: String) {
@@ -378,25 +418,29 @@ final class EgoAssistant {
 
     private func show() {
         dismissTask?.cancel()
+        guard let panel = NotchPanelController.current?.stateController else { return }
         // With the panel already open you can see everything; replacing it
         // with Ego's strip would take away what you were looking at. The
         // waveform along the panel's top edge is enough, and the answer comes
         // by voice.
-        guard NotchPanelController.current?.stateController.state != .expanded else {
-            EgoLog.trace("panel is open — showing the inline wave instead")
-            return
-        }
-        EgoLog.trace("hud: open")
-        NotchPanelController.current?.stateController.beginAssistant()
+        guard panel.state != .expanded else { return }
+        // Traced only when it genuinely opens — this is called on every new
+        // word, and a line per call buried everything else in the log.
+        if panel.state != .assistant { EgoLog.trace("hud: open") }
+        panel.beginAssistant()
     }
 
     /// Ego heard the wake phrase and is taking a command. Shows the HUD with a
     /// long safety net so a half-heard "hey ego" can't strand it open.
-    func beganCapturing() {
+    func beganCapturing(_ commandSoFar: String = "") {
         guard isActive, phase != .confirming else { return }
         phase = .listening
         reply = ""
         show()
+        // Answer straight away — but ONLY when you stopped after the wake
+        // word. Speaking mutes the microphone, so a greeting in the middle of
+        // "hey zoro pause" would swallow the command it was acknowledging.
+        if commandSoFar.isEmpty { acknowledge() }
         openConversation()
         // Single-command mode has no natural end while nothing is said, so it
         // keeps the old safety net.
@@ -502,21 +546,66 @@ enum ConfirmWords {
     }
 }
 
-/// EGO_DEBUG=1 writes a trace beside the app's other data. The developer can't
-/// always test by talking to the machine, so the pipeline has to be readable
-/// after the fact.
+/// EGO_DEBUG=1 writes a trace beside the app's other data. The developer
+/// can't always test by talking to the machine, so the pipeline has to be
+/// readable after the fact.
+///
+/// Two rules, because this file records what was said in a room:
+///   • It is CAPPED. An uncapped log of everything a microphone heard is not
+///     a debug aid, it's a recording.
+///   • Raw transcripts — the only lines that contain speech that was never a
+///     command — need EGO_DEBUG_TRANSCRIPT as well, so the ordinary trace can
+///     be left on without keeping a record of the room.
 enum EgoLog {
-    nonisolated static func trace(_ message: String) {
-        guard ProcessInfo.processInfo.environment["EGO_DEBUG"] != nil else { return }
-        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    nonisolated private static let limit = 256 * 1024
+
+    nonisolated static var isEnabled: Bool {
+        ProcessInfo.processInfo.environment["EGO_DEBUG"] != nil
+    }
+
+    /// Everything heard, not just what was meant for Ego. Deliberately a
+    /// second switch.
+    nonisolated static var recordsTranscripts: Bool {
+        isEnabled && ProcessInfo.processInfo.environment["EGO_DEBUG_TRANSCRIPT"] != nil
+    }
+
+    nonisolated static var url: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("EgoNotch/ego.log")
+    }
+
+    nonisolated static func trace(_ message: String) {
+        guard isEnabled else { return }
         let line = "\(Date()) \(message)\n"
-        if let handle = try? FileHandle(forWritingTo: url) {
-            handle.seekToEndOfFile()
-            try? handle.write(contentsOf: Data(line.utf8))
-            try? handle.close()
-        } else {
+        guard let handle = try? FileHandle(forWritingTo: url) else {
             try? Data(line.utf8).write(to: url)
+            return
         }
+        handle.seekToEndOfFile()
+        try? handle.write(contentsOf: Data(line.utf8))
+        let size = handle.offsetInFile
+        try? handle.close()
+        if size > limit { truncate() }
+    }
+
+    /// Keeps the most recent half and throws the rest away — the old end of a
+    /// debug log is never the interesting part.
+    private nonisolated static func truncate() {
+        guard let data = try? Data(contentsOf: url), data.count > limit else { return }
+        let tail = data.suffix(limit / 2)
+        // Start at a line boundary so the file never opens mid-sentence.
+        let start = tail.firstIndex(of: UInt8(ascii: "\n")).map { tail.index(after: $0) } ?? tail.startIndex
+        try? Data(tail[start...]).write(to: url)
+    }
+
+    /// Settings offers this: the log is the one place Ego keeps anything.
+    nonisolated static func erase() {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    nonisolated static var sizeText: String? {
+        guard let size = try? FileManager.default
+            .attributesOfItem(atPath: url.path)[.size] as? Int, size > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
     }
 }

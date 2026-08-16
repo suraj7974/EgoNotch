@@ -21,6 +21,19 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var running = false
 
+    /// The last few seconds of audio, kept so the wake phrase can be
+    /// fingerprinted *after* the recogniser has identified it. The transcript
+    /// always arrives behind the sound, so without this there is nothing left
+    /// to measure by the time we know it was the wake word.
+    private var ring: [Float] = []
+    private var ringWrite = 0
+    private var ringFilled = 0
+    private var ringRate: Double = 0
+
+    /// Everything heard since enrolment began. Separate from the ring, which
+    /// only ever holds the last few seconds.
+    private var capture: [Float]?
+
     /// Yields `AnalyzerInput` rather than raw buffers: `AVAudioPCMBuffer` is
     /// not `Sendable`, so a stream of them cannot cross into the transcriber's
     /// actor. The stream keeps only the newest few — the audio thread must
@@ -39,6 +52,12 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         self.targetFormat = targetFormat
         converter = AVAudioConverter(from: inputFormat, to: targetFormat)
         generation &+= 1
+        // Four seconds is comfortably more than a wake phrase, and costs a
+        // quarter of a megabyte.
+        ringRate = targetFormat.sampleRate
+        ring = [Float](repeating: 0, count: Int(targetFormat.sampleRate * 4))
+        ringWrite = 0
+        ringFilled = 0
         lock.unlock()
 
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream(
@@ -133,8 +152,75 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         lock.lock()
         meter = loudness
         let sink = continuation
+        let mono = Self.samples(from: converted)
+        appendToRing(mono)
+        if capture != nil { capture?.append(contentsOf: mono) }
         lock.unlock()
         sink?.yield(AnalyzerInput(buffer: converted))
+    }
+
+    /// Called with the lock held, from the audio thread.
+    private func appendToRing(_ samples: [Float]) {
+        guard !ring.isEmpty else { return }
+        for sample in samples {
+            ring[ringWrite] = sample
+            ringWrite = (ringWrite + 1) % ring.count
+        }
+        ringFilled = min(ringFilled + samples.count, ring.count)
+    }
+
+    /// The analyser asks for **Int16**, not Float32 — so `floatChannelData` on
+    /// a converted buffer is nil, and reading it silently produced nothing at
+    /// all. Everything downstream (the ring, enrolment, voice matching) was
+    /// quietly being fed zero samples.
+    private static func samples(from buffer: AVAudioPCMBuffer) -> [Float] {
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return [] }
+        if let channel = buffer.floatChannelData?[0] {
+            return Array(UnsafeBufferPointer(start: channel, count: count))
+        }
+        guard let channel = buffer.int16ChannelData?[0] else { return [] }
+        var out = [Float](repeating: 0, count: count)
+        vDSP_vflt16(channel, 1, &out, 1, vDSP_Length(count))
+        var scale = Float(1.0 / 32768.0)
+        vDSP_vsmul(out, 1, &scale, &out, 1, vDSP_Length(count))
+        return out
+    }
+
+    // MARK: - Enrolment capture
+
+    func beginCapture() {
+        lock.lock(); capture = []; lock.unlock()
+    }
+
+    /// How much speech-or-silence has been gathered so far.
+    var capturedSeconds: Double {
+        lock.lock(); defer { lock.unlock() }
+        guard ringRate > 0, let capture else { return 0 }
+        return Double(capture.count) / ringRate
+    }
+
+    func endCapture() -> (samples: [Float], sampleRate: Double)? {
+        lock.lock(); defer { lock.unlock() }
+        defer { capture = nil }
+        guard let capture, ringRate > 0, !capture.isEmpty else { return nil }
+        return (capture, ringRate)
+    }
+
+    /// The most recent `seconds` of audio, oldest first.
+    func recentAudio(seconds: Double) -> (samples: [Float], sampleRate: Double)? {
+        lock.lock(); defer { lock.unlock() }
+        guard !ring.isEmpty, ringRate > 0 else { return nil }
+        let wanted = min(Int(ringRate * seconds), ringFilled)
+        guard wanted > Int(ringRate * 0.2) else { return nil }
+
+        var out = [Float](repeating: 0, count: wanted)
+        var read = (ringWrite - wanted + ring.count) % ring.count
+        for index in 0..<wanted {
+            out[index] = ring[read]
+            read = (read + 1) % ring.count
+        }
+        return (out, ringRate)
     }
 
     /// Root-mean-square, mapped onto a rough 0…1 loudness for the HUD.

@@ -45,6 +45,10 @@ final class SettingsStore {
         static let egoSpeak       = "ego.speakReplies"     // Bool, default true
         static let egoVoice       = "ego.voice"            // AVSpeechSynthesisVoice id
         static let egoWakeName    = "ego.wakeName"         // the name in the wake phrase
+        static let egoExtraNames  = "ego.extraNames"       // [String], added from Settings
+        static let egoVoiceMatch  = "ego.voiceMatch"       // Bool, default true
+        static let egoGreeting    = "ego.greeting"         // said on waking
+        static let egoGreetings   = "ego.extraGreetings"   // [String], added from Settings
         static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
         static let egoConverse    = "ego.conversation"     // Bool, default true
         static let egoRate        = "ego.speechRate"       // 0.3…0.7, default 0.52
@@ -162,6 +166,36 @@ final class SettingsStore {
 
     /// The name Ego answers to. A setting because the speech recogniser, not
     /// taste, decides which words survive: a name it already knows is heard
+    /// Answer only to the enrolled voice. On by default — but the gate is
+    /// inert until a voice has actually been taught, because a lock with no
+    /// key would leave the user shouting at an assistant that has no way of
+    /// being told to stop.
+    var egoVoiceMatch: Bool {
+        didSet { defaults.set(egoVoiceMatch, forKey: Key.egoVoiceMatch) }
+    }
+
+    /// What Ego says the moment it wakes, before you have said what you want.
+    /// Empty means it wakes silently.
+    var egoGreeting: String {
+        didSet { defaults.set(egoGreeting, forKey: Key.egoGreeting) }
+    }
+
+    /// Greetings the user has written themselves, joining the list to choose
+    /// from — the same arrangement as the wake names.
+    var egoExtraGreetings: [String] {
+        didSet { defaults.set(egoExtraGreetings, forKey: Key.egoGreetings) }
+    }
+
+    /// Names the user has added to the picker. They are *choices*, not extra
+    /// triggers — exactly one is ever live — so that adding a name never
+    /// quietly widens what wakes Ego.
+    var egoExtraNames: [String] {
+        didSet {
+            defaults.set(egoExtraNames, forKey: Key.egoExtraNames)
+            NotificationCenter.default.post(name: Self.assistantDidChange, object: nil)
+        }
+    }
+
     /// every time, and a rare one is misheard half the time.
     var egoWakeName: String {
         didSet {
@@ -244,6 +278,10 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
+        egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
+        egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)
@@ -314,6 +352,10 @@ final class SettingsStore {
         egoSpeakReplies = defaults.bool(forKey: Key.egoSpeak)
         egoVoiceIdentifier = defaults.string(forKey: Key.egoVoice) ?? ""
         egoWakeName = defaults.string(forKey: Key.egoWakeName) ?? "ego"
+        egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
+        egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
+        egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
         egoSpeechRate = defaults.double(forKey: Key.egoRate)

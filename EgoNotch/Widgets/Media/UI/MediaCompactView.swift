@@ -94,14 +94,21 @@ struct MediaCompactView: View {
             .aspectRatio(1, contentMode: .fit)   // square, as tall as the row
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            // Source badge straddles the artwork's bottom-right corner.
+            // Source badge straddles the artwork's bottom-right corner, and
+            // takes you to the player it belongs to — the obvious thing to
+            // expect from an app's icon, and it was doing nothing.
             if let icon = Self.appIcon(named: model.appName) {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 24, height: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                    .shadow(color: .black.opacity(0.6), radius: 3)
-                    .offset(x: 7, y: 7)
+                Button { widget.openCompanionApp() } label: {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 24, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .shadow(color: .black.opacity(0.6), radius: 3)
+                        .contentShape(RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+                .offset(x: 7, y: 7)
+                .help("Open \(model.appName ?? "the player")")
             }
         }
         .aspectRatio(1, contentMode: .fit)

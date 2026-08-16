@@ -8,10 +8,20 @@ import Speech
 struct EgoSettingsPane: View {
     @Bindable private var settings = SettingsStore.shared
     private var assistant = EgoAssistant.shared
+    private var voice = VoicePrintStore.shared
 
     @State private var speechAuthorised = SFSpeechRecognizer.authorizationStatus() == .authorized
     @State private var requesting = false
     @State private var typed = ""
+    @State private var newName = ""
+    @State private var logSize: String? = EgoLog.sizeText
+    @State private var authorising = false
+    @State private var newGreeting = ""
+
+    /// Short on purpose: the microphone is deaf while any of these play.
+    private static let builtInGreetings = [
+        "Mhm", "Yes?", "Hmm?", "Aye aye sir", "Ready", "Go ahead", "I'm listening",
+    ]
 
     var body: some View {
         SettingsPane(title: "Ego",
@@ -58,6 +68,17 @@ struct EgoSettingsPane: View {
                 }
             }
             SettingsDivider()
+            SettingsRow(label: "What Ego keeps", hint: privacyHint, icon: "lock.shield") {
+                if let size = EgoLog.sizeText {
+                    SettingsActionButton(title: "Delete log (\(size))") {
+                        EgoLog.erase()
+                        logSize = nil
+                    }
+                } else {
+                    SettingsBadge(text: "Nothing stored", tint: Ego.textMute)
+                }
+            }
+            SettingsDivider()
             SettingsRow(label: "Listening state", hint: earsHint, icon: "dot.radiowaves.left.and.right") {
                 SettingsBadge(text: earsBadge, tint: earsTint)
             }
@@ -83,16 +104,32 @@ struct EgoSettingsPane: View {
         SettingsCard(title: "Listening") {
             SettingsRow(label: "Answers to", hint: nameHint, icon: "person.text.rectangle") {
                 Picker("", selection: $settings.egoWakeName) {
-                    Text("Hey Zoro").tag("zoro")
-                    Text("Hey Ego").tag("ego")
-                    Text("Hey Siri").tag("siri")
-                    Text("Hey Notch").tag("notch")
-                    Text("Hey Jarvis").tag("jarvis")
-                    Text("Hey Edith").tag("edith")
-                    Text("Hey Friday").tag("friday")
+                    ForEach(Self.builtInNames, id: \.self) { name in
+                        Text("Hey \(display(name))").tag(name)
+                    }
+                    // The user's own, in the same list — one is live at a time.
+                    ForEach(settings.egoExtraNames, id: \.self) { name in
+                        Text("Hey \(display(name))").tag(name)
+                    }
                 }
                 .labelsHidden()
                 .frame(width: 140)
+            }
+            SettingsDivider()
+            SettingsRow(label: "Add a name",
+                        hint: "Your own word — “quant”, “iris”. It joins the list above and is selected straight away.",
+                        icon: "plus.bubble") {
+                HStack(spacing: 8) {
+                    EgoTextField(placeholder: "name",
+                                 text: $newName,
+                                 onSubmit: addName,
+                                 placeholderColor: Ego.textMute)
+                        .frame(width: 96)
+                    SettingsActionButton(title: "Add") { addName() }
+                    if settings.egoExtraNames.contains(settings.egoWakeName) {
+                        SettingsActionButton(title: "Remove") { removeCurrentName() }
+                    }
+                }
             }
             SettingsDivider()
             SettingsRow(label: "Wake word",
@@ -109,6 +146,68 @@ struct EgoSettingsPane: View {
                 Toggle("", isOn: $settings.egoBareWakeWord)
                     .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
                     .labelsHidden()
+            }
+            SettingsDivider()
+            SettingsRow(label: "Says when it wakes",
+                        hint: "A word back the moment you call it, before you've said what you want — only when you pause after the name, since Ego is deaf while it speaks.",
+                        icon: "quote.bubble") {
+                Picker("", selection: $settings.egoGreeting) {
+                    Text("Silent").tag("")
+                    ForEach(Self.builtInGreetings, id: \.self) { Text($0).tag($0) }
+                    ForEach(settings.egoExtraGreetings, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 140)
+            }
+            SettingsRow(label: "Add a reply",
+                        hint: "Your own — “aye aye sir”, “at your service”. It joins the list and is chosen straight away.",
+                        icon: "plus.bubble") {
+                HStack(spacing: 8) {
+                    EgoTextField(placeholder: "reply",
+                                 text: $newGreeting,
+                                 onSubmit: addGreeting,
+                                 placeholderColor: Ego.textMute)
+                        .frame(width: 96)
+                    SettingsActionButton(title: "Add") { addGreeting() }
+                    if settings.egoExtraGreetings.contains(settings.egoGreeting) {
+                        SettingsActionButton(title: "Remove") { removeGreeting() }
+                    }
+                }
+            }
+            SettingsDivider()
+            SettingsRow(label: "Only my voice", hint: voiceMatchHint, icon: "person.badge.shield.checkmark") {
+                // Bound through authentication rather than straight to the
+                // setting: a switch anyone can flip is not a gate.
+                Toggle("", isOn: Binding(
+                    get: { settings.egoVoiceMatch },
+                    set: { wanted in
+                        authorised("change who Ego answers to") { settings.egoVoiceMatch = wanted }
+                    }))
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+                    .disabled(authorising)
+            }
+            SettingsRow(label: "Voice ID", hint: enrolmentHint, icon: "waveform.and.person.filled") {
+                HStack(spacing: 8) {
+                    if voice.isEnrolling {
+                        SettingsBadge(text: "\(voice.progress) of \(VoicePrintStore.required)",
+                                      tint: Ego.text)
+                        SettingsActionButton(title: "Cancel") { assistant.cancelVoiceEnrolment() }
+                    } else if voice.isEnrolled {
+                        SettingsBadge(text: "Taught", tint: Ego.text)
+                        SettingsActionButton(title: "Teach again") {
+                            authorised("teach Ego a new voice") { assistant.beginVoiceEnrolment() }
+                        }
+                        SettingsActionButton(title: "Forget") {
+                            authorised("forget the voice Ego answers to") { voice.forget() }
+                        }
+                    } else {
+                        SettingsBadge(text: "Not taught", tint: Ego.textMute)
+                        SettingsActionButton(title: "Teach it your voice", prominent: true) {
+                            authorised("teach Ego your voice") { assistant.beginVoiceEnrolment() }
+                        }
+                    }
+                }
             }
             SettingsDivider()
             SettingsRow(label: "Stand down during calls",
@@ -210,6 +309,100 @@ struct EgoSettingsPane: View {
                 }
             }
         }
+    }
+
+    /// Everything that changes who Ego obeys goes through the login password
+    /// or Touch ID first. Cancelling simply leaves the setting alone.
+    private func authorised(_ reason: String, then work: @escaping () -> Void) {
+        guard !authorising else { return }
+        authorising = true
+        Task {
+            let allowed = await EgoAuth.confirm(reason)
+            authorising = false
+            if allowed { work() }
+        }
+    }
+
+    /// The honest version: it is a filter, not a lock, and it is switched on
+    /// but doing nothing until a voice is taught.
+    private var voiceMatchHint: String {
+        guard settings.egoVoiceMatch else {
+            return "Off — any voice can wake Ego, including one on a video or across the room."
+        }
+        return voice.isEnrolled
+            ? "Only the voice you taught wakes Ego. It turns away a clearly different voice, "
+                + "but won't stop a recording of you."
+            : "On, but doing nothing yet — teach Ego your voice below and it starts filtering."
+    }
+
+    private var enrolmentHint: String? {
+        if let problem = voice.lastProblem { return problem }
+        if voice.isEnrolling {
+            let name = settings.egoWakeName
+            return "Say “Hey \(name.prefix(1).uppercased() + name.dropFirst())” "
+                + "in your normal voice, pausing between each one."
+        }
+        return voice.isEnrolled
+            ? "Taught from \(voice.summary ?? "your voice"). Redo it if you keep being turned away."
+            : "Say the wake phrase four times. Only the measurements are kept — never the audio."
+    }
+
+    /// Said plainly, because "what does it keep" deserves a straight answer.
+    private var privacyHint: String {
+        EgoLog.isEnabled
+            ? "Audio is never saved. A diagnostic log is on — it records commands"
+                + (EgoLog.recordsTranscripts ? " and everything heard." : ", not the room.")
+            : "Audio is never saved, transcripts stay in memory, and nothing is written to disk."
+    }
+
+    private static let builtInNames = ["zoro", "ego", "siri", "notch", "jarvis", "edith", "friday"]
+
+    private func display(_ name: String) -> String {
+        name.prefix(1).uppercased() + name.dropFirst()
+    }
+
+    /// Adding a name selects it too — you typed it because you want to use it,
+    /// and making you pick it from the list afterwards is a step for nothing.
+    /// Kept lowercase and single-word: the matcher works word by word, so a
+    /// phrase here would simply never fire.
+    private func addName() {
+        let cleaned = newName.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ").first.map(String.init) ?? ""
+        newName = ""
+        guard cleaned.count >= 2, !Self.builtInNames.contains(cleaned) else {
+            // A built-in typed by hand still selects it rather than doing nothing.
+            if Self.builtInNames.contains(cleaned) { settings.egoWakeName = cleaned }
+            return
+        }
+        if !settings.egoExtraNames.contains(cleaned) {
+            settings.egoExtraNames.append(cleaned)
+        }
+        settings.egoWakeName = cleaned
+    }
+
+    private func addGreeting() {
+        let cleaned = newGreeting.trimmingCharacters(in: .whitespacesAndNewlines)
+        newGreeting = ""
+        guard cleaned.count >= 2, cleaned.count <= 30 else { return }
+        if !Self.builtInGreetings.contains(cleaned), !settings.egoExtraGreetings.contains(cleaned) {
+            settings.egoExtraGreetings.append(cleaned)
+        }
+        settings.egoGreeting = cleaned
+    }
+
+    private func removeGreeting() {
+        let going = settings.egoGreeting
+        settings.egoExtraGreetings.removeAll { $0 == going }
+        settings.egoGreeting = Self.builtInGreetings[0]
+    }
+
+    /// Removing the name in use falls back to the default rather than leaving
+    /// the picker pointing at something that no longer exists.
+    private func removeCurrentName() {
+        let going = settings.egoWakeName
+        settings.egoExtraNames.removeAll { $0 == going }
+        settings.egoWakeName = "zoro"
     }
 
     private func testVoice() {
