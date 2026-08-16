@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import Speech
 
 /// Live on-device transcription, wrapped so the rest of Ego sees plain text.
@@ -55,9 +56,49 @@ actor EgoTranscriber {
         // real one land.
         let capitalised = name.prefix(1).uppercased() + name.dropFirst()
         return ["\(capitalised)", "Hey \(capitalised)", "hey \(capitalised)",
-                "\(capitalised) pause", "\(capitalised) play",
-                "notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"]
+                "\(capitalised) pause", "\(capitalised) play"]
+            + ["notch", "boomerang", "pomodoro", "shelf", "clipboard", "visualiser"]
+            + installedApps + Self.jargon
     }
+
+    /// The names of the applications actually on this Mac.
+    ///
+    /// Every misrecognition worth complaining about has been a proper noun the
+    /// recogniser was never told existed — "github" as "geit", "chatgpt" as
+    /// "chat", "zed" as "z" and "ed". It is the same problem as "Hey Ego"
+    /// arriving as "Hey, Eagle", and it has the same one-line answer: say the
+    /// word out loud to the recogniser before asking it to hear the word.
+    private static let installedApps: [String] = {
+        func apps(in directory: String) -> [String] {
+            (try? FileManager.default.contentsOfDirectory(atPath: directory))?
+                .filter { $0.hasSuffix(".app") }
+                .map { ($0 as NSString).deletingPathExtension }
+                .filter { $0.count >= 2 } ?? []
+        }
+
+        // Ordered by how likely you are to say it, NOT alphabetically: the
+        // list is capped, and sorting by name meant the cap fell at "G" —
+        // teaching the recogniser about Calculator while cutting Zed, Spotify,
+        // Safari and Xcode, which are the ones that were being misheard.
+        var ordered: [String] = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap(\.localizedName)
+        ordered += apps(in: "/Applications")
+        ordered += apps(in: "/Applications/Utilities")
+        ordered += apps(in: "/System/Applications")
+        ordered += apps(in: "/System/Applications/Utilities")
+
+        var seen: Set<String> = []
+        // Bounded: a vocabulary of everything is a vocabulary of nothing,
+        // because every hint dilutes the others.
+        return ordered.filter { seen.insert($0).inserted }.prefix(70).map { $0 }
+    }()
+
+    /// Names that aren't apps on this Mac but come up constantly in commands.
+    private static let jargon = [
+        "GitHub", "ChatGPT", "YouTube", "Gmail", "Google", "Stack Overflow",
+        "localhost", "npm", "git", "Docker", "Xcode", "Swift", "Python",
+    ]
 
     init(locale: Locale = Locale(identifier: "en-US")) {
         self.locale = locale
