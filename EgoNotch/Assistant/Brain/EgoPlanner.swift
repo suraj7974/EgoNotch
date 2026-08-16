@@ -165,7 +165,8 @@ final class EgoPlanner {
          VolumeTool(), BrightnessTool(), NotchTool(),
          TerminalTool(), TerminalStateTool(),
          TimerTool(), NoteTool(), StashTool(),
-         CaptureTool(), PlayTool(), SystemTool()]
+         CaptureTool(), PlayTool(), SystemTool(),
+         AppTool(), MenuTool(), ShortcutTool(), WebTool()]
     }
 
     /// Written for a voice assistant that gets read aloud: every extra word is
@@ -177,6 +178,10 @@ final class EgoPlanner {
         focus timers and stopwatch, its notes and todo list, its clipboard \
         history and shelf, its camera, and its games and saved links — and \
         you can read this Mac's battery, CPU, memory, disk and calendar.
+
+        Outside the notch you can open, switch to and quit other applications, \
+        move their windows around the screen, press any command in any app's \
+        menu bar, run the user's own Shortcuts, and open or search the web.
 
         You DO have a terminal and you can run commands in it, through \
         run_terminal. Never tell the user you have no terminal or cannot run \

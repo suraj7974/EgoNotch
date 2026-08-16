@@ -48,6 +48,8 @@ final class SettingsStore {
         static let egoExtraNames  = "ego.extraNames"       // [String], added from Settings
         static let egoVoiceMatch  = "ego.voiceMatch"       // Bool, default true
         static let egoGreeting    = "ego.greeting"         // said on waking
+        static let egoApps        = "ego.controlApps"      // Bool, default true
+        static let egoShortcuts   = "ego.runShortcuts"     // Bool, default true
         static let egoGreetings   = "ego.extraGreetings"   // [String], added from Settings
         static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
         static let egoConverse    = "ego.conversation"     // Bool, default true
@@ -174,6 +176,18 @@ final class SettingsStore {
         didSet { defaults.set(egoVoiceMatch, forKey: Key.egoVoiceMatch) }
     }
 
+    /// Whether Ego may reach outside the notch — opening apps, moving their
+    /// windows, pressing their menu commands. Needs Accessibility as well.
+    var egoControlApps: Bool {
+        didSet { defaults.set(egoControlApps, forKey: Key.egoApps) }
+    }
+
+    /// Whether Ego may run the user's own Shortcuts, which is how it reaches
+    /// anything Apple hasn't given an API for.
+    var egoRunShortcuts: Bool {
+        didSet { defaults.set(egoRunShortcuts, forKey: Key.egoShortcuts) }
+    }
+
     /// What Ego says the moment it wakes, before you have said what you want.
     /// Empty means it wakes silently.
     var egoGreeting: String {
@@ -281,6 +295,8 @@ final class SettingsStore {
         egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
         egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoControlApps = defaults.object(forKey: Key.egoApps) as? Bool ?? true
+        egoRunShortcuts = defaults.object(forKey: Key.egoShortcuts) as? Bool ?? true
         egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true
@@ -355,6 +371,8 @@ final class SettingsStore {
         egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
         egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoControlApps = defaults.object(forKey: Key.egoApps) as? Bool ?? true
+        egoRunShortcuts = defaults.object(forKey: Key.egoShortcuts) as? Bool ?? true
         egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []
         egoTerminalControl = defaults.object(forKey: Key.egoTerminal) as? Bool ?? true
         egoConversation = defaults.object(forKey: Key.egoConverse) as? Bool ?? true

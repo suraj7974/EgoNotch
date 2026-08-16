@@ -17,6 +17,7 @@ struct EgoSettingsPane: View {
     @State private var logSize: String? = EgoLog.sizeText
     @State private var authorising = false
     @State private var newGreeting = ""
+    @State private var trusted = SystemControl.isTrusted
 
     /// Short on purpose: the microphone is deaf while any of these play.
     private static let builtInGreetings = [
@@ -31,7 +32,10 @@ struct EgoSettingsPane: View {
             voiceCard
             tryCard
         }
-        .onAppear { refreshPermission() }
+        .onAppear {
+            refreshPermission()
+            trusted = SystemControl.isTrusted
+        }
     }
 
     // MARK: - Status
@@ -226,6 +230,35 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
+            SettingsRow(label: "Control other apps",
+                        hint: "Open, switch and quit apps, move their windows, and press commands in their menus. Quitting always asks first.",
+                        icon: "macwindow.on.rectangle") {
+                Toggle("", isOn: $settings.egoControlApps)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsRow(label: "Accessibility", hint: accessibilityHint, icon: "hand.raised") {
+                if trusted {
+                    SettingsBadge(text: "Granted", tint: Ego.text)
+                } else {
+                    SettingsActionButton(title: "Grant", prominent: true) {
+                        SystemControl.requestTrust()
+                        if let url = URL(string:
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                }
+            }
+            SettingsDivider()
+            SettingsRow(label: "Run my Shortcuts",
+                        hint: "Anything in the Shortcuts app, by name — Focus modes, Wi-Fi, home automation.",
+                        icon: "square.stack.3d.up") {
+                Toggle("", isOn: $settings.egoRunShortcuts)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsDivider()
             SettingsRow(label: "Let Ego use the terminal",
                         hint: "Every command is read back and waits for your yes. Dangerous ones are refused outright.",
                         icon: "terminal") {
@@ -309,6 +342,14 @@ struct EgoSettingsPane: View {
                 }
             }
         }
+    }
+
+    /// Without this, windows and menus simply do nothing — worth saying, since
+    /// a silent no-op is the worst way to learn about a missing permission.
+    private var accessibilityHint: String {
+        trusted
+            ? "Ego can move windows and press menu commands in other apps."
+            : "Required for windows and menu commands. Everything else works without it."
     }
 
     /// Everything that changes who Ego obeys goes through the login password
