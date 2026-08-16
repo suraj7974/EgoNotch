@@ -16,6 +16,12 @@ struct EgoSettingsPane: View {
     @State private var newName = ""
     @State private var logSize: String? = EgoLog.sizeText
     @State private var authorising = false
+    @State private var newGreeting = ""
+
+    /// Short on purpose: the microphone is deaf while any of these play.
+    private static let builtInGreetings = [
+        "Mhm", "Yes?", "Hmm?", "Aye aye sir", "Ready", "Go ahead", "I'm listening",
+    ]
 
     var body: some View {
         SettingsPane(title: "Ego",
@@ -140,6 +146,33 @@ struct EgoSettingsPane: View {
                 Toggle("", isOn: $settings.egoBareWakeWord)
                     .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
                     .labelsHidden()
+            }
+            SettingsDivider()
+            SettingsRow(label: "Says when it wakes",
+                        hint: "A word back the moment you call it, before you've said what you want — only when you pause after the name, since Ego is deaf while it speaks.",
+                        icon: "quote.bubble") {
+                Picker("", selection: $settings.egoGreeting) {
+                    Text("Silent").tag("")
+                    ForEach(Self.builtInGreetings, id: \.self) { Text($0).tag($0) }
+                    ForEach(settings.egoExtraGreetings, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden()
+                .frame(width: 140)
+            }
+            SettingsRow(label: "Add a reply",
+                        hint: "Your own — “aye aye sir”, “at your service”. It joins the list and is chosen straight away.",
+                        icon: "plus.bubble") {
+                HStack(spacing: 8) {
+                    EgoTextField(placeholder: "reply",
+                                 text: $newGreeting,
+                                 onSubmit: addGreeting,
+                                 placeholderColor: Ego.textMute)
+                        .frame(width: 96)
+                    SettingsActionButton(title: "Add") { addGreeting() }
+                    if settings.egoExtraGreetings.contains(settings.egoGreeting) {
+                        SettingsActionButton(title: "Remove") { removeGreeting() }
+                    }
+                }
             }
             SettingsDivider()
             SettingsRow(label: "Only my voice", hint: voiceMatchHint, icon: "person.badge.shield.checkmark") {
@@ -346,6 +379,22 @@ struct EgoSettingsPane: View {
             settings.egoExtraNames.append(cleaned)
         }
         settings.egoWakeName = cleaned
+    }
+
+    private func addGreeting() {
+        let cleaned = newGreeting.trimmingCharacters(in: .whitespacesAndNewlines)
+        newGreeting = ""
+        guard cleaned.count >= 2, cleaned.count <= 30 else { return }
+        if !Self.builtInGreetings.contains(cleaned), !settings.egoExtraGreetings.contains(cleaned) {
+            settings.egoExtraGreetings.append(cleaned)
+        }
+        settings.egoGreeting = cleaned
+    }
+
+    private func removeGreeting() {
+        let going = settings.egoGreeting
+        settings.egoExtraGreetings.removeAll { $0 == going }
+        settings.egoGreeting = Self.builtInGreetings[0]
     }
 
     /// Removing the name in use falls back to the default rather than leaving

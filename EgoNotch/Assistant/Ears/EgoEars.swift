@@ -31,7 +31,7 @@ final class EgoEars {
     var onCommand: ((String) -> Void)?
     /// The wake phrase landed — show the listening HUD immediately, rather
     /// than only once the whole sentence is finished.
-    var onWake: (() -> Void)?
+    var onWake: ((String) -> Void)?
     /// Woken, but nothing followed.
     var onIdle: (() -> Void)?
 
@@ -227,6 +227,14 @@ final class EgoEars {
         EgoLog.trace("done — back to waiting for the wake word")
     }
 
+    /// Give the speaker longer to begin. The patience after a wake is counted
+    /// from the wake itself, and a spoken greeting eats most of it before the
+    /// user has had a chance to say anything.
+    func waitLonger() {
+        guard status == .capturing, lastCommandText.isEmpty else { return }
+        armEndpoint(grace: 5)
+    }
+
     // MARK: - Speaking without hearing yourself
 
     /// Mutes at the tap, upstream of the analyser, so Ego's own voice never
@@ -312,7 +320,7 @@ final class EgoEars {
                          // With music playing the level never falls back to
                          // silence, so there is no onset to measure from.
                          : "wake heard (no quiet moment to measure from), command so far: \(command)")
-            onWake?()
+            onWake?(command)
             armEndpoint()
 
         case .capturing:

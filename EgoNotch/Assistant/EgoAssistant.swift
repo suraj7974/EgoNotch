@@ -90,7 +90,7 @@ final class EgoAssistant {
         EgoLog.trace("activated")
 
         ears.onCommand = { [weak self] command in self?.handle(command) }
-        ears.onWake = { [weak self] in self?.beganCapturing() }
+        ears.onWake = { [weak self] command in self?.beganCapturing(command) }
         ears.onIdle = { [weak self] in self?.captureEndedEmpty() }
         voice.onFinish = { [weak self] in
             Task { @MainActor in self?.finishedSpeaking() }
@@ -335,6 +335,9 @@ final class EgoAssistant {
     /// never heard and every question timed out unanswered.
     private func finishedSpeaking() {
         ears.resumeAfterSpeaking()
+        // A capture is already running (the greeting plays while Ego waits for
+        // your command); restarting it here would throw that away.
+        if case .capturing = ears.status { return }
         guard isActive, holdsFloor else { return }
         Task { [weak self] in
             // After the tap unmutes, or the follow-up captures the tail of
@@ -358,6 +361,19 @@ final class EgoAssistant {
         isConversing = true
         // No idle timer: in this mode Ego stays until dismissed, by design.
         idleTask?.cancel(); idleTask = nil
+    }
+
+    /// The little noise that says "I'm listening" — Siri's "mhm". Short on
+    /// purpose: the microphone is deaf while it plays.
+    private func acknowledge() {
+        let greeting = SettingsStore.shared.egoGreeting.trimmingCharacters(in: .whitespaces)
+        guard !greeting.isEmpty, SettingsStore.shared.egoSpeakReplies, isActive else { return }
+        ears.muteWhileSpeaking()
+        ears.waitLonger()
+        voice.speak(greeting,
+                    voiceIdentifier: SettingsStore.shared.egoVoiceIdentifier,
+                    rate: SettingsStore.shared.egoSpeechRate)
+        EgoLog.trace("said “\(greeting)” on waking")
     }
 
     private func say(_ text: String) {
@@ -416,11 +432,15 @@ final class EgoAssistant {
 
     /// Ego heard the wake phrase and is taking a command. Shows the HUD with a
     /// long safety net so a half-heard "hey ego" can't strand it open.
-    func beganCapturing() {
+    func beganCapturing(_ commandSoFar: String = "") {
         guard isActive, phase != .confirming else { return }
         phase = .listening
         reply = ""
         show()
+        // Answer straight away — but ONLY when you stopped after the wake
+        // word. Speaking mutes the microphone, so a greeting in the middle of
+        // "hey zoro pause" would swallow the command it was acknowledging.
+        if commandSoFar.isEmpty { acknowledge() }
         openConversation()
         // Single-command mode has no natural end while nothing is said, so it
         // keeps the old safety net.
