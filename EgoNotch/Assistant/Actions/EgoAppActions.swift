@@ -304,5 +304,21 @@ extension EgoActions {
         }
     }
 
+    /// What Ego can actually do *right now* — read off the switches rather
+    /// than from the model's memory of its own instructions, which understated
+    /// it and went out of date the moment a feature was added.
+    static func capabilities() -> ActionResult {
+        var parts = ["music, volume and brightness", "the notch and its tabs",
+                     "timers, notes and the camera"]
+        if SettingsStore.shared.egoTerminalControl { parts.append("the terminal") }
+        if SettingsStore.shared.egoControlApps { parts.append("other apps and their menus") }
+        if SettingsStore.shared.egoRunShortcuts { parts.append("your shortcuts") }
+
+        // Spoken, so the list is short; the notch shows the whole thing.
+        let spoken = parts.prefix(3).joined(separator: ", ")
+        return ActionResult("I run \(spoken), and more.",
+                            detail: "I run " + parts.joined(separator: ", ") + ".")
+    }
+
     private static var panelController: NotchPanelController? { NotchPanelController.current }
 }

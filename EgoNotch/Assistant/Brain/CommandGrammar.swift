@@ -43,6 +43,10 @@ enum CommandGrammar {
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
         }
+        if text.hasAny("what can you do", "what do you do", "help me", "what are you",
+                       "your abilities", "what can i say") {
+            return EgoActions.capabilities()
+        }
         if text.hasAny("how long left", "how much time is left", "how long is left",
                        "how much longer", "time left on the timer") {
             return EgoActions.timeLeft()
@@ -362,6 +366,10 @@ enum CommandGrammar {
         if text.hasAny("mute", "silence", "sound off") { return EgoActions.setMuted(true) }
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
+        }
+        if text.hasAny("what can you do", "what do you do", "help me", "what are you",
+                       "your abilities", "what can i say") {
+            return EgoActions.capabilities()
         }
         if let percent = text.firstPercentOrNumber, text.contains("volume") {
             return EgoActions.setVolume(fraction: percent / 100)
