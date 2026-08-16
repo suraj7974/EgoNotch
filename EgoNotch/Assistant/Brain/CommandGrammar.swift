@@ -26,6 +26,7 @@ enum CommandGrammar {
 
         // Before the normalised rules, because the shell needs the raw words.
         if let terminal = terminalCommand(in: raw) { return terminal }
+        if let device = deviceCommand(in: raw) { return device }
 
         for rule in rules {
             if let result = rule(text) { return result }
@@ -41,6 +42,10 @@ enum CommandGrammar {
         }
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
+        }
+        if text.hasAny("what can you do", "what do you do", "help me", "what are you",
+                       "your abilities", "what can i say") {
+            return EgoActions.capabilities()
         }
         if text.hasAny("how long left", "how much time is left", "how long is left",
                        "how much longer", "time left on the timer") {
@@ -139,6 +144,38 @@ enum CommandGrammar {
         terminalRules, focusRules, listRules, captureRules,
         mediaRules, volumeRules, brightnessRules, panelRules,
     ]
+
+    /// Apps, windows and the web. Deliberately NOT in the list above: it runs
+    /// on the raw utterance, because an app's name is a proper noun and
+    /// `normalise` lowercases everything.
+    private static func deviceCommand(in raw: String) -> ActionResult? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = normalise(trimmed)
+
+        // Windows first: "put chrome on the left" must not be read as "open".
+        for place in SystemControl.WindowPlace.allCases
+        where text.contains(place.spokenTrigger) {
+            guard text.hasAny("window", "screen", "half", "side", "maximise", "maximize",
+                              "full screen", "fullscreen", "centre", "center", "left", "right")
+            else { continue }
+            return nil    // handled asynchronously by the caller
+        }
+
+        if text.hasAny("search for ", "google ") {
+            for verb in ["search for ", "google "] where text.hasPrefix(verb) {
+                return EgoActions.search(String(trimmed.dropFirst(verb.count)))
+            }
+        }
+        for verb in ["open the website ", "go to website ", "open website "]
+        where text.hasPrefix(verb) {
+            return EgoActions.openURL(String(trimmed.dropFirst(verb.count)))
+        }
+        // "quit safari" / "close chrome"
+        for verb in ["quit ", "force quit "] where text.hasPrefix(verb) {
+            return EgoActions.quitApp(named: String(trimmed.dropFirst(verb.count)))
+        }
+        return nil
+    }
 
     /// Timers, before the media rules: "start a timer" must not be heard as
     /// "start" the music.
@@ -329,6 +366,10 @@ enum CommandGrammar {
         if text.hasAny("mute", "silence", "sound off") { return EgoActions.setMuted(true) }
         if text.hasAny("whats the volume", "how loud", "volume level") {
             return EgoActions.volumeReport()
+        }
+        if text.hasAny("what can you do", "what do you do", "help me", "what are you",
+                       "your abilities", "what can i say") {
+            return EgoActions.capabilities()
         }
         if let percent = text.firstPercentOrNumber, text.contains("volume") {
             return EgoActions.setVolume(fraction: percent / 100)

@@ -62,6 +62,9 @@ final class BatteryMonitor {
             let monitor = Unmanaged<BatteryMonitor>.fromOpaque(context).takeUnretainedValue()
             MainActor.assumeIsolated {
                 monitor.refresh(pulseOnChargeBegin: true)
+                // Ego stands its always-on ear down on a low battery, so it
+                // needs to hear about the charger arriving.
+                EgoAssistant.shared.powerStateChanged()
             }
         }
         if let source = IOPSNotificationCreateRunLoopSource(callback, context)?.takeRetainedValue() {

@@ -38,6 +38,15 @@ enum EgoToolBridge {
         return [result.spoken, result.detail].compactMap { $0 }.joined(separator: " ")
     }
 
+    /// The same, for actions that have to wait on another process — reaching
+    /// into other apps is synchronous IPC, and it runs off the main actor.
+    static func runAsync(changing: Bool = true,
+                         _ body: @MainActor () async -> ActionResult) async -> String {
+        let result = await body()
+        if changing { changes.append(result) } else { reads.append(result) }
+        return [result.spoken, result.detail].compactMap { $0 }.joined(separator: " ")
+    }
+
     /// The line Ego should say when something actually happened — the tools'
     /// own words, which cannot be wrong. nil when the turn only read state or
     /// did nothing, and the model's sentence is the better answer.
@@ -385,27 +394,29 @@ struct CaptureTool: Tool {
 }
 
 struct PlayTool: Tool {
-    let name = "open_game_or_link"
-    let description = "Start one of the notch's games, or open one of the user's saved quick links by name."
+    let name = "play_notch_game"
+    /// Narrow on purpose. When this also claimed to "open things by name" the
+    /// model reached for it on "open Zed" and started the runner game instead.
+    let description = "Start one of the notch's four built-in games, and nothing else. "
+        + "The games are: runner, snake, pong, shooter. Never use this to open an application."
 
     @Generable
     struct Arguments {
-        @Guide(description: "'game' or 'link'.", .anyOf(["game", "link"]))
-        var kind: String
-        @Guide(description: "Which game (runner, snake, pong, shooter) or the name of the link.")
-        var name: String
+        @Guide(description: "Which game.", .anyOf(["runner", "snake", "pong", "shooter"]))
+        var game: String
     }
 
     func call(arguments: Arguments) async throws -> String {
-        let name = arguments.name.lowercased()
-        let isGame = arguments.kind.lowercased() == "game"
+        let name = arguments.game.lowercased()
         return await EgoToolBridge.run {
-            guard isGame else { return EgoActions.openLink(named: name) }
             let game = GameChoice.allCases.first { $0.title.lowercased() == name || $0.rawValue == name }
                 ?? GameChoice.allCases.first {
                     name.contains($0.title.lowercased()) || name.contains($0.rawValue)
                 }
-            return EgoActions.playGame(game ?? .dino)
+            // No falling back to a default: starting the wrong game because the
+            // name didn't match is worse than saying so.
+            guard let game else { return ActionResult("I don't have a game called that.") }
+            return EgoActions.playGame(game)
         }
     }
 }
@@ -428,6 +439,111 @@ struct SystemTool: Tool {
         let what = arguments.what.lowercased()
         return await EgoToolBridge.run(changing: false) {
             what == "calendar" ? EgoActions.nextEvent() : EgoActions.systemReport(what)
+        }
+    }
+}
+
+
+// MARK: - The rest of the Mac
+
+struct AppTool: Tool {
+    let name = "control_app"
+    /// The tool for anything that is an *app*. Said explicitly, because the
+    /// games tool used to answer "open Zed".
+    let description = "Open, switch to or quit any application installed on this Mac — Spotify, "
+        + "Zed, Safari, Xcode, anything — or move its front window to half the screen, maximise "
+        + "it or centre it. Use this for every application by name."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do with the app.",
+               .anyOf(["open", "quit", "left", "right", "top", "bottom", "maximise", "centre"]))
+        var action: String
+        @Guide(description: "The application's name. Omit for window moves to use whatever is in front.")
+        var app: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let app = arguments.app
+        return await EgoToolBridge.runAsync {
+            switch action {
+            case "open": EgoActions.openApp(named: app ?? "")
+            case "quit": EgoActions.quitApp(named: app ?? "")
+            default:
+                await EgoActions.placeWindow(SystemControl.WindowPlace(rawValue: action) ?? .maximise,
+                                             appNamed: app)
+            }
+        }
+    }
+}
+
+struct MenuTool: Tool {
+    let name = "menu_command"
+    let description = "Press a menu command in the app that is in front — anything in its menu bar, "
+        + "such as \"Export as PDF\", \"Save All\" or \"Zoom In\". Works in any Mac app."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The menu item's name, as it appears in the menu.")
+        var command: String
+        @Guide(description: "Which app's menu. Omit for whatever is in front.")
+        var app: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let command = arguments.command
+        let app = arguments.app
+        return await EgoToolBridge.runAsync {
+            await EgoActions.runMenuCommand(command, appNamed: app)
+        }
+    }
+}
+
+struct ShortcutTool: Tool {
+    let name = "run_shortcut"
+    let description = "Run one of the user's own Shortcuts by name, or list what they have. "
+        + "This is how to reach Focus modes, Wi-Fi, home automation and anything else without an API."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.", .anyOf(["run", "list"]))
+        var action: String
+        @Guide(description: "The shortcut's name, when running one.")
+        var name: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let listing = arguments.action.lowercased() == "list"
+        let name = arguments.name ?? ""
+        return await EgoToolBridge.runAsync(changing: !listing) {
+            listing ? await EgoActions.listShortcuts() : await EgoActions.runShortcut(named: name)
+        }
+    }
+}
+
+struct WebTool: Tool {
+    let name = "open_web"
+    let description = "Open a web address in the browser, search the web, or open one of the "
+        + "user's saved quick links by name. For web pages only — not for applications."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.", .anyOf(["open", "search", "link"]))
+        var action: String
+        @Guide(description: "The address, the words to search for, or the saved link's name.")
+        var text: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let text = arguments.text
+        return await EgoToolBridge.run {
+            switch action {
+            case "search": EgoActions.search(text)
+            case "link": EgoActions.openLink(named: text)
+            default: EgoActions.openURL(text)
+            }
         }
     }
 }

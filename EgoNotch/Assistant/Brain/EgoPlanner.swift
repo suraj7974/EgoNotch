@@ -22,6 +22,8 @@ final class EgoPlanner {
     private var lastUsed = Date.distantPast
     /// The turn currently inside the model, so the next one can queue behind it.
     private var inFlight: Task<ActionResult, Never>?
+    /// What the current session was built to handle.
+    private var sessionScopes: Set<EgoScope> = []
 
     /// A conversation older than this is not a conversation any more. Keeping
     /// it would let a stale "it" refer to something from an hour ago.
@@ -78,7 +80,9 @@ final class EgoPlanner {
         }
 
         EgoToolBridge.beginTurn()
-        let session = currentSession()
+        let scopes = EgoScope.matching(command)
+        EgoLog.trace("scope: \(scopes.map { "\($0)" }.joined(separator: ", "))")
+        let session = currentSession(for: scopes)
         lastUsed = Date()
 
         do {
@@ -146,26 +150,34 @@ final class EgoPlanner {
     /// user has plainly started something new.
     func reset() {
         session = nil
+        sessionScopes = []
         inFlight = nil
     }
 
     // MARK: - Session
 
-    private func currentSession() -> LanguageModelSession {
-        if let session, Date().timeIntervalSince(lastUsed) < sessionLifetime {
-            return session
-        }
-        let fresh = LanguageModelSession(tools: Self.tools, instructions: Self.instructions)
-        session = fresh
-        return fresh
-    }
+    /// A session holding exactly the tools this utterance could need.
+    ///
+    /// When the subject changes the session is rebuilt — but with the previous
+    /// transcript, so "and turn it down a bit" still knows what "it" was. The
+    /// alternative, one session holding every tool, is what had the model
+    /// answering "open Zed" with the runner game.
+    private func currentSession(for scopes: [EgoScope]) -> LanguageModelSession {
+        let wanted = Set(scopes)
+        let stale = Date().timeIntervalSince(lastUsed) >= sessionLifetime
+        if let session, !stale, wanted == sessionScopes { return session }
 
-    private static var tools: [any Tool] {
-        [PlaybackTool(), SeekTool(), NowPlayingTool(),
-         VolumeTool(), BrightnessTool(), NotchTool(),
-         TerminalTool(), TerminalStateTool(),
-         TimerTool(), NoteTool(), StashTool(),
-         CaptureTool(), PlayTool(), SystemTool()]
+        let tools = scopes.flatMap(\.tools)
+        let fresh: LanguageModelSession
+        if let session, !stale {
+            // Same conversation, different hands.
+            fresh = LanguageModelSession(tools: tools, transcript: session.transcript)
+        } else {
+            fresh = LanguageModelSession(tools: tools, instructions: Self.instructions)
+        }
+        session = fresh
+        sessionScopes = wanted
+        return fresh
     }
 
     /// Written for a voice assistant that gets read aloud: every extra word is
@@ -177,6 +189,10 @@ final class EgoPlanner {
         focus timers and stopwatch, its notes and todo list, its clipboard \
         history and shelf, its camera, and its games and saved links — and \
         you can read this Mac's battery, CPU, memory, disk and calendar.
+
+        Outside the notch you can open, switch to and quit other applications, \
+        move their windows around the screen, press any command in any app's \
+        menu bar, run the user's own Shortcuts, and open or search the web.
 
         You DO have a terminal and you can run commands in it, through \
         run_terminal. Never tell the user you have no terminal or cannot run \
