@@ -14,6 +14,7 @@ final class FullScreenObserver {
     private var displayID: CGDirectDisplayID?
     private var isFullScreen = false
     private var pending: DispatchWorkItem?
+    private var poll: Timer?
 
     init() {
         let workspace = NSWorkspace.shared.notificationCenter
@@ -29,14 +30,38 @@ final class FullScreenObserver {
     }
 
     deinit {
+        // The timer is not touched here: it holds a weak reference and Swift 6
+        // will not let a nonisolated deinit reach main-actor state. Stopping
+        // the observer is `stop()`'s job.
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
+    }
+
+    /// Stops watching. Called when the panel goes away.
+    func stop() {
+        poll?.invalidate()
+        poll = nil
     }
 
     /// Tell the observer which display the notch lives on.
     func watch(displayID: CGDirectDisplayID?) {
         self.displayID = displayID
         recheck()
+        startPolling()
+    }
+
+    /// Video going fullscreen *inside* a window — YouTube in a browser — often
+    /// switches no Space and activates no app, so there is no notification to
+    /// hang this on. The check is two Accessibility calls, so once a second
+    /// costs nothing measurable and is the difference between the notch
+    /// getting out of the way and sitting over the picture.
+    private func startPolling() {
+        poll?.invalidate()
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.evaluate()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        poll = timer
     }
 
     /// The Space switch lands before the new window is on screen, so sample a
@@ -55,14 +80,65 @@ final class FullScreenObserver {
 
     private func evaluate() {
         guard let displayID else { return }
-        // Menu bar gone *and* something display-wide on screen = a fullscreen
-        // Space. Requiring both means "auto-hide the menu bar" alone can't
-        // make the notch vanish.
-        let covered = (Self.menuBarHidden(on: displayID) && Self.hasDisplayWideWindow(on: displayID))
+        // Three signals, because no single one is reliable:
+        //
+        //  • The window list needs Screen Recording permission, which this app
+        //    does not ask for — without it the list comes back empty and the
+        //    geometric checks below can never fire. That is why fullscreen was
+        //    not being noticed at all.
+        //  • The menu bar disappearing is a strong hint, but so is "hide the
+        //    menu bar automatically".
+        //  • Accessibility, which the user HAS granted, can read the front
+        //    window's own frame — no Screen Recording needed.
+        let menuBarGone = Self.menuBarHidden(on: displayID)
+        let frontCovers = Self.frontWindowCoversDisplay(displayID)
+        let covered = frontCovers
             || Self.hasFullScreenWindow(on: displayID)
+            || (menuBarGone && Self.hasDisplayWideWindow(on: displayID))
         guard covered != isFullScreen else { return }
         isFullScreen = covered
+        EgoLog.trace("fullscreen \(covered ? "began" : "ended") "
+                     + "(front window \(frontCovers), menu bar gone \(menuBarGone))")
         onChange?(covered)
+    }
+
+    /// The frontmost app's window, measured through Accessibility.
+    ///
+    /// A truly fullscreen window starts at the very top of the display and is
+    /// the size of it — a merely zoomed window begins below the menu bar, so
+    /// the origin is what tells them apart.
+    private static func frontWindowCoversDisplay(_ displayID: CGDirectDisplayID) -> Bool {
+        guard AXIsProcessTrusted(),
+              let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier != ProcessInfo.processInfo.processIdentifier
+        else { return false }
+
+        let app = AXUIElementCreateApplication(front.processIdentifier)
+        var windowRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString,
+                                            &windowRef) == .success,
+              let value = windowRef, CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return false }
+        let window = value as! AXUIElement
+
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString,
+                                            &positionRef) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString,
+                                            &sizeRef) == .success
+        else { return false }
+
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        AXValueGetValue(positionRef as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+
+        let bounds = CGDisplayBounds(displayID)
+        return abs(origin.y - bounds.minY) <= 2
+            && abs(origin.x - bounds.minX) <= 2
+            && size.width >= bounds.width - 2
+            && size.height >= bounds.height - 2
     }
 
     // MARK: - Signals
