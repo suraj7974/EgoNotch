@@ -29,7 +29,7 @@ nonisolated final class EgoVoice: NSObject, AVSpeechSynthesizerDelegate, @unchec
 
         lock.lock(); speaking = true; lock.unlock()
 
-        let utterance = AVSpeechUtterance(string: trimmed)
+        let utterance = Self.utterance(for: trimmed)
         utterance.rate = Float(min(max(rate, 0.3), 0.7))
         utterance.postUtteranceDelay = 0
         utterance.voice = Self.voice(for: voiceIdentifier)
@@ -39,6 +39,31 @@ nonisolated final class EgoVoice: NSObject, AVSpeechSynthesizerDelegate, @unchec
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
         finish()
+    }
+
+    /// Sounds people make that aren't words. Spelled out, the synthesiser
+    /// reads "Mhm" as three letters — em, aitch, em — so these carry their
+    /// pronunciation with them, in IPA, rather than relying on a lexicon that
+    /// has never heard of them.
+    private static let pronunciations: [String: String] = [
+        "mhm": "əmˈhəm",
+        "mm hmm": "əmˈhəm",
+        "mmhmm": "əmˈhəm",
+        "hmm": "ˈhəm",
+        "hmm?": "ˈhəm",
+        "uh huh": "əˈhə",
+        "hm": "ˈhəm",
+    ]
+
+    private static func utterance(for text: String) -> AVSpeechUtterance {
+        guard let ipa = pronunciations[text.lowercased()] else {
+            return AVSpeechUtterance(string: text)
+        }
+        let spoken = NSMutableAttributedString(string: text)
+        spoken.addAttribute(NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute),
+                            value: ipa,
+                            range: NSRange(location: 0, length: (text as NSString).length))
+        return AVSpeechUtterance(attributedString: spoken)
     }
 
     /// The voices Siri itself is built from. Apple never exposes Siri as a
