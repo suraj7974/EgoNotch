@@ -174,6 +174,25 @@ enum CommandGrammar {
         for verb in ["quit ", "force quit "] where text.hasPrefix(verb) {
             return EgoActions.quitApp(named: String(trimmed.dropFirst(verb.count)))
         }
+        // "call mum" / "facetime dad" — the raw text, since a name is a proper
+        // noun and a number must keep its digits.
+        for verb in ["video call ", "facetime "] where text.hasPrefix(verb) {
+            return EgoActions.call(String(trimmed.dropFirst(verb.count)), video: true)
+        }
+        for verb in ["call ", "ring ", "phone "] where text.hasPrefix(verb) {
+            return EgoActions.call(String(trimmed.dropFirst(verb.count)))
+        }
+        // "text mum saying I'm on my way"
+        for verb in ["text ", "message ", "send a message to "] where text.hasPrefix(verb) {
+            let rest = String(trimmed.dropFirst(verb.count))
+            for splitter in [" saying ", " that ", " telling them "] {
+                if let range = rest.range(of: splitter, options: .caseInsensitive) {
+                    return EgoActions.message(String(rest[..<range.lowerBound]),
+                                              saying: String(rest[range.upperBound...]))
+                }
+            }
+            return EgoActions.message(rest, saying: "")
+        }
         return nil
     }
 

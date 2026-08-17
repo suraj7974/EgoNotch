@@ -259,6 +259,14 @@ struct EgoSettingsPane: View {
                     .labelsHidden()
             }
             SettingsDivider()
+            SettingsRow(label: "Calls and messages",
+                        hint: "Ring people by name or number through FaceTime, and draft texts. Every call is read back and waits for your yes; messages are never sent for you.",
+                        icon: "phone") {
+                Toggle("", isOn: $settings.egoCalling)
+                    .toggleStyle(SwitchToggleStyle(tint: Ego.accent))
+                    .labelsHidden()
+            }
+            SettingsDivider()
             SettingsRow(label: "Let Ego use the terminal",
                         hint: "Every command is read back and waits for your yes. Dangerous ones are refused outright.",
                         icon: "terminal") {

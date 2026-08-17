@@ -313,6 +313,7 @@ extension EgoActions {
         if SettingsStore.shared.egoTerminalControl { parts.append("the terminal") }
         if SettingsStore.shared.egoControlApps { parts.append("other apps and their menus") }
         if SettingsStore.shared.egoRunShortcuts { parts.append("your shortcuts") }
+        if SettingsStore.shared.egoCalling { parts.append("calls and messages") }
 
         // Spoken, so the list is short; the notch shows the whole thing.
         let spoken = parts.prefix(3).joined(separator: ", ")

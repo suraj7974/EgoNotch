@@ -213,3 +213,71 @@ extension SystemControl.WindowPlace {
         }
     }
 }
+
+// MARK: - Calling and messaging
+
+@MainActor
+extension EgoActions {
+
+    /// Placing a call is the most irreversible thing Ego can do — it rings a
+    /// real person's phone, and a misheard name or digit dials a stranger. So
+    /// it is ALWAYS held for confirmation, with the number read back, however
+    /// unambiguous the request looked.
+    static func call(_ who: String, video: Bool = false) -> ActionResult {
+        guard SettingsStore.shared.egoCalling else {
+            return ActionResult("Calling is switched off.")
+        }
+        let cleaned = who.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return ActionResult("Call who?") }
+
+        // A number is dialled; anything else is handed to FaceTime, which
+        // resolves names against the user's own contacts. Ego never reads the
+        // address book itself — nothing to leak, and no permission to ask for.
+        let digits = cleaned.filter { $0.isNumber || $0 == "+" }
+        let isNumber = digits.count >= 5
+        let target = isNumber ? digits : cleaned
+        let scheme = video ? "facetime" : (isNumber ? "tel" : "facetime-audio")
+        let spokenTarget = isNumber ? digits.map(String.init).joined(separator: " ") : cleaned
+
+        guard let encoded = target.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+              let url = URL(string: "\(scheme)://\(encoded)") else {
+            return ActionResult("I can't call that.")
+        }
+        let question = video ? "FaceTime \(cleaned)?" : "Call \(cleaned)?"
+        return ActionResult(question,
+                            detail: "\(video ? "Video call" : "Call") \(target)",
+                            pending: PendingAction(
+                                question: "\(question) \(spokenTarget)",
+                                detail: target,
+                                perform: {
+                                    NSWorkspace.shared.open(url)
+                                    return ActionResult("Calling \(cleaned).")
+                                }))
+    }
+
+    /// Opens a message addressed to someone, with the text already in it —
+    /// but never presses send. Sending would put words in the user's mouth on
+    /// the strength of a transcript, which is not a risk worth taking for the
+    /// one keystroke it saves.
+    static func message(_ who: String, saying text: String) -> ActionResult {
+        guard SettingsStore.shared.egoCalling else {
+            return ActionResult("Messaging is switched off.")
+        }
+        let person = who.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !person.isEmpty else { return ActionResult("Message who?") }
+
+        let digits = person.filter { $0.isNumber || $0 == "+" }
+        let target = digits.count >= 5 ? digits : person
+        var components = URLComponents()
+        components.scheme = "sms"
+        components.path = target
+        if !text.isEmpty {
+            components.queryItems = [URLQueryItem(name: "body", value: text)]
+        }
+        guard let url = components.url else { return ActionResult("I can't message that.") }
+        NSWorkspace.shared.open(url)
+        return text.isEmpty
+            ? ActionResult("Message to \(person).", detail: "Opened in Messages")
+            : ActionResult("Ready to send.", detail: "To \(person): \(text)")
+    }
+}

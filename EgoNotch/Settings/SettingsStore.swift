@@ -50,6 +50,7 @@ final class SettingsStore {
         static let egoGreeting    = "ego.greeting"         // said on waking
         static let egoApps        = "ego.controlApps"      // Bool, default true
         static let egoShortcuts   = "ego.runShortcuts"     // Bool, default true
+        static let egoCalling     = "ego.calling"          // Bool, default false
         static let egoGreetings   = "ego.extraGreetings"   // [String], added from Settings
         static let egoTerminal    = "ego.terminalControl"  // may Ego type into the shell
         static let egoConverse    = "ego.conversation"     // Bool, default true
@@ -188,6 +189,13 @@ final class SettingsStore {
         didSet { defaults.set(egoRunShortcuts, forKey: Key.egoShortcuts) }
     }
 
+    /// Whether Ego may place calls and open messages. OFF by default, unlike
+    /// everything else: this is the only capability that reaches a person
+    /// rather than the machine, and a misheard digit rings a stranger.
+    var egoCalling: Bool {
+        didSet { defaults.set(egoCalling, forKey: Key.egoCalling) }
+    }
+
     /// What Ego says the moment it wakes, before you have said what you want.
     /// Empty means it wakes silently.
     var egoGreeting: String {
@@ -295,6 +303,7 @@ final class SettingsStore {
         egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
         egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoCalling = defaults.bool(forKey: Key.egoCalling)
         egoControlApps = defaults.object(forKey: Key.egoApps) as? Bool ?? true
         egoRunShortcuts = defaults.object(forKey: Key.egoShortcuts) as? Bool ?? true
         egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []
@@ -371,6 +380,7 @@ final class SettingsStore {
         egoExtraNames = defaults.stringArray(forKey: Key.egoExtraNames) ?? []
         egoVoiceMatch = defaults.object(forKey: Key.egoVoiceMatch) as? Bool ?? true
         egoGreeting = defaults.string(forKey: Key.egoGreeting) ?? "Mhm"
+        egoCalling = defaults.bool(forKey: Key.egoCalling)
         egoControlApps = defaults.object(forKey: Key.egoApps) as? Bool ?? true
         egoRunShortcuts = defaults.object(forKey: Key.egoShortcuts) as? Bool ?? true
         egoExtraGreetings = defaults.stringArray(forKey: Key.egoGreetings) ?? []

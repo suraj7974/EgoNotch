@@ -547,3 +547,36 @@ struct WebTool: Tool {
         }
     }
 }
+
+
+// MARK: - People
+
+struct CallTool: Tool {
+    let name = "call_or_message"
+    let description = "Call someone by name or number, start a FaceTime video call, or open a "
+        + "message to them with text ready to send. Calls always ask the user to confirm first, "
+        + "and messages are never sent automatically."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "What to do.", .anyOf(["call", "video", "message"]))
+        var action: String
+        @Guide(description: "The person's name as the user said it, or their phone number.")
+        var who: String
+        @Guide(description: "What the message should say, for the 'message' action.")
+        var text: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let action = arguments.action.lowercased()
+        let who = arguments.who
+        let text = arguments.text ?? ""
+        return await EgoToolBridge.run {
+            switch action {
+            case "video": EgoActions.call(who, video: true)
+            case "message": EgoActions.message(who, saying: text)
+            default: EgoActions.call(who)
+            }
+        }
+    }
+}

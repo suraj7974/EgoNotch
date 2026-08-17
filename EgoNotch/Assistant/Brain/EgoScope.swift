@@ -11,7 +11,8 @@ import FoundationModels
 /// offering one tool too many is a small cost and withholding the right one is
 /// a total failure.
 nonisolated enum EgoScope: CaseIterable {
-    case media, sound, terminal, notch, time, notes, camera, games, machine, apps, shortcuts, web
+    case media, sound, terminal, notch, time, notes, camera, games, machine, apps,
+         shortcuts, web, people
 
     /// Words that mean this scope is in play.
     var cues: [String] {
@@ -50,6 +51,8 @@ nonisolated enum EgoScope: CaseIterable {
             ["shortcut", "shortcuts", "automation", "focus mode", "wifi", "wi-fi"]
         case .web:
             ["search", "google", "website", "web", "browser", "url", ".com", ".dev", "link"]
+        case .people:
+            ["call", "ring", "phone", "facetime", "dial", "text", "message", "sms", "tell"]
         }
     }
 
@@ -68,6 +71,7 @@ nonisolated enum EgoScope: CaseIterable {
         case .apps: [AppTool(), MenuTool()]
         case .shortcuts: [ShortcutTool()]
         case .web: [WebTool()]
+        case .people: [CallTool()]
         }
     }
 
