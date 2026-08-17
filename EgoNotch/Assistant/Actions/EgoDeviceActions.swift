@@ -243,11 +243,15 @@ extension EgoActions {
               let url = URL(string: "\(scheme)://\(encoded)") else {
             return ActionResult("I can't call that.")
         }
+        // A number is read back digit by digit, because "seven nine seven" is
+        // checkable by ear and "7974803599" is not. A name is read as written
+        // — spelling it out would be gibberish.
+        let readBack = isNumber ? spokenTarget : cleaned
         let question = video ? "FaceTime \(cleaned)?" : "Call \(cleaned)?"
         return ActionResult(question,
                             detail: "\(video ? "Video call" : "Call") \(target)",
                             pending: PendingAction(
-                                question: "\(question) \(spokenTarget)",
+                                question: video ? "FaceTime \(readBack)?" : "Call \(readBack)?",
                                 detail: target,
                                 perform: {
                                     NSWorkspace.shared.open(url)

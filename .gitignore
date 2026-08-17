@@ -17,3 +17,6 @@ xcuserdata/
 # SwiftPM (future-proofing)
 .build/
 .swiftpm/
+
+# Personal notes, not part of the app
+PORTFOLIO.md
