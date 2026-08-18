@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.png" width="96" alt="EgoNotch">
+<img src="docs/icon.png" width="96" alt="EgoNotch">
 
 # EgoNotch
 
@@ -27,11 +27,11 @@ Entirely on-device: no API keys, no account, no subscription.
 
 ### Everything in the notch
 
-<a href="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo1.mp4"><img src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster1.jpg" width="820" alt="Watch: everything in the notch"></a>
+https://github.com/user-attachments/assets/05807309-a687-4948-9cae-4093792585cf
 
 ### Ego, talking back
 
-<a href="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo2.mp4"><img src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster2.jpg" width="820" alt="Watch: Ego, talking back"></a>
+https://github.com/user-attachments/assets/8adcf016-c71d-47df-803c-b3b923a0dd81
 
 </div>
 
@@ -98,8 +98,8 @@ digit. Messages are drafted, never sent for you.
 ## Run it
 
 ```sh
-git clone git@github.com:suraj7974/mac-notch.git
-cd mac-notch
+git clone git@github.com:suraj7974/EgoNotch.git
+cd EgoNotch
 make bootstrap && make install
 ```
 
