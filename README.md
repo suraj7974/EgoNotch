@@ -127,13 +127,16 @@ later.
 
 <div align="center">
 
-<sub>
-
-**macOS notch** · **Dynamic Island** · MacBook notch app · notch utility ·
-voice assistant · on-device AI · Apple Intelligence · FoundationModels ·
-local LLM · speech recognition · wake word · speaker verification ·
-Siri alternative · NotchNest alternative · Swift 6 · SwiftUI · menu bar app
-
-</sub>
+![macOS notch](https://img.shields.io/badge/macOS_notch-1c1c1e?style=flat-square)
+![Dynamic Island](https://img.shields.io/badge/Dynamic_Island-1c1c1e?style=flat-square)
+![Voice assistant](https://img.shields.io/badge/voice_assistant-1c1c1e?style=flat-square)
+![On-device AI](https://img.shields.io/badge/on--device_AI-1c1c1e?style=flat-square)
+![Apple Intelligence](https://img.shields.io/badge/Apple_Intelligence-1c1c1e?style=flat-square)
+![Local LLM](https://img.shields.io/badge/local_LLM-1c1c1e?style=flat-square)
+![Wake word](https://img.shields.io/badge/wake_word-1c1c1e?style=flat-square)
+![Speaker verification](https://img.shields.io/badge/speaker_verification-1c1c1e?style=flat-square)
+![Siri alternative](https://img.shields.io/badge/Siri_alternative-1c1c1e?style=flat-square)
+![NotchNest alternative](https://img.shields.io/badge/NotchNest_alternative-1c1c1e?style=flat-square)
+![Menu bar app](https://img.shields.io/badge/menu_bar_app-1c1c1e?style=flat-square)
 
 </div>
