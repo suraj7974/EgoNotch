@@ -76,7 +76,7 @@ Apple's on-device model. Anything that can bite waits for your yes.
 | **Recorder** | Photo · video · boomerang · GIF · photo booth · daily selfie |
 | **Focus** | Pomodoro, countdowns, stopwatch |
 | **Notes · To-Do · Clips · Files** | Notes with checkboxes, a list, clipboard history, a drag-and-drop shelf |
-| **Games** | Runner, snake, pong, shooter — built for a strip |
+| **Games** | Runner, snake, pong, shooter |
 | **Calendar · System · Battery** | Today's events, CPU, memory, disk, charge |
 
 Ducks out of the way in fullscreen. **Invisible to screen sharing**, still
@@ -108,7 +108,7 @@ digit. Messages are drafted, never sent for you.
 ## Run it
 
 ```sh
-git clone git@github.com:suraj7974/EgoNotch.git
+git clone https://github.com/suraj7974/EgoNotch.git
 cd EgoNotch
 make bootstrap && make install
 ```
