@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.png" width="128" alt="EgoNotch">
+<img src="docs/logo.png" width="96" alt="EgoNotch">
 
 # EgoNotch
 
@@ -27,11 +27,11 @@ Entirely on-device: no API keys, no account, no subscription.
 
 ### Everything in the notch
 
-<video src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo1.mp4" poster="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster1.jpg" controls muted playsinline width="820"></video>
+<a href="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo1.mp4"><img src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster1.jpg" width="820" alt="Watch: everything in the notch"></a>
 
 ### Ego, talking back
 
-<video src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo2.mp4" poster="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster2.jpg" controls muted playsinline width="820"></video>
+<a href="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo2.mp4"><img src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster2.jpg" width="820" alt="Watch: Ego, talking back"></a>
 
 </div>
 
