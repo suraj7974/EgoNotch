@@ -25,6 +25,16 @@ Entirely on-device: no API keys, no account, no subscription.
 
 <div align="center">
 
+<img src="docs/demo.gif" width="760" alt="EgoNotch in use">
+
+<sub>The notch, expanding.</sub>
+
+</div>
+
+<br>
+
+<div align="center">
+
 ### Everything in the notch
 
 https://github.com/user-attachments/assets/05807309-a687-4948-9cae-4093792585cf
