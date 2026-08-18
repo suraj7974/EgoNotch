@@ -1,45 +1,48 @@
 <div align="center">
 
+<img src="docs/logo.png" width="128" alt="EgoNotch">
+
 # EgoNotch
 
-### Your MacBook's notch, with a voice.
+**Your MacBook's notch, with a voice.**
 
-A notch utility whose assistant hears you, understands you, and runs your Mac —
-**entirely offline**. No API keys. No account. No subscription.
+A **Dynamic Island for macOS** — a notch utility whose assistant hears you,
+understands you, and runs your Mac.<br>
+Entirely on-device: no API keys, no account, no subscription.
 
-<sub>macOS 26 · Swift 6 · Apple Silicon · MIT</sub>
+<br>
+
+![macOS](https://img.shields.io/badge/macOS-26+-000000?style=flat-square&logo=apple&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift_6-F05138?style=flat-square&logo=swift&logoColor=white)
+![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-333333?style=flat-square&logo=apple&logoColor=white)
+![License](https://img.shields.io/badge/MIT-blue?style=flat-square)
+
+<br>
 
 </div>
 
----
+<br>
 
-## See it
+<div align="center">
 
-<table>
-<tr>
-<td width="50%" align="center">
+### Everything in the notch
 
-**The notch**
+<video src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo1.mp4" poster="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster1.jpg" controls muted playsinline width="820"></video>
 
-<video src="REPLACE_WITH_FEATURES_VIDEO_URL" controls width="100%"></video>
+### Ego, talking back
 
-</td>
-<td width="50%" align="center">
+<video src="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-demo2.mp4" poster="https://pub-44144ce1adac45feb221983f9a2cc401.r2.dev/egonotch-poster2.jpg" controls muted playsinline width="820"></video>
 
-**Ego, talking back**
+</div>
 
-<video src="REPLACE_WITH_ASSISTANT_VIDEO_URL" controls width="100%"></video>
-
-</td>
-</tr>
-</table>
+<br>
 
 ---
 
 ## Say it, and it happens
 
 ```
-"Hey Zoro, pause"                →  Paused.
+"Hey Iris, play a song"          →  Playing.
 "how far through is this song"   →  It's 1:12 in.
 "make it a bit quieter"          →  Volume 40.
 "open Zed"                       →  Zed.
@@ -49,86 +52,48 @@ A notch utility whose assistant hears you, understands you, and runs your Mac �
 "gaana chalu karo"               →  Playing.
 ```
 
-## What happens when you speak
+Known phrasings act instantly and never touch a model. Anything else goes to
+Apple's on-device model. Anything that can bite waits for your yes.
 
-Every sentence takes the shortest road it can. Known phrasings never touch a
-model; anything that can bite waits for you.
+<br>
 
-```mermaid
-flowchart LR
-    A["🎙 you speak"] --> B{"is it your<br/>voice?"}
-    B -->|no| X["ignored"]
-    B -->|yes| C{"a phrasing<br/>it knows?"}
-    C -->|yes| D["act — instantly"]
-    C -->|no| E["on-device model<br/>picks a tool"]
-    E --> F{"can it<br/>bite?"}
-    F -->|no| D
-    F -->|yes| G["read it back<br/>wait for your yes"]
-    G --> D
+## In the notch
 
-    style D fill:#1f6f43,stroke:#2ea36a,color:#fff
-    style G fill:#8a6d1f,stroke:#d0a84a,color:#fff
-    style X fill:#7a2d2d,stroke:#c25151,color:#fff
-```
+|  |  |
+|---|---|
+| **Now Playing** | Artwork, live visualiser, seekable scrubber — Spotify, Music, browsers |
+| **Terminal** | A real login shell. Your prompt, your aliases, your history |
+| **Recorder** | Photo · video · boomerang · GIF · photo booth · daily selfie |
+| **Focus** | Pomodoro, countdowns, stopwatch |
+| **Notes · To-Do · Clips · Files** | Notes with checkboxes, a list, clipboard history, a drag-and-drop shelf |
+| **Games** | Runner, snake, pong, shooter — built for a strip |
+| **Calendar · System · Battery** | Today's events, CPU, memory, disk, charge |
 
----
+Ducks out of the way in fullscreen. **Invisible to screen sharing**, still
+visible to you.
 
-## Inside the notch
+<br>
 
-**Now Playing** with a live visualiser · **a real login shell**, your prompt and
-aliases intact · **Recorder** — photo, video, boomerang, GIF, photo booth ·
-**Focus** timers · **Notes** & **To-Do** · **Clipboard** history · a **file
-shelf** · **four games** · calendar, battery, CPU.
+## Ego
 
-It ducks out of the way in fullscreen, and it is **invisible to screen sharing**
-while still visible to you.
+**Wake word.** Iris ,Zoro, Ego, Siri, Notch, Jarvis, Edith, Friday — or add your own.
+Each ships with the ways recognisers actually mangle it, and the chosen name is
+fed to the recogniser as a vocabulary hint. Without that, a rare name gets
+swapped for a commoner word about half the time.
 
----
+**Only your voice.** macOS ships no speaker-ID API, so this is written from
+first principles: MFCC features, dynamic time warping, and a threshold measured
+from your own voice rather than guessed. It turns away a different voice; it
+won't stop a recording of you.
 
-## How it's put together
+**The shell, gated.** Every command is read back and waits for your yes.
+`sudo`, `rm -rf /`, `mkfs`, `curl … | sh` are refused outright — no confirmation
+offered. It won't type while a password field is open.
 
-```mermaid
-flowchart TD
-    subgraph Ears
-        M["microphone"] --> T["transcript"]
-        T --> W["wake phrase"]
-        W --> V["is this you?"]
-    end
+**Calls.** Off by default. Always confirmed, with the number read back digit by
+digit. Messages are drafted, never sent for you.
 
-    subgraph Brain
-        V --> G["command grammar"]
-        G -.->|no match| L["on-device model"]
-        L --> S["scope router<br/>18 tools → the few that fit"]
-    end
-
-    subgraph Hands
-        G --> A["EgoActions"]
-        S --> A
-        A --> N["the notch"]
-        A --> Sh["your shell"]
-        A --> Mac["apps · windows · menus"]
-    end
-
-    style V fill:#1f4f7a,stroke:#4a9ad0,color:#fff
-    style A fill:#1f6f43,stroke:#2ea36a,color:#fff
-```
-
-Three ideas hold it up:
-
-**One implementation per verb.** `EgoActions` is the only place anything
-happens — grammar, model and tests all call the same function, so the fast path
-and the model can never drift apart.
-
-**Isolation is load-bearing.** The audio tap is `nonisolated` on a real-time
-thread; an implicitly main-actor callback traps the process on its first buffer.
-Accessibility calls run off-main behind deadlines, so a hung app costs six
-seconds, not the notch.
-
-**Nobody ships a speaker-ID API.** So voice matching is written from first
-principles — MFCC features, dynamic time warping, and a threshold measured from
-your own voice rather than guessed.
-
----
+<br>
 
 ## Run it
 
@@ -138,26 +103,37 @@ cd mac-notch
 make bootstrap && make install
 ```
 
-Ego needs **Microphone** and **Speech Recognition**; windows and menu commands
-need **Accessibility**; free phrasing needs **Apple Intelligence**. Nothing is
-asked for up front — each prompt arrives the first time you use the thing that
-needs it, and everything else keeps working without it.
+Ego wants **Microphone** and **Speech Recognition**. Windows and menu commands
+want **Accessibility**. Free phrasing wants **Apple Intelligence**. Nothing is
+asked up front — each prompt arrives the first time you use the thing that needs
+it, and everything else keeps working without it.
 
----
+<br>
 
 ## It stays here
 
 No network calls. No telemetry. **Audio is never written to disk** — transcripts
-live in memory and die when Ego is dismissed. Voice matching stores
-measurements, never recordings. Speech, understanding and synthesis are all
-Apple's on-device models.
+live in memory and die when Ego is dismissed. Voice matching keeps measurements,
+never recordings. Speech, understanding and synthesis are all Apple's on-device
+models.
 
-The one thing that leaves a trace does so on purpose: commands Ego runs land in
-your shell history, because a command you didn't type is the one you most want
-to find later.
+One thing leaves a trace on purpose: commands Ego runs land in your shell
+history, because a command you didn't type is the one you most want to find
+later.
+
+<br>
 
 ---
 
 <div align="center">
-<sub>Built in four days because a notch app shouldn't cost a subscription.</sub>
+
+<sub>
+
+**macOS notch** · **Dynamic Island** · MacBook notch app · notch utility ·
+voice assistant · on-device AI · Apple Intelligence · FoundationModels ·
+local LLM · speech recognition · wake word · speaker verification ·
+Siri alternative · NotchNest alternative · Swift 6 · SwiftUI · menu bar app
+
+</sub>
+
 </div>
