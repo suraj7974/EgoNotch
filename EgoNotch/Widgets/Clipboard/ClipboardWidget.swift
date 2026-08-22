@@ -186,7 +186,7 @@ struct ClipboardTileView: View {
                 .frame(minHeight: 48)
             } else {
                 // One click on any row copies THAT item — no selection step.
-                HStack {
+                HStack(spacing: 8) {
                     Text("\(store.items.count) item\(store.items.count == 1 ? "" : "s") — click to copy")
                         .font(Ego.font(10))
                         .egoDigits()
@@ -197,21 +197,29 @@ struct ClipboardTileView: View {
                         .font(Ego.font(10))
                         .foregroundStyle(Ego.textMute)
                 }
-                VStack(spacing: 4) {
-                    // No-scroll rule: newest few visible; count above tells the rest.
-                    ForEach(store.items.prefix(3)) { item in
-                        ClipRow(item: item, copied: copiedID == item.id) {
-                            store.copy(item)
-                            copiedID = item.id
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.2))
-                                if copiedID == item.id { copiedID = nil }
+                // The single exception to the notch's no-scrolling rule, and
+                // deliberately scoped to this list: clipboard history is the
+                // one tile whose whole point is reaching something older.
+                ScrollView(.vertical) {
+                    VStack(spacing: 4) {
+                        ForEach(store.items) { item in
+                            ClipRow(item: item, copied: copiedID == item.id) {
+                                store.copy(item)
+                                copiedID = item.id
+                                Task {
+                                    try? await Task.sleep(for: .seconds(1.2))
+                                    if copiedID == item.id { copiedID = nil }
+                                }
+                            } onRemove: {
+                                store.remove(item)
                             }
-                        } onRemove: {
-                            store.remove(item)
                         }
                     }
+                    .padding(.trailing, 2)      // room for the indicator
                 }
+                // No rubber-banding when everything already fits.
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxHeight: .infinity)
             }
         }
     }
