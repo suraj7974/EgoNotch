@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudio
 import Accelerate
 import Speech
 
@@ -41,6 +42,8 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
     func start(targetFormat: AVAudioFormat) throws -> AsyncStream<AnalyzerInput> {
         stop()
 
+        preferBuiltInMicrophone()
+
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0 else {
@@ -76,9 +79,140 @@ nonisolated final class EgoAudioTap: NSObject, @unchecked Sendable {
         return stream
     }
 
+    /// The input device that was selected before Ego moved it aside.
+    private var borrowedInput: AudioDeviceID?
+
+    /// Listen through the Mac's own microphone rather than a Bluetooth one.
+    ///
+    /// A Bluetooth headset has two modes: A2DP — stereo, full bandwidth, what
+    /// you want for listening — and HFP, mono at 16 kHz, which it switches to
+    /// the moment anything opens its microphone. Ego holds the microphone open
+    /// all day for the wake word, so simply *being* connected dropped the
+    /// user's earbuds to call quality: Ego's voice, their music, everything.
+    ///
+    /// Nothing system-wide is changed. This sets the device on our own input
+    /// unit only, so the headset stays on A2DP and Ego listens through the
+    /// built-in microphone a few inches further away — a trade worth making,
+    /// since the wake word was tuned on that microphone anyway.
+    private func preferBuiltInMicrophone() {
+        guard let current = Self.defaultInputDevice(),
+              Self.isBluetooth(current),
+              let builtIn = Self.builtInInputDevice() else { return }
+
+        var device = builtIn
+        if let unit = engine.inputNode.audioUnit {
+            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
+                                 kAudioUnitScope_Global, 0, &device,
+                                 UInt32(MemoryLayout<AudioDeviceID>.size))
+        }
+
+        // Not enough on its own. macOS keeps the headset in HFP for as long as
+        // it is the *selected* system input, whether or not anything is
+        // recording — measured: 1 channel at 16 kHz while selected, 2 channels
+        // at 44.1 kHz the moment it isn't. So the selection is borrowed for as
+        // long as Ego listens, and handed straight back in `stop()`.
+        borrowedInput = current
+        Self.setDefaultInput(builtIn)
+        EgoLog.trace("bluetooth headset kept in high quality — input moved to the built-in mic")
+    }
+
+    /// Gives the microphone selection back exactly as it was found.
+    func returnBorrowedInput() {
+        guard let borrowed = borrowedInput else { return }
+        borrowedInput = nil
+        // Only if nothing else has changed it since — the user may have picked
+        // a different microphone while Ego was running, and that choice wins.
+        guard let now = Self.defaultInputDevice(), Self.isBuiltIn(now) else {
+            EgoLog.trace("input was changed elsewhere — leaving it alone")
+            return
+        }
+        Self.setDefaultInput(borrowed)
+        EgoLog.trace("microphone selection handed back")
+    }
+
+    private static func setDefaultInput(_ device: AudioDeviceID) {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var value = device
+        AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil,
+                                   UInt32(MemoryLayout<AudioDeviceID>.size), &value)
+    }
+
+    private static func defaultInputDevice() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var device = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                         &address, 0, nil, &size, &device) == noErr
+        else { return nil }
+        return device
+    }
+
+    private static func isBluetooth(_ device: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var transport = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr
+        else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth
+    }
+
+    private static func builtInInputDevice() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var size = UInt32(0)
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject),
+                                             &address, 0, nil, &size) == noErr else { return nil }
+        var devices = [AudioDeviceID](repeating: 0,
+                                      count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                         &address, 0, nil, &size, &devices) == noErr else { return nil }
+
+        return devices.first { device in
+            guard isBuiltIn(device) else { return false }
+            var streams = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyStreamConfiguration,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: kAudioObjectPropertyElementMain)
+            var streamSize = UInt32(0)
+            guard AudioObjectGetPropertyDataSize(device, &streams, 0, nil, &streamSize) == noErr,
+                  streamSize > 0 else { return false }
+            let buffer = UnsafeMutableRawPointer.allocate(byteCount: Int(streamSize), alignment: 8)
+            defer { buffer.deallocate() }
+            guard AudioObjectGetPropertyData(device, &streams, 0, nil, &streamSize, buffer) == noErr
+            else { return false }
+            let list = UnsafeMutableAudioBufferListPointer(
+                buffer.assumingMemoryBound(to: AudioBufferList.self))
+            return list.reduce(0) { $0 + Int($1.mNumberChannels) } > 0
+        }
+    }
+
+    private static func isBuiltIn(_ device: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var transport = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr
+        else { return false }
+        return transport == kAudioDeviceTransportTypeBuiltIn
+    }
+
     func stop() {
         guard running else { return }
         running = false
+        returnBorrowedInput()
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         lock.lock()

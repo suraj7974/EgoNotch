@@ -99,6 +99,12 @@ final class EgoAssistant {
         startLevelPump()
     }
 
+    /// Called on quit. Synchronous on purpose: the app is going away and an
+    /// async teardown would not finish in time.
+    func releaseAudioDevices() {
+        ears.releaseAudioDevices()
+    }
+
     func deactivate() {
         guard isActive else { return }
         isActive = false

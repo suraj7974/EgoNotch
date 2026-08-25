@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let onboarding = OnboardingWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        catchTermination()
         _ = SettingsStore.shared
         WidgetRegistry.syncActivation()
 
@@ -96,7 +97,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// A SIGTERM — `pkill`, a crash reporter, the system logging out — never
+    /// reaches `applicationWillTerminate`, so the borrowed microphone
+    /// selection would be left swapped for ours. Handled on a dispatch source
+    /// rather than a C signal handler, which may only call async-signal-safe
+    /// functions and could not do this.
+    private func catchTermination() {
+        for signalNumber in [SIGTERM, SIGINT] {
+            signal(signalNumber, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: .main)
+            source.setEventHandler {
+                EgoAssistant.shared.releaseAudioDevices()
+                exit(0)
+            }
+            source.resume()
+            terminationSources.append(source)
+        }
+    }
+
+    private var terminationSources: [DispatchSourceSignal] = []
+
     func applicationWillTerminate(_ notification: Notification) {
+        // Before the widgets, and synchronously: Ego borrows the system's
+        // microphone selection to keep Bluetooth headsets out of call mode,
+        // and it has to be given back even on a sudden quit.
+        EgoAssistant.shared.releaseAudioDevices()
         for widget in WidgetRegistry.all { widget.deactivate() }
     }
 

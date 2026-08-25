@@ -148,6 +148,13 @@ final class EgoEars {
         EgoLog.trace("ears: stopped")
     }
 
+    /// Hands the microphone selection back, synchronously. Quitting cannot
+    /// wait on an async stop, and leaving the user's chosen input swapped for
+    /// ours would be a rude way to exit.
+    func releaseAudioDevices() {
+        tap.returnBorrowedInput()
+    }
+
     /// True while the microphone is genuinely open — `MeetingObserver` asks,
     /// so it can tell our own listening apart from a real call.
     var isMicLive: Bool { tap.isRunning }
