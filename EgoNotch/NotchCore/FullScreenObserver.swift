@@ -90,23 +90,34 @@ final class FullScreenObserver {
         //    menu bar automatically".
         //  • Accessibility, which the user HAS granted, can read the front
         //    window's own frame — no Screen Recording needed.
+        //
+        // On a notched display none of those geometric checks fire for a real
+        // fullscreen app: macOS parks the window *below* the notch, so it never
+        // starts at the top of the display, and the visible frame keeps the
+        // notch strip. The Space type and the window's own AXFullScreen flag
+        // say it directly, so they come first.
         let menuBarGone = Self.menuBarHidden(on: displayID)
+        let spaceIsFullScreen = Self.currentSpaceIsFullScreen(on: displayID)
         let frontCovers = Self.frontWindowCoversDisplay(displayID)
-        let covered = frontCovers
+        let covered = spaceIsFullScreen
+            || frontCovers
             || Self.hasFullScreenWindow(on: displayID)
             || (menuBarGone && Self.hasDisplayWideWindow(on: displayID))
         guard covered != isFullScreen else { return }
         isFullScreen = covered
         EgoLog.trace("fullscreen \(covered ? "began" : "ended") "
-                     + "(front window \(frontCovers), menu bar gone \(menuBarGone))")
+                     + "(space \(spaceIsFullScreen), front window \(frontCovers), "
+                     + "menu bar gone \(menuBarGone))")
         onChange?(covered)
     }
 
-    /// The frontmost app's window, measured through Accessibility.
+    /// The frontmost app's window, read through Accessibility.
     ///
-    /// A truly fullscreen window starts at the very top of the display and is
-    /// the size of it — a merely zoomed window begins below the menu bar, so
-    /// the origin is what tells them apart.
+    /// AXFullScreen is the window saying so itself — native fullscreen,
+    /// wherever macOS put it. Failing that, a borderless player that never
+    /// switches Spaces still starts at the very top of the display and is the
+    /// size of it; a merely zoomed window begins below the menu bar, so the
+    /// origin is what tells them apart.
     private static func frontWindowCoversDisplay(_ displayID: CGDirectDisplayID) -> Bool {
         guard AXIsProcessTrusted(),
               let front = NSWorkspace.shared.frontmostApplication,
@@ -120,6 +131,13 @@ final class FullScreenObserver {
               let value = windowRef, CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return false }
         let window = value as! AXUIElement
+
+        var fullScreenRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString,
+                                         &fullScreenRef) == .success,
+           (fullScreenRef as? Bool) == true {
+            return true
+        }
 
         var positionRef: CFTypeRef?
         var sizeRef: CFTypeRef?
@@ -142,6 +160,44 @@ final class FullScreenObserver {
     }
 
     // MARK: - Signals
+
+    /// Whether the Space showing on this display is a fullscreen one (type 4).
+    ///
+    /// Private SkyLight calls, looked up at runtime so a future macOS without
+    /// them just loses this signal instead of crashing. Needs no permission,
+    /// which makes it the one check that works even when Accessibility trust
+    /// has been dropped by a rebuild.
+    private static func currentSpaceIsFullScreen(on displayID: CGDirectDisplayID) -> Bool {
+        guard let mainConnection = SkyLight.mainConnection,
+              let copySpaces = SkyLight.copyManagedDisplaySpaces,
+              let spaces = copySpaces(mainConnection())?.takeRetainedValue()
+                as? [[String: Any]]
+        else { return false }
+
+        // With "Displays have separate Spaces" off there is a single entry,
+        // identified as "Main", that covers every display.
+        let uuid = CGDisplayCreateUUIDFromDisplayID(displayID)
+            .map { CFUUIDCreateString(nil, $0.takeRetainedValue()) as String }
+        let entry = spaces.first { ($0["Display Identifier"] as? String) == uuid }
+            ?? (spaces.count == 1 ? spaces.first : nil)
+        let current = entry?["Current Space"] as? [String: Any]
+        return (current?["type"] as? Int) == 4
+    }
+
+    private enum SkyLight {
+        typealias MainConnection = @convention(c) () -> Int32
+        typealias CopyManagedDisplaySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
+
+        static let mainConnection: MainConnection? = symbol("CGSMainConnectionID")
+        static let copyManagedDisplaySpaces: CopyManagedDisplaySpaces? =
+            symbol("CGSCopyManagedDisplaySpaces")
+
+        private static func symbol<T>(_ name: String) -> T? {
+            guard let pointer = dlsym(UnsafeMutableRawPointer(bitPattern: -2), name)
+            else { return nil }
+            return unsafeBitCast(pointer, to: T.self)
+        }
+    }
 
     /// In a fullscreen Space the menu bar is gone, so the screen's visible
     /// frame reaches the top of its frame. This is the signal that catches a
